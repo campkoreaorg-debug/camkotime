@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -73,11 +73,30 @@ export function SchedulePanel() {
 
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardItem[]>([]);
+  const [activeTab, setActiveTab] = useState('day-0');
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
     defaultValues: { event: '', location: '', staffId: '' },
   });
+
+  useEffect(() => {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    let timeString: string;
+    if (minutes < 30) {
+      timeString = `${String(hours).padStart(2, '0')}:00`;
+    } else {
+      timeString = `${String(hours).padStart(2, '0')}:30`;
+    }
+
+    if (timeSlots.includes(timeString)) {
+        const currentDay = parseInt(activeTab.split('-')[1], 10);
+        setSelectedSlot({ day: currentDay, time: timeString });
+    }
+  }, [activeTab]);
 
   const handleSelectSlot = (day: number, time: string) => {
     setSelectedSlot({ day, time });
@@ -149,7 +168,8 @@ export function SchedulePanel() {
     setItemsToDelete([]);
   };
 
-  const handleTabChange = () => {
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
     setSelectedSlot(null);
     setEditingItem(null);
     form.reset();
@@ -224,7 +244,7 @@ export function SchedulePanel() {
         <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="day-0" onValueChange={handleTabChange}>
+        <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             {days.map(day => (
               <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
