@@ -97,9 +97,9 @@ export function StaffPanel() {
         <CardHeader className="flex flex-row items-center justify-between">
             <div className='space-y-1'>
                 <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
-                <p className="text-muted-foreground">
+                <div className="text-muted-foreground">
                     총 <Badge variant="secondary">{data.staff.length}</Badge>명의 스태프가 등록되었습니다.
-                </p>
+                </div>
             </div>
           
             <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
