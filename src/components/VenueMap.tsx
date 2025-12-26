@@ -95,29 +95,33 @@ export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = 
     }, [staffTasks]);
 
     if (!staffMember) return null; // If staff member not found, don't render marker
+    
+    const MarkerContent = (
+         <div
+            data-marker-id={marker.id}
+            className={cn(
+                "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center",
+                isDraggable ? "cursor-grab" : "cursor-pointer",
+                draggingMarker === marker.id && "cursor-grabbing z-10"
+            )}
+            style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
+            onMouseDown={(e) => handleDragStart(e, marker.id)}
+            onTouchStart={(e) => handleDragStart(e, marker.id)}
+        >
+            <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
+                <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
+                <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
+                {staffNumber}. {staffMember.name}
+            </div>
+        </div>
+    )
 
     return (
         <Popover>
-            <PopoverTrigger asChild>
-                <div
-                    data-marker-id={marker.id}
-                    className={cn(
-                        "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer",
-                        isDraggable && "cursor-grab",
-                        draggingMarker === marker.id && "cursor-grabbing z-10"
-                    )}
-                    style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                    onMouseDown={(e) => handleDragStart(e, marker.id)}
-                    onTouchStart={(e) => handleDragStart(e, marker.id)}
-                >
-                    <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
-                        <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
-                        <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
-                        {staffNumber}. {staffMember.name}
-                    </div>
-                </div>
+            <PopoverTrigger asChild disabled={isDraggable}>
+               {MarkerContent}
             </PopoverTrigger>
             <PopoverContent className="w-80">
                 <div className="flex items-center gap-4 mb-4">
