@@ -6,8 +6,10 @@ service cloud.firestore {
     // Venues can only be created, updated, or deleted by the user
     // who owns the venue.
     match /venues/{venueId} {
-      allow get, list: if true;
-      allow create, update, delete: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow get: if true;
+      allow list: if true;
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
       // Staff can be read by anyone.
       // Staff can only be created, updated, or deleted by the user

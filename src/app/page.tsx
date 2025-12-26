@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, Shield, Loader2 } from 'lucide-react';
-import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -43,19 +43,19 @@ export default function LoginPage() {
     if (password === 'camp1') {
       try {
         await signInWithEmailAndPassword(auth, 'admin@venue.sync', password);
-        router.push('/admin');
+        // Successful sign-in is handled by the useEffect
       } catch (error: any) {
-        // If admin user doesn't exist, create it.
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
           try {
-            await auth.createUserWithEmailAndPassword('admin@venue.sync', password);
-            router.push('/admin');
+            await createUserWithEmailAndPassword(auth, 'admin@venue.sync', password);
+            // Successful creation is handled by the useEffect
           } catch (createError: any) {
              toast({
                 variant: 'destructive',
-                title: '관리자 로그인 실패',
+                title: '관리자 계정 생성 실패',
                 description: createError.message,
               });
+             setIsLoggingIn(false);
           }
         } else {
             toast({
@@ -63,9 +63,8 @@ export default function LoginPage() {
                 title: '로그인 오류',
                 description: "알 수 없는 오류가 발생했습니다.",
             });
+            setIsLoggingIn(false);
         }
-      } finally {
-        setIsLoggingIn(false);
       }
     } else {
       toast({
@@ -81,15 +80,14 @@ export default function LoginPage() {
     setIsViewerLoading(true);
     try {
       await signInAnonymously(auth);
-      router.push('/viewer');
+      // Successful sign-in is handled by the useEffect
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: '뷰어 접속 실패',
         description: error.message,
       });
-    } finally {
-        setIsViewerLoading(false);
+      setIsViewerLoading(false);
     }
   };
   
