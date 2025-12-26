@@ -77,11 +77,11 @@ export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = 
   };
 
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
-    const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId]);
-    const staffIndex = useMemo(() => staffMember ? staff.findIndex(s => s.id === staffMember.id) : -1, [staffMember]);
+    const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId, staff]);
+    const staffIndex = useMemo(() => staffMember ? staff.findIndex(s => s.id === staffMember.id) : -1, [staffMember, staff]);
     const staffNumber = staffIndex !== -1 ? staffIndex + 1 : null;
     
-    const staffTasks = useMemo(() => schedule.filter(task => task.staffId === staffMember?.id), [staffMember]);
+    const staffTasks = useMemo(() => schedule.filter(task => task.staffId === staffMember?.id), [staffMember, schedule]);
 
     const groupedTasks = useMemo(() => {
         return staffTasks.reduce((acc, task) => {
