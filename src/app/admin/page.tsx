@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
-import { VenueMap } from '@/components/VenueMap';
+import VenueMap from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { LogOut, Loader2, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';

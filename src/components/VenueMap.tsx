@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { CalendarClock, X } from 'lucide-react';
 import type { MapMarker, StaffMember, ScheduleItem } from '@/lib/types';
@@ -30,104 +30,106 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
 
   const mapRef = useRef<HTMLDivElement>(null);
   
-  // 1. 팝업 상태 관리 (Controlled)
+  // 1. 상태 관리
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
-
-  // 2. 드래그 상태 관리
   const [draggingMarkerId, setDraggingMarkerId] = useState<string | null>(null);
   
-  // Refs (렌더링 없이 값 저장)
+  // Refs
   const isDraggingRef = useRef(false);
   const startPosRef = useRef({ x: 0, y: 0 });
 
-  // --- 드래그 핸들러 ---
-  const handleDragStart = (e: ReactMouseEvent | ReactTouchEvent, markerId: string) => {
+  // 2. 드래그 시작 핸들러
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent, markerId: string) => {
     if (!isDraggable) return;
     
-    // 이벤트 전파 방지 (중요)
     e.stopPropagation();
 
-    // 팝업이 열려있다면 드래그 시작 시 닫기 (선택 사항)
     if (activeMarkerId) setActiveMarkerId(null);
 
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
     startPosRef.current = { x: clientX, y: clientY };
-    isDraggingRef.current = false; // 일단 클릭으로 가정
+    isDraggingRef.current = false;
     setDraggingMarkerId(markerId);
   };
 
-  const handleDragMove = (e: ReactMouseEvent | ReactTouchEvent) => {
-    if (!draggingMarkerId || !mapRef.current) return;
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  // 3. 전역 이벤트 리스너 (useEffect)
+  useEffect(() => {
+    if (!draggingMarkerId) return;
 
-    const moveX = Math.abs(clientX - startPosRef.current.x);
-    const moveY = Math.abs(clientY - startPosRef.current.y);
+    const handleGlobalMove = (e: MouseEvent | TouchEvent) => {
+        if (!mapRef.current) return;
 
-    // 5px 이상 움직이면 "드래그"로 확정
-    if (!isDraggingRef.current && (moveX > 5 || moveY > 5)) {
-        isDraggingRef.current = true;
-    }
+        const clientX = 'touches' in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+        const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
 
-    if (isDraggingRef.current) {
-        // 드래그 중에는 브라우저 기본 동작(스크롤 등) 방지
-        if(e.cancelable) e.preventDefault(); 
-        
-        const mapBounds = mapRef.current.getBoundingClientRect();
-        
-        let x = ((clientX - mapBounds.left) / mapBounds.width) * 100;
-        let y = ((clientY - mapBounds.top) / mapBounds.height) * 100;
+        const moveX = Math.abs(clientX - startPosRef.current.x);
+        const moveY = Math.abs(clientY - startPosRef.current.y);
 
-        // 화면 밖으로 나가지 않게 제한 (0~100%)
-        x = Math.max(0, Math.min(100, x));
-        y = Math.max(0, Math.min(100, y));
-
-        // 성능을 위해 DOM 직접 조작
-        const markerElement = mapRef.current.querySelector(`[data-marker-id="${draggingMarkerId}"]`) as HTMLElement;
-        if (markerElement) {
-            markerElement.style.left = `${x}%`;
-            markerElement.style.top = `${y}%`;
+        if (!isDraggingRef.current && (moveX > 5 || moveY > 5)) {
+            isDraggingRef.current = true;
         }
-    }
-  };
 
-  const handleDragEnd = (e: ReactMouseEvent | ReactTouchEvent) => {
-    if (!draggingMarkerId || !mapRef.current) return;
+        if (isDraggingRef.current) {
+            if (e.cancelable) e.preventDefault();
 
-    if (isDraggingRef.current) {
-        // 드래그가 끝났을 때만 위치 저장
-        const mapBounds = mapRef.current.getBoundingClientRect();
-        const clientX = 'changedTouches' in e ? e.changedTouches[0].clientX : e.clientX;
-        const clientY = 'changedTouches' in e ? e.changedTouches[0].clientY : e.clientY;
-        
-        let x = ((clientX - mapBounds.left) / mapBounds.width) * 100;
-        let y = ((clientY - mapBounds.top) / mapBounds.height) * 100;
+            const mapBounds = mapRef.current.getBoundingClientRect();
+            
+            let x = ((clientX - mapBounds.left) / mapBounds.width) * 100;
+            let y = ((clientY - mapBounds.top) / mapBounds.height) * 100;
 
-        x = Math.max(0, Math.min(100, x));
-        y = Math.max(0, Math.min(100, y));
+            x = Math.max(0, Math.min(100, x));
+            y = Math.max(0, Math.min(100, y));
 
-        onMarkerDragEnd?.(draggingMarkerId, x, y);
-    }
+            const markerElement = mapRef.current.querySelector(`[data-marker-id="${draggingMarkerId}"]`) as HTMLElement;
+            if (markerElement) {
+                markerElement.style.left = `${x}%`;
+                markerElement.style.top = `${y}%`;
+            }
+        }
+    };
 
-    setDraggingMarkerId(null);
-    
-    // 클릭 이벤트가 뒤이어 발생할 수 있으므로 플래그 초기화를 살짝 지연
-    setTimeout(() => {
-        isDraggingRef.current = false;
-    }, 100);
-  };
+    const handleGlobalUp = (e: MouseEvent | TouchEvent) => {
+        if (isDraggingRef.current && mapRef.current) {
+            const mapBounds = mapRef.current.getBoundingClientRect();
+            const clientX = 'changedTouches' in e ? (e as TouchEvent).changedTouches[0].clientX : (e as MouseEvent).clientX;
+            const clientY = 'changedTouches' in e ? (e as TouchEvent).changedTouches[0].clientY : (e as MouseEvent).clientY;
+            
+            let x = ((clientX - mapBounds.left) / mapBounds.width) * 100;
+            let y = ((clientY - mapBounds.top) / mapBounds.height) * 100;
+
+            x = Math.max(0, Math.min(100, x));
+            y = Math.max(0, Math.min(100, y));
+
+            onMarkerDragEnd?.(draggingMarkerId, x, y);
+        }
+
+        setDraggingMarkerId(null);
+        setTimeout(() => {
+            isDraggingRef.current = false;
+        }, 100);
+    };
+
+    window.addEventListener('mousemove', handleGlobalMove, { passive: false });
+    window.addEventListener('mouseup', handleGlobalUp);
+    window.addEventListener('touchmove', handleGlobalMove, { passive: false });
+    window.addEventListener('touchend', handleGlobalUp);
+
+    return () => {
+        window.removeEventListener('mousemove', handleGlobalMove);
+        window.removeEventListener('mouseup', handleGlobalUp);
+        window.removeEventListener('touchmove', handleGlobalMove);
+        window.removeEventListener('touchend', handleGlobalUp);
+    };
+  }, [draggingMarkerId, onMarkerDragEnd]);
 
   // --- 렌더링 ---
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
-    // Staff 정보 찾기
     const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId, staff]);
     const staffIndex = useMemo(() => staffMember ? staff.findIndex(s => s.id === staffMember.id) : -1, [staffMember, staff]);
     const staffNumber = staffIndex !== -1 ? staffIndex + 1 : null;
     
-    // 업무 정보 찾기
     const staffTasks = useMemo(() => schedule.filter(task => task.staffId === staffMember?.id), [staffMember, schedule]);
     const groupedTasks = useMemo(() => {
         return staffTasks.reduce((acc, task) => {
@@ -146,9 +148,7 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
         <Popover 
             open={isOpen} 
             onOpenChange={(open) => {
-                // 드래그 중이었다면 상태 변경 무시 (팝업 열지 않음)
                 if (isDraggingRef.current) return;
-                // 외부 클릭 등으로 닫힐 때 처리
                 if (!open) setActiveMarkerId(null);
             }}
         >
@@ -162,13 +162,10 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                         isOpen && "z-40 scale-110"
                     )}
                     style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                    // 드래그 시작
                     onMouseDown={(e) => handleDragStart(e, marker.id)}
                     onTouchStart={(e) => handleDragStart(e, marker.id)}
-                    // 클릭 (팝업 열기/닫기)
                     onClick={(e) => {
                         e.stopPropagation();
-                        // 드래그가 아니었을 때만 팝업 토글
                         if (!isDraggingRef.current) {
                             setActiveMarkerId(prev => prev === marker.id ? null : marker.id);
                         }
@@ -184,8 +181,13 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                 </div>
             </PopoverTrigger>
             
-            <PopoverContent className="w-80 p-0 overflow-hidden" sideOffset={10}>
-                {/* 헤더 */}
+            {/* [중요] PopoverContent에도 번역 방지(notranslate) 추가 */}
+            <PopoverContent 
+                className="w-80 p-0 overflow-hidden notranslate" 
+                sideOffset={10}
+                // HTML 속성으로 번역 방지
+                {...{ "translate": "no" } as any}
+            >
                 <div className="bg-primary/5 p-4 border-b flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                          <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
@@ -202,7 +204,6 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                     </Button>
                 </div>
                 
-                {/* 스케줄 리스트 */}
                 <div className="p-4">
                     <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-primary">
                        <CalendarClock className='h-4 w-4'/> 담당 스케줄
@@ -246,14 +247,10 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
     <div className="w-full h-full bg-slate-50/50 rounded-xl overflow-hidden border shadow-sm">
         <div 
           ref={mapRef}
-          className="relative w-full h-full min-h-[400px]"
-          // 맵 전체 영역에서 드래그 움직임/종료 감지
-          onMouseMove={handleDragMove}
-          onMouseUp={handleDragEnd}
-          onMouseLeave={handleDragEnd}
-          onTouchMove={handleDragMove}
-          onTouchEnd={handleDragEnd}
-          // 배경 클릭 시 팝업 닫기
+          // [중요] 최상위 DIV에 번역 방지 설정
+          className="relative w-full h-full min-h-[400px] notranslate"
+          // HTML 속성으로도 번역 방지 (translate="no")
+          {...{ "translate": "no" } as any}
           onClick={() => setActiveMarkerId(null)}
         >
           {finalMapImageUrl && (
@@ -261,7 +258,7 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
               src={finalMapImageUrl}
               alt="Venue Map"
               fill
-              className="object-cover pointer-events-none" // 이미지 드래그 방지
+              className="object-cover pointer-events-none"
               priority
             />
           )}

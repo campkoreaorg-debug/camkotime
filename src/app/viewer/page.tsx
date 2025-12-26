@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { VenueMap } from '@/components/VenueMap';
+import VenueMap from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Button } from '@/components/ui/button';
 import { Home, Loader2, Database } from 'lucide-react';
