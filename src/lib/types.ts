@@ -14,6 +14,7 @@ export interface ScheduleItem {
   time: string; // "07:00", "07:30", ...
   event: string;
   location: string;
+  staffId?: string;
 }
 
 export interface MapMarker {

@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit } from 'lucide-react';
+import { Plus, Trash2, Edit, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -20,15 +20,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { ScheduleItem } from '@/lib/types';
+import type { ScheduleItem, StaffMember } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
-import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 const scheduleSchema = z.object({
   event: z.string().min(1, '이벤트 내용을 입력해주세요.'),
   location: z.string().optional(),
+  staffId: z.string().optional(),
 });
 
 type ScheduleFormValues = z.infer<typeof scheduleSchema>;
@@ -64,23 +66,23 @@ export function SchedulePanel() {
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
-    defaultValues: { event: '', location: '' },
+    defaultValues: { event: '', location: '', staffId: '' },
   });
 
   const handleSelectSlot = (day: number, time: string) => {
     setSelectedSlot({ day, time });
     setEditingItem(null);
-    form.reset();
+    form.reset({ event: '', location: '', staffId: ''});
   }
 
   const handleEditClick = (item: ScheduleItem) => {
     setEditingItem(item);
-    form.reset({ event: item.event, location: item.location || '' });
+    form.reset({ event: item.event, location: item.location || '', staffId: item.staffId || '' });
   };
   
   const handleCancelEdit = () => {
     setEditingItem(null);
-    form.reset();
+    form.reset({ event: '', location: '', staffId: ''});
   }
 
   const onSubmit = (values: ScheduleFormValues) => {
@@ -89,7 +91,7 @@ export function SchedulePanel() {
     const currentItems = data.schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time);
 
     if (editingItem) {
-      const updatedItem = { ...editingItem, ...values, location: values.location || editingItem.location };
+      const updatedItem = { ...editingItem, ...values };
       updateSchedule(editingItem.id, updatedItem);
       setEditingItem(null);
     } else {
@@ -100,7 +102,7 @@ export function SchedulePanel() {
         time: selectedSlot.time,
       });
     }
-    form.reset();
+    form.reset({ event: '', location: '', staffId: ''});
   };
   
   const handleDeleteConfirmation = (item: ScheduleItem) => {
@@ -208,17 +210,46 @@ export function SchedulePanel() {
                                 {selectedSlot.day}일차 {selectedSlot.time} 스케줄 입력
                             </h3>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <div>
-                                    <Label htmlFor="event-input" className="sr-only">새 항목</Label>
-                                    <Input 
-                                        id="event-input"
-                                        placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
-                                        {...form.register('event')} 
-                                        autoComplete="off"
+                                <div className="flex gap-2 items-start">
+                                    <div className='flex-grow'>
+                                        <Label htmlFor="event-input" className="sr-only">새 항목</Label>
+                                        <Input 
+                                            id="event-input"
+                                            placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
+                                            {...form.register('event')} 
+                                            autoComplete="off"
+                                        />
+                                        {form.formState.errors.event && (
+                                            <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
+                                        )}
+                                    </div>
+                                    
+                                    <Controller
+                                      control={form.control}
+                                      name="staffId"
+                                      render={({ field }) => (
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                          <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="담당자 선택" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="">담당자 없음</SelectItem>
+                                            {data.staff.map(s => (
+                                                <SelectItem key={s.id} value={s.id}>
+                                                  <div className="flex items-center gap-2">
+                                                    <Avatar className="h-5 w-5">
+                                                      <AvatarImage src={s.avatar} alt={s.name} />
+                                                      <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span>{s.name}</span>
+                                                  </div>
+                                                </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      )}
                                     />
-                                    {form.formState.errors.event && (
-                                        <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
-                                    )}
+
                                 </div>
                                 {editingItem && (
                                     <div className="flex justify-end gap-2">
@@ -235,24 +266,41 @@ export function SchedulePanel() {
                                 <div key={time} className={`p-4 rounded-lg border ${isCurrent ? 'bg-muted/60 border-primary md:col-span-3' : 'bg-muted/20 md:col-span-1'}`}>
                                     <h4 className="font-semibold text-center mb-3">{time}</h4>
                                     <div className="space-y-2 min-h-[50px]">
-                                        {items.map(item => (
+                                        {items.map(item => {
+                                            const assignedStaff = data.staff.find(s => s.id === item.staffId);
+                                            return (
                                             <div key={item.id} className="p-2 rounded-md border bg-background flex justify-between items-center group">
-                                            <div>
-                                                <p className="font-medium text-sm">{item.event}</p>
-                                                {item.location && <p className="text-xs text-muted-foreground">{item.location}</p>}
-                                            </div>
-                                            {isCurrent && (
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditClick(item)}>
-                                                        <Edit className="h-3.5 w-3.5"/>
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirmation(item)}>
-                                                        <Trash2 className="h-3.5 w-3.5"/>
-                                                    </Button>
+                                                <div>
+                                                    <p className="font-medium text-sm">{item.event}</p>
+                                                    <div className='flex items-center gap-2 mt-1'>
+                                                        {assignedStaff ? (
+                                                            <>
+                                                                <Avatar className="h-5 w-5">
+                                                                    <AvatarImage src={assignedStaff.avatar} alt={assignedStaff.name} />
+                                                                    <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
+                                                                </Avatar>
+                                                                <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <User className='h-4 w-4 text-muted-foreground' />
+                                                                <p className="text-xs text-muted-foreground">담당자 미지정</p>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            )}
+                                                {isCurrent && (
+                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditClick(item)}>
+                                                            <Edit className="h-3.5 w-3.5"/>
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirmation(item)}>
+                                                            <Trash2 className="h-3.5 w-3.5"/>
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </div>
-                                        ))}
+                                        )})}
                                         {items.length === 0 && (
                                             <div className="text-center text-muted-foreground text-xs py-4">
                                                 <p>스케줄 없음</p>

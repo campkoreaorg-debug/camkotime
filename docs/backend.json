@@ -102,6 +102,10 @@
         "location": {
             "type": "string",
             "description": "Location of the event."
+        },
+        "staffId": {
+            "type": "string",
+            "description": "ID of the assigned staff member."
         }
       },
       "required": [
