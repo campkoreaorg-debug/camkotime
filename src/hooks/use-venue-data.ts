@@ -68,7 +68,7 @@ export const useVenueData = () => {
     const venueDocRef = doc(firestore, 'venues', VENUE_ID);
     batch.set(venueDocRef, { name: 'My Main Venue', mapImageUrl: initialData.mapImageUrl, ownerId: user.uid });
     
-    // Set staff
+    // Set staff (now empty)
     initialData.staff.forEach((staffMember) => {
         const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffMember.id);
         batch.set(staffDocRef, staffMember);
@@ -114,6 +114,41 @@ export const useVenueData = () => {
     
     setDocumentNonBlocking(staffDocRef, newStaff, {});
     setDocumentNonBlocking(markerDocRef, newMarker, {});
+  };
+
+  const addStaffBatch = async (newStaffMembers: { name: string; avatar: string }[]) => {
+    if (!firestore) return;
+    const batch = writeBatch(firestore);
+    const timestamp = Date.now();
+
+    newStaffMembers.forEach((member, index) => {
+        const staffId = `staff-${timestamp}-${index}`;
+        const markerId = `marker-${timestamp}-${index}`;
+        
+        const newStaff: StaffMember = {
+            id: staffId,
+            name: member.name,
+            role: 'Operations', // Default role
+            avatar: member.avatar,
+        };
+
+        const newMarker: MapMarker = {
+            id: markerId,
+            staffId: staffId,
+            type: 'staff',
+            label: member.name,
+            x: Math.round(Math.random() * 80) + 10,
+            y: Math.round(Math.random() * 80) + 10,
+        };
+
+        const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
+        batch.set(staffDocRef, newStaff);
+        
+        const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
+        batch.set(markerDocRef, newMarker);
+    });
+
+    await batch.commit();
   };
 
   const updateStaff = (staffId: string, data: Partial<StaffMember>) => {
@@ -168,11 +203,11 @@ export const useVenueData = () => {
   }
 
   const data: VenueData = {
-    staff: staff || [],
+    staff: staff ? [...staff].sort((a,b) => a.id.localeCompare(b.id)) : [],
     schedule: schedule ? [...schedule].sort((a,b) => a.time.localeCompare(b.time)) : [],
     markers: markers || [],
     mapImageUrl: venueDoc?.mapImageUrl,
   };
 
-  return { data, addStaff, updateStaff, deleteStaff, addSchedule, updateSchedule, deleteSchedule, updateMapImage, initializeFirestoreData, isLoading: !venueDoc || !staff || !schedule || !markers };
+  return { data, addStaff, addStaffBatch, updateStaff, deleteStaff, addSchedule, updateSchedule, deleteSchedule, updateMapImage, initializeFirestoreData, isLoading: !venueDoc || !staff || !schedule || !markers };
 };

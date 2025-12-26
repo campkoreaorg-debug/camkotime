@@ -1,28 +1,8 @@
 "use client";
 
 import { useState, useRef } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Trash2, Upload } from 'lucide-react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { PlusCircle, Trash2, Upload, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from '@/components/ui/dialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -33,48 +13,21 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
   } from "@/components/ui/alert-dialog"
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { StaffMember } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { User } from 'lucide-react';
-
-const addStaffSchema = z.object({
-    name: z.string().min(2, '이름은 최소 2자 이상이어야 합니다.'),
-});
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { ScrollArea } from '../ui/scroll-area';
 
 export function StaffPanel() {
-  const { data, addStaff, deleteStaff } = useVenueData();
+  const { data, addStaffBatch, deleteStaff } = useVenueData();
   const { toast } = useToast();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const addForm = useForm<z.infer<typeof addStaffSchema>>({
-    resolver: zodResolver(addStaffSchema),
-    defaultValues: { name: '' },
-  });
-  
-  const handleAddDialogOpen = () => {
-    addForm.reset({ name: '' });
-    setAvatarPreview(null);
-    setAvatarFile(null);
-    setIsAddDialogOpen(true);
-  }
-
-  const onAddSubmit = (values: z.infer<typeof addStaffSchema>) => {
-    if (!avatarFile) {
-        toast({ variant: "destructive", title: "오류", description: "이미지를 업로드해주세요." });
-        return;
-    }
-    addStaff(values.name, avatarFile);
-    setIsAddDialogOpen(false);
-  };
 
   const handleDeleteConfirmation = (staff: StaffMember) => {
     setStaffToDelete(staff);
@@ -88,113 +41,124 @@ export function StaffPanel() {
     setStaffToDelete(null);
   };
 
-  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+
+    const imagePromises = Array.from(files).map(file => {
       if (file.size > 1 * 1024 * 1024) { // 1MB limit
         toast({
           variant: 'destructive',
           title: '이미지 크기 초과',
-          description: '이미지 파일은 1MB를 초과할 수 없습니다.',
+          description: `${file.name} 파일은 1MB를 초과할 수 없습니다.`,
         });
-        return;
+        return null;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-        setAvatarFile(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      return new Promise<{ name: string; avatar: string }>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const name = file.name.split('.').slice(0, -1).join('.') || 'Unknown';
+            resolve({ name, avatar: reader.result as string });
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    });
+
+    try {
+        const newStaffMembers = (await Promise.all(imagePromises)).filter(Boolean) as { name: string; avatar: string }[];
+        if (newStaffMembers.length > 0) {
+            await addStaffBatch(newStaffMembers);
+            toast({
+                title: '성공',
+                description: `${newStaffMembers.length}명의 스태프가 추가되었습니다.`,
+            });
+        }
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "업로드 실패",
+            description: "이미지 처리 중 오류가 발생했습니다.",
+        });
+    } finally {
+        setIsUploading(false);
+        // Reset file input
+        if(fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
     }
   };
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-headline font-semibold">스태프 관리</h2>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleAddDialogOpen}>
-              <PlusCircle className="mr-2 h-4 w-4" /> 스태프 추가
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="font-headline">새 스태프 추가</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={addForm.handleSubmit(onAddSubmit)} className="space-y-4">
-                <div className='space-y-2'>
-                    <Label>스태프 사진</Label>
-                    <div className='flex items-center gap-4'>
-                        <Avatar className='h-20 w-20'>
-                            {avatarPreview ? <AvatarImage src={avatarPreview} /> : <AvatarFallback><User className='h-10 w-10 text-muted-foreground'/></AvatarFallback>}
-                        </Avatar>
-                        <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                            <Upload className="mr-2 h-4 w-4" />
-                            이미지 업로드
-                        </Button>
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleAvatarUpload}
-                            className="hidden"
-                            accept="image/png, image/jpeg"
-                        />
-                    </div>
-                </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">이름</Label>
-                <Input id="name" {...addForm.register('name')} />
-                {addForm.formState.errors.name && (
-                  <p className="text-sm text-destructive">{addForm.formState.errors.name.message}</p>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+            <div className='space-y-1'>
+                <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
+                <p className="text-muted-foreground">
+                    총 <Badge variant="secondary">{data.staff.length}</Badge>명의 스태프가 등록되었습니다.
+                </p>
+            </div>
+          
+            <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                {isUploading ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <span>업로드 중...</span>
+                    </>
+                ) : (
+                    <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        스태프 추가
+                    </>
                 )}
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="secondary">취소</Button>
-                </DialogClose>
-                <Button type="submit">저장</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-      <div className='bg-card p-2 rounded-lg border'>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[50px]">#</TableHead>
-            <TableHead>아바타</TableHead>
-            <TableHead>이름</TableHead>
-            <TableHead className="text-right">작업</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.staff.map((s, index) => (
-            <TableRow key={s.id}>
-                <TableCell className="font-medium">{index + 1}</TableCell>
-                <TableCell>
-                    <Avatar>
-                        <AvatarImage src={s.avatar} alt={s.name} />
-                        <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                </TableCell>
-                <TableCell className="font-medium">{s.name}</TableCell>
-                <TableCell className="text-right">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteConfirmation(s)}
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      </div>
+            </Button>
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleAvatarUpload}
+                className="hidden"
+                accept="image/png, image/jpeg"
+                multiple // 여러 파일 선택 허용
+            />
+        </CardHeader>
+        <CardContent>
+            {data.staff.length > 0 ? (
+                <ScrollArea className="h-96 w-full">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-1">
+                    {data.staff.map((s, index) => (
+                        <div key={s.id} className="relative group flex flex-col items-center gap-2">
+                            <span className="absolute -top-2 -left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
+                                {index + 1}
+                            </span>
+                            <Avatar className='h-24 w-24 border-2 border-transparent group-hover:border-primary transition-all'>
+                                <AvatarImage src={s.avatar} alt={s.name} />
+                                <AvatarFallback><User className='h-10 w-10 text-muted-foreground'/></AvatarFallback>
+                            </Avatar>
+                            <p className="text-sm font-medium truncate w-full text-center">{s.name}</p>
+                            <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-0 right-0 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleDeleteConfirmation(s)}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
+                    </div>
+                </ScrollArea>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg">
+                    <User className="h-12 w-12 text-muted-foreground" />
+                    <p className="mt-4 text-muted-foreground">등록된 스태프가 없습니다.</p>
+                    <p className="text-sm text-muted-foreground">'스태프 추가' 버튼을 눌러 이미지를 업로드하세요.</p>
+                </div>
+            )}
+        </CardContent>
+      </Card>
 
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
