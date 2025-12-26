@@ -181,25 +181,23 @@ export function SchedulePanel() {
 
             return (
               <TabsContent key={day} value={`day-${day}`} className="space-y-4">
-                <ScrollArea className="w-full">
-                  <div className="flex gap-2 pb-4">
-                    {timeSlots.map(time => {
-                      const items = currentDaySchedules[time] || [];
-                      const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
-                      return (
-                        <Button 
-                            key={time} 
-                            variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
-                            className="flex-shrink-0"
-                            onClick={() => handleSelectSlot(day, time)}
-                        >
-                           {time}
-                           {items.length > 0 && <span className="ml-2 h-5 w-5 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">{items.length}</span>}
-                        </Button>
-                      )
-                    })}
-                  </div>
-                </ScrollArea>
+                <div className="flex flex-wrap gap-2 pb-4">
+                  {timeSlots.map(time => {
+                    const items = currentDaySchedules[time] || [];
+                    const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
+                    return (
+                      <Button 
+                          key={time} 
+                          variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
+                          className="flex-shrink-0"
+                          onClick={() => handleSelectSlot(day, time)}
+                      >
+                         {time}
+                         {items.length > 0 && <span className="ml-2 h-5 w-5 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">{items.length}</span>}
+                      </Button>
+                    )
+                  })}
+                </div>
 
                 {selectedSlot && selectedSlot.day === day && (
                     <>
