@@ -202,6 +202,12 @@ export const useVenueData = () => {
       updateDocumentNonBlocking(venueRef, { mapImageUrl: newUrl });
   }
 
+  const updateMarkerPosition = (markerId: string, x: number, y: number) => {
+    if (!firestore) return;
+    const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
+    updateDocumentNonBlocking(markerDocRef, { x, y });
+  };
+
   const data: VenueData = {
     staff: staff ? [...staff].sort((a,b) => a.id.localeCompare(b.id)) : [],
     schedule: schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [],
@@ -209,5 +215,5 @@ export const useVenueData = () => {
     mapImageUrl: venueDoc?.mapImageUrl,
   };
 
-  return { data, addStaff, addStaffBatch, updateStaff, deleteStaff, addSchedule, updateSchedule, deleteSchedule, updateMapImage, initializeFirestoreData, isLoading: !venueDoc || !staff || !schedule || !markers };
+  return { data, addStaff, addStaffBatch, updateStaff, deleteStaff, addSchedule, updateSchedule, deleteSchedule, updateMapImage, initializeFirestoreData, isLoading: !venueDoc || !staff || !schedule || !markers, updateMarkerPosition };
 };

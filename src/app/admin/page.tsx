@@ -15,7 +15,7 @@ export default function AdminPage() {
   const router = useRouter();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
-  const { data, updateMapImage, initializeFirestoreData, isLoading } = useVenueData();
+  const { data, updateMapImage, initializeFirestoreData, isLoading, updateMarkerPosition } = useVenueData();
   const { toast } = useToast();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +103,13 @@ export default function AdminPage() {
                         accept="image/png, image/jpeg, image/gif"
                     />
                 </div>
-                 <VenueMap markers={data.markers} staff={data.staff} mapImageUrl={data.mapImageUrl} />
+                 <VenueMap 
+                    markers={data.markers} 
+                    staff={data.staff} 
+                    mapImageUrl={data.mapImageUrl}
+                    onMarkerDragEnd={updateMarkerPosition} 
+                    isDraggable={true}
+                 />
             </div>
         </main>
     </div>
