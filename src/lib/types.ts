@@ -4,7 +4,7 @@ export type RoleKorean = '보안' | '의료' | '운영' | '안내';
 export interface StaffMember {
   id: string;
   name: string;
-  role: Role;
+  role: string;
   avatar: string; // Can be a placeholder ID or a data URL
 }
 

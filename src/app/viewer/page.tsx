@@ -84,6 +84,7 @@ export default function ViewerPage() {
            <VenueMap 
             markers={data.markers} 
             staff={data.staff} 
+            schedule={data.schedule}
             mapImageUrl={data.mapImageUrl} 
             isDraggable={false}
            />

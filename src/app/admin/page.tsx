@@ -106,6 +106,7 @@ export default function AdminPage() {
                  <VenueMap 
                     markers={data.markers} 
                     staff={data.staff} 
+                    schedule={data.schedule}
                     mapImageUrl={data.mapImageUrl}
                     onMarkerDragEnd={updateMarkerPosition} 
                     isDraggable={true}

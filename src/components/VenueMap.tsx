@@ -2,21 +2,24 @@
 
 import React, { useState, useRef, MouseEvent, TouchEvent } from 'react';
 import Image from 'next/image';
-import { MapPin } from 'lucide-react';
-import type { MapMarker, StaffMember } from '@/lib/types';
+import { MapPin, CalendarClock } from 'lucide-react';
+import type { MapMarker, StaffMember, ScheduleItem } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { ScrollArea } from './ui/scroll-area';
 
 interface VenueMapProps {
   markers: MapMarker[];
   staff: StaffMember[];
+  schedule: ScheduleItem[];
   mapImageUrl?: string;
   isDraggable?: boolean;
   onMarkerDragEnd?: (markerId: string, x: number, y: number) => void;
 }
 
-export function VenueMap({ markers, staff, mapImageUrl, isDraggable = false, onMarkerDragEnd }: VenueMapProps) {
+export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = false, onMarkerDragEnd }: VenueMapProps) {
   const defaultMapImage = PlaceHolderImages.find((img) => img.id === 'map-background');
   const finalMapImageUrl = mapImageUrl || defaultMapImage?.imageUrl;
 
@@ -98,27 +101,63 @@ export function VenueMap({ markers, staff, mapImageUrl, isDraggable = false, onM
             
             if (!staffMember) return null; // If staff member not found, don't render marker
 
+            const staffTasks = schedule.filter(task => task.staffId === staffMember.id);
+
             return (
-                <div
-                    key={marker.id}
-                    data-marker-id={marker.id}
-                    className={cn(
-                        "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center",
-                        isDraggable && "cursor-grab",
-                        draggingMarker === marker.id && "cursor-grabbing z-10"
-                    )}
-                    style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                    onMouseDown={(e) => handleDragStart(e, marker.id)}
-                    onTouchStart={(e) => handleDragStart(e, marker.id)}
-                >
-                    <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
-                        <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
-                        <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
-                        {staffNumber}. {staffMember.name}
-                    </div>
-                </div>
+                <Popover key={marker.id}>
+                    <PopoverTrigger asChild>
+                        <div
+                            data-marker-id={marker.id}
+                            className={cn(
+                                "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer",
+                                isDraggable && "cursor-grab",
+                                draggingMarker === marker.id && "cursor-grabbing z-10"
+                            )}
+                            style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
+                            onMouseDown={(e) => handleDragStart(e, marker.id)}
+                            onTouchStart={(e) => handleDragStart(e, marker.id)}
+                        >
+                            <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
+                                <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
+                                <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
+                                {staffNumber}. {staffMember.name}
+                            </div>
+                        </div>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80">
+                        <div className="flex items-center gap-4 mb-4">
+                            <Avatar className="h-12 w-12">
+                                <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
+                                <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <h3 className="text-lg font-semibold">{staffMember.name}</h3>
+                                <p className="text-sm text-muted-foreground">{staffMember.role}</p>
+                            </div>
+                        </div>
+                        <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                           <CalendarClock className='h-4 w-4 text-muted-foreground'/> 담당 스케줄
+                        </h4>
+                        <ScrollArea className="h-[200px]">
+                        {staffTasks.length > 0 ? (
+                            <div className='space-y-2 pr-4'>
+                                {staffTasks.map(task => (
+                                    <div key={task.id} className="p-2 border rounded-md bg-muted/30">
+                                        <p className="font-semibold text-xs">{task.day}일차 {task.time}</p>
+                                        <p className="text-sm">{task.event}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center text-sm text-muted-foreground py-8">
+                                배정된 업무가 없습니다.
+                            </div>
+                        )}
+                        </ScrollArea>
+                    </PopoverContent>
+                </Popover>
             )
           })}
         </div>
