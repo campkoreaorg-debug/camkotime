@@ -4,16 +4,14 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, X } from 'lucide-react';
+import { Plus, Trash2, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
-  DialogClose,
 } from '@/components/ui/dialog';
 import {
     AlertDialog,
@@ -34,9 +32,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { ScrollArea, ScrollBar } from '../ui/scroll-area';
 
 const scheduleSchema = z.object({
-  event: z.string().min(2, '이벤트 이름은 최소 2자 이상이어야 합니다'),
-  location: z.string().min(2, '장소는 최소 2자 이상이어야 합니다'),
+  event: z.string().min(1, '이벤트 내용을 입력해주세요.'),
+  location: z.string().optional(),
 });
+
+type ScheduleFormValues = z.infer<typeof scheduleSchema>;
 
 const generateTimeSlots = () => {
     const slots = [];
@@ -53,54 +53,54 @@ const days = [0, 1, 2, 3];
 
 export function SchedulePanel() {
   const { data, addSchedule, updateSchedule, deleteSchedule } = useVenueData();
-  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
-  const [isListDialogOpen, setIsListDialogOpen] = useState(false);
   
-  const [editingInfo, setEditingInfo] = useState<{item: ScheduleItem | null, day: number, time: string} | null>(null);
+  const [isListDialogOpen, setIsListDialogOpen] = useState(false);
   const [listInfo, setListInfo] = useState<{items: ScheduleItem[], day: number, time: string} | null>(null);
-
+  
+  const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
+  
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ScheduleItem | null>(null);
 
-  const form = useForm<z.infer<typeof scheduleSchema>>({
+  const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
+    defaultValues: { event: '', location: '' },
   });
 
-  const handleOpenFormDialog = (info: {item: ScheduleItem | null, day: number, time: string}) => {
-    setEditingInfo(info);
-    if (info.item) {
-      form.reset({ event: info.item.event, location: info.item.location });
-    } else {
-      form.reset({ event: '', location: '' });
-    }
-    setIsListDialogOpen(false); // Close list dialog if open
-    setIsFormDialogOpen(true);
-  };
-  
   const handleOpenListDialog = (items: ScheduleItem[], day: number, time: string) => {
     setListInfo({ items, day, time });
     setIsListDialogOpen(true);
+    form.reset();
+    setEditingItem(null);
   }
 
-  const onSubmit = (values: z.infer<typeof scheduleSchema>) => {
-    if (!editingInfo) return;
+  const handleEditClick = (item: ScheduleItem) => {
+    setEditingItem(item);
+    form.reset({ event: item.event, location: item.location || '' });
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingItem(null);
+    form.reset();
+  }
 
-    if (editingInfo.item) {
-      updateSchedule(editingInfo.item.id, values);
+  const onSubmit = (values: ScheduleFormValues) => {
+    if (!listInfo) return;
+
+    if (editingItem) {
+      updateSchedule(editingItem.id, { ...values, location: values.location || editingItem.location });
+      setEditingItem(null);
     } else {
       addSchedule({
         ...values,
-        day: editingInfo.day,
-        time: editingInfo.time,
+        location: values.location || listInfo.items[0]?.location || 'N/A',
+        day: listInfo.day,
+        time: listInfo.time,
       });
     }
-    setIsFormDialogOpen(false);
-    setEditingInfo(null);
-    // After submit, we might need to refresh the list dialog if it was open
-    // For simplicity, we just close it. A better UX would be to update it in place.
-    setIsListDialogOpen(false); 
+    form.reset();
   };
-
+  
   const handleDeleteConfirmation = (item: ScheduleItem) => {
     setItemToDelete(item);
     setIsAlertOpen(true);
@@ -111,8 +111,11 @@ export function SchedulePanel() {
     deleteSchedule(itemToDelete.id);
     setIsAlertOpen(false);
     setItemToDelete(null);
-     // After delete, we might need to refresh the list dialog
-    setIsListDialogOpen(false);
+    
+    // If the deleted item was the last one in the list, close the dialog
+    if (listInfo && listInfo.items.length === 1 && listInfo.items[0].id === itemToDelete.id) {
+        setIsListDialogOpen(false);
+    }
   };
 
   return (
@@ -143,13 +146,13 @@ export function SchedulePanel() {
                     {timeSlots.map(time => {
                       const items = daySchedules[time] || [];
                       return (
-                        <div key={time} className="flex-shrink-0 w-48 h-40 cursor-pointer" onClick={() => items.length > 0 ? handleOpenListDialog(items, day, time) : handleOpenFormDialog({item: null, day, time})}>
+                        <div key={time} className="flex-shrink-0 w-48 h-40 cursor-pointer" onClick={() => handleOpenListDialog(items, day, time)}>
                            <div className="text-sm font-semibold text-center mb-1">{time}</div>
                            <div className="relative h-full border rounded-lg p-2 flex flex-col justify-center items-center text-center bg-muted/40 hover:border-primary transition-all">
                             {items.length > 0 ? (
                                 <>
-                                    <p className="text-sm font-bold">{items[0].event}</p>
-                                    <p className="text-xs text-muted-foreground">{items[0].location}</p>
+                                    <p className="text-sm font-bold whitespace-normal">{items[0].event}</p>
+                                    <p className="text-xs text-muted-foreground whitespace-normal">{items[0].location}</p>
                                     {items.length > 1 && (
                                         <div className="absolute bottom-2 right-2 text-xs font-bold bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center">
                                             {items.length}
@@ -171,59 +174,45 @@ export function SchedulePanel() {
           })}
         </Tabs>
 
-        {/* Dialog for Creating/Editing an item */}
-        <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-            <DialogContent>
-                <DialogHeader>
-                <DialogTitle className="font-headline">
-                    {editingInfo?.item ? '스케줄 수정' : '새 스케줄 추가'}
-                </DialogTitle>
-                </DialogHeader>
-                <p className="text-sm text-muted-foreground">
-                    {editingInfo?.day}일차 {editingInfo?.time}
-                </p>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="event">이벤트</Label>
-                    <Input id="event" placeholder="이벤트 이름" {...form.register('event')} />
-                    {form.formState.errors.event && (
-                    <p className="text-sm text-destructive">{form.formState.errors.event.message}</p>
-                    )}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="location">장소</Label>
-                    <Input id="location" placeholder="이벤트 장소" {...form.register('location')} />
-                    {form.formState.errors.location && (
-                    <p className="text-sm text-destructive">{form.formState.errors.location.message}</p>
-                    )}
-                </div>
-                <DialogFooter>
-                    <DialogClose asChild>
-                    <Button type="button" variant="secondary">취소</Button>
-                    </DialogClose>
-                    <Button type="submit">저장</Button>
-                </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-        
-        {/* Dialog for Listing items */}
+        {/* Dialog for Listing/Editing/Adding items */}
         <Dialog open={isListDialogOpen} onOpenChange={setIsListDialogOpen}>
-            <DialogContent>
+            <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle className="font-headline">
                         {listInfo?.day}일차 {listInfo?.time} 스케줄
                     </DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <div>
+                        <Label htmlFor="event-input" className="sr-only">새 항목</Label>
+                        <Input 
+                            id="event-input"
+                            placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
+                            {...form.register('event')} 
+                            autoComplete="off"
+                        />
+                        {form.formState.errors.event && (
+                            <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
+                        )}
+                    </div>
+                    {editingItem && (
+                        <div className="flex justify-end gap-2">
+                            <Button type="submit">저장</Button>
+                            <Button type="button" variant="ghost" onClick={handleCancelEdit}>취소</Button>
+                        </div>
+                    )}
+                </form>
+
+                <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2">
                     {listInfo?.items.map(item => (
-                        <div key={item.id} className="p-3 rounded-lg border bg-muted/50 flex justify-between items-start">
+                        <div key={item.id} className="p-3 rounded-lg border bg-muted/50 flex justify-between items-center group">
                            <div>
                              <p className="font-semibold">{item.event}</p>
                              <p className="text-sm text-muted-foreground">{item.location}</p>
                            </div>
-                           <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenFormDialog({item, day: item.day, time: item.time})}>
+                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(item)}>
                                     <Edit className="h-4 w-4"/>
                                 </Button>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirmation(item)}>
@@ -232,13 +221,12 @@ export function SchedulePanel() {
                            </div>
                         </div>
                     ))}
+                    {listInfo?.items.length === 0 && (
+                        <div className="text-center text-muted-foreground py-8">
+                            <p>등록된 스케줄이 없습니다.</p>
+                        </div>
+                    )}
                 </div>
-                 <DialogFooter>
-                    <Button onClick={() => listInfo && handleOpenFormDialog({item: null, day: listInfo.day, time: listInfo.time})}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        새 스케줄 추가
-                    </Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
 
