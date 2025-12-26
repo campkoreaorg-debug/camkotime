@@ -87,26 +87,30 @@
           "type": "string",
           "description": "Reference to Venue. (Relationship: Venue 1:N Schedule)"
         },
-        "startTime": {
-          "type": "string",
-          "description": "Start time of the scheduled event.",
-          "format": "date-time"
+        "day": {
+          "type": "number",
+          "description": "The day of the event (e.g., 0, 1, 2, 3)."
         },
-        "endTime": {
+        "time": {
           "type": "string",
-          "description": "End time of the scheduled event.",
-          "format": "date-time"
+          "description": "Start time of the scheduled event in HH:mm format."
         },
-        "description": {
-          "type": "string",
-          "description": "Description of the scheduled event."
+        "event": {
+            "type": "string",
+            "description": "Name of the event."
+        },
+        "location": {
+            "type": "string",
+            "description": "Location of the event."
         }
       },
       "required": [
         "id",
         "venueId",
-        "startTime",
-        "endTime"
+        "day",
+        "time",
+        "event",
+        "location"
       ]
     },
     "ExternalDevice": {

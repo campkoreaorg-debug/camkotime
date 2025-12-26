@@ -74,7 +74,7 @@ export const useVenueData = () => {
         batch.set(staffDocRef, staffMember);
     });
 
-    // Set schedule
+    // Set schedule (now empty)
     initialData.schedule.forEach((scheduleItem) => {
         const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleItem.id);
         batch.set(scheduleDocRef, scheduleItem);
@@ -204,7 +204,7 @@ export const useVenueData = () => {
 
   const data: VenueData = {
     staff: staff ? [...staff].sort((a,b) => a.id.localeCompare(b.id)) : [],
-    schedule: schedule ? [...schedule].sort((a,b) => a.time.localeCompare(b.time)) : [],
+    schedule: schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [],
     markers: markers || [],
     mapImageUrl: venueDoc?.mapImageUrl,
   };

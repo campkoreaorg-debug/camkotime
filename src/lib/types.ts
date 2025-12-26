@@ -10,7 +10,8 @@ export interface StaffMember {
 
 export interface ScheduleItem {
   id: string;
-  time: string;
+  day: number; // 0, 1, 2, 3
+  time: string; // "07:00", "07:30", ...
   event: string;
   location: string;
 }
