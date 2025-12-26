@@ -16,6 +16,7 @@ import { Badge } from './ui/badge';
 interface VenueMapProps {
   markers: MapMarker[];
   staff: StaffMember[];
+  mapImageUrl?: string;
 }
 
 const getIconForRole = (role: StaffMember['role']) => {
@@ -51,20 +52,21 @@ const roleToKorean: Record<Role, RoleKorean> = {
     'Info': '안내'
 }
 
-export function VenueMap({ markers, staff }: VenueMapProps) {
-  const mapImage = PlaceHolderImages.find((img) => img.id === 'map-background');
+export function VenueMap({ markers, staff, mapImageUrl }: VenueMapProps) {
+  const defaultMapImage = PlaceHolderImages.find((img) => img.id === 'map-background');
+  const finalMapImageUrl = mapImageUrl || defaultMapImage?.imageUrl;
 
   return (
     <div className="w-full h-full p-4 bg-card rounded-lg shadow-inner overflow-hidden">
       <TooltipProvider>
         <div className="relative w-full aspect-[3/2] rounded-lg overflow-hidden border">
-          {mapImage && (
+          {finalMapImageUrl && (
             <Image
-              src={mapImage.imageUrl}
-              alt={mapImage.description}
+              src={finalMapImageUrl}
+              alt="Venue Map"
               fill
               className="object-cover"
-              data-ai-hint={mapImage.imageHint}
+              data-ai-hint={!mapImageUrl ? defaultMapImage?.imageHint : 'custom venue map'}
               priority
             />
           )}

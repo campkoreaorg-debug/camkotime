@@ -5,7 +5,7 @@ export interface StaffMember {
   id: string;
   name: string;
   role: Role;
-  avatar: string;
+  avatar: string; // Can be a placeholder ID or a data URL
 }
 
 export interface ScheduleItem {
@@ -28,4 +28,5 @@ export interface VenueData {
   staff: StaffMember[];
   schedule: ScheduleItem[];
   markers: MapMarker[];
+  mapImageUrl?: string;
 }

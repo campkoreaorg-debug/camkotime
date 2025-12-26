@@ -21,7 +21,7 @@ export default function ViewerPage() {
             </Button>
         </header>
         <main className="flex-grow p-4 md:p-8">
-            <VenueMap markers={data.markers} staff={data.staff} />
+            <VenueMap markers={data.markers} staff={data.staff} mapImageUrl={data.mapImageUrl} />
         </main>
     </div>
   );

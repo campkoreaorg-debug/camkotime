@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { MoreHorizontal, PlusCircle, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Upload } from 'lucide-react';
+import Image from 'next/image';
 import {
   Table,
   TableBody,
@@ -51,67 +52,88 @@ import {
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { StaffMember, MapMarker } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useToast } from '@/hooks/use-toast';
 
-const staffSchema = z.object({
+const editStaffSchema = z.object({
   name: z.string().min(2, '이름은 최소 2자 이상이어야 합니다.'),
   role: z.enum(['Security', 'Medical', 'Operations', 'Info']),
 });
 
+const addStaffSchema = z.object({
+    name: z.string().min(2, '이름은 최소 2자 이상이어야 합니다.'),
+});
+
 export function StaffPanel() {
   const { data, updateData } = useVenueData();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const form = useForm<z.infer<typeof staffSchema>>({
-    resolver: zodResolver(staffSchema),
-    defaultValues: {
-      name: '',
-      role: 'Operations',
-    },
+  const editForm = useForm<z.infer<typeof editStaffSchema>>({
+    resolver: zodResolver(editStaffSchema),
   });
 
-  const handleDialogOpen = (staff: StaffMember | null = null) => {
+  const addForm = useForm<z.infer<typeof addStaffSchema>>({
+    resolver: zodResolver(addStaffSchema),
+    defaultValues: { name: '' },
+  });
+  
+  const handleEditDialogOpen = (staff: StaffMember | null = null) => {
     setEditingStaff(staff);
     if (staff) {
-      form.reset({ name: staff.name, role: staff.role });
-    } else {
-      form.reset({ name: '', role: 'Operations' });
+      editForm.reset({ name: staff.name, role: staff.role });
     }
-    setIsDialogOpen(true);
+    setIsEditDialogOpen(true);
   };
+  
+  const handleAddDialogOpen = () => {
+    addForm.reset({ name: '' });
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    setIsAddDialogOpen(true);
+  }
 
-  const onSubmit = (values: z.infer<typeof staffSchema>) => {
+  const onEditSubmit = (values: z.infer<typeof editStaffSchema>) => {
     if (editingStaff) {
-      // Edit existing staff
       const updatedStaffList = data.staff.map((s) =>
         s.id === editingStaff.id ? { ...s, ...values } : s
       );
       const updatedMarkers = data.markers.map(m => m.staffId === editingStaff.id ? {...m, label: values.name} : m)
       updateData({ ...data, staff: updatedStaffList, markers: updatedMarkers });
-    } else {
-      // Add new staff
-      const newId = `staff-${Date.now()}`;
-      const newStaff: StaffMember = {
-        id: newId,
-        ...values,
-        avatar: `avatar-${(data.staff.length % 5) + 1}`,
-      };
-      
-      const newMarker: MapMarker = {
-        id: `marker-${Date.now()}`,
-        staffId: newId,
-        type: 'staff',
-        label: newStaff.name,
-        x: Math.round(Math.random() * 80) + 10,
-        y: Math.round(Math.random() * 80) + 10,
-      }
-      
-      updateData({ ...data, staff: [...data.staff, newStaff], markers: [...data.markers, newMarker] });
     }
-    setIsDialogOpen(false);
+    setIsEditDialogOpen(false);
+  };
+
+  const onAddSubmit = (values: z.infer<typeof addStaffSchema>) => {
+    if (!avatarFile) {
+        toast({ variant: "destructive", title: "오류", description: "이미지를 업로드해주세요." });
+        return;
+    }
+    const newId = `staff-${Date.now()}`;
+    const newStaff: StaffMember = {
+      id: newId,
+      name: values.name,
+      role: 'Operations', // Default role
+      avatar: avatarFile,
+    };
+    
+    const newMarker: MapMarker = {
+      id: `marker-${Date.now()}`,
+      staffId: newId,
+      type: 'staff',
+      label: newStaff.name,
+      x: Math.round(Math.random() * 80) + 10,
+      y: Math.round(Math.random() * 80) + 10,
+    }
+    
+    updateData({ ...data, staff: [...data.staff, newStaff], markers: [...data.markers, newMarker] });
+    setIsAddDialogOpen(false);
   };
 
   const handleDeleteConfirmation = (staff: StaffMember) => {
@@ -128,34 +150,94 @@ export function StaffPanel() {
     setStaffToDelete(null);
   };
 
+  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 1 * 1024 * 1024) { // 1MB limit
+        toast({
+          variant: 'destructive',
+          title: '이미지 크기 초과',
+          description: '이미지 파일은 1MB를 초과할 수 없습니다.',
+        });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+        setAvatarFile(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-headline font-semibold">스태프 관리</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => handleDialogOpen()}>
+            <Button onClick={handleAddDialogOpen}>
               <PlusCircle className="mr-2 h-4 w-4" /> 스태프 추가
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-headline">
-                {editingStaff ? '스태프 정보 수정' : '새 스태프 추가'}
-              </DialogTitle>
+              <DialogTitle className="font-headline">새 스태프 추가</DialogTitle>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={addForm.handleSubmit(onAddSubmit)} className="space-y-4">
+                <div className='space-y-2'>
+                    <Label>스태프 사진</Label>
+                    <div className='flex items-center gap-4'>
+                        <Avatar className='h-20 w-20'>
+                            {avatarPreview ? <AvatarImage src={avatarPreview} /> : <AvatarFallback><User className='h-10 w-10 text-muted-foreground'/></AvatarFallback>}
+                        </Avatar>
+                        <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            이미지 업로드
+                        </Button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleAvatarUpload}
+                            className="hidden"
+                            accept="image/png, image/jpeg"
+                        />
+                    </div>
+                </div>
               <div className="space-y-2">
                 <Label htmlFor="name">이름</Label>
-                <Input id="name" {...form.register('name')} />
-                {form.formState.errors.name && (
-                  <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
+                <Input id="name" {...addForm.register('name')} />
+                {addForm.formState.errors.name && (
+                  <p className="text-sm text-destructive">{addForm.formState.errors.name.message}</p>
+                )}
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="secondary">취소</Button>
+                </DialogClose>
+                <Button type="submit">저장</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-headline">스태프 정보 수정</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">이름</Label>
+                <Input id="name" {...editForm.register('name')} />
+                {editForm.formState.errors.name && (
+                  <p className="text-sm text-destructive">{editForm.formState.errors.name.message}</p>
                 )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">역할</Label>
                  <Controller
-                    control={form.control}
+                    control={editForm.control}
                     name="role"
                     render={({ field }) => (
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -171,8 +253,8 @@ export function StaffPanel() {
                     </Select>
                     )}
                 />
-                {form.formState.errors.role && (
-                  <p className="text-sm text-destructive">{form.formState.errors.role.message}</p>
+                {editForm.formState.errors.role && (
+                  <p className="text-sm text-destructive">{editForm.formState.errors.role.message}</p>
                 )}
               </div>
               <DialogFooter>
@@ -197,7 +279,6 @@ export function StaffPanel() {
         </TableHeader>
         <TableBody>
           {data.staff.map((s) => {
-             const avatarImage = PlaceHolderImages.find(p => p.id === s.avatar);
              const roleKorean = {
                 Security: '보안',
                 Medical: '의료',
@@ -208,7 +289,7 @@ export function StaffPanel() {
                 <TableRow key={s.id}>
                     <TableCell>
                         <Avatar>
-                            {avatarImage && <AvatarImage src={avatarImage.imageUrl} alt={s.name} data-ai-hint={avatarImage.imageHint} />}
+                            <AvatarImage src={s.avatar} alt={s.name} />
                             <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                     </TableCell>
@@ -223,7 +304,7 @@ export function StaffPanel() {
                         </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleDialogOpen(s)}>
+                        <DropdownMenuItem onClick={() => handleEditDialogOpen(s)}>
                             수정
                         </DropdownMenuItem>
                         <DropdownMenuItem

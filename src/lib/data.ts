@@ -1,11 +1,18 @@
 import type { VenueData } from './types';
+import { PlaceHolderImages } from './placeholder-images';
+
+const avatar1 = PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '';
+const avatar2 = PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '';
+const avatar3 = PlaceHolderImages.find(p => p.id === 'avatar-3')?.imageUrl || '';
+const avatar4 = PlaceHolderImages.find(p => p.id === 'avatar-4')?.imageUrl || '';
+const mapBg = PlaceHolderImages.find(p => p.id === 'map-background')?.imageUrl || '';
 
 export const initialData: VenueData = {
   staff: [
-    { id: 'staff-1', name: 'John Doe', role: 'Security', avatar: 'avatar-1' },
-    { id: 'staff-2', name: 'Jane Smith', role: 'Medical', avatar: 'avatar-2' },
-    { id: 'staff-3', name: 'Peter Jones', role: 'Operations', avatar: 'avatar-3' },
-    { id: 'staff-4', name: 'Mary Johnson', role: 'Info', avatar: 'avatar-4' },
+    { id: 'staff-1', name: 'John Doe', role: 'Security', avatar: avatar1 },
+    { id: 'staff-2', name: 'Jane Smith', role: 'Medical', avatar: avatar2 },
+    { id: 'staff-3', name: 'Peter Jones', role: 'Operations', avatar: avatar3 },
+    { id: 'staff-4', name: 'Mary Johnson', role: 'Info', avatar: avatar4 },
   ],
   schedule: [
     { id: 'sch-1', time: '09:00 AM', event: 'Gates Open', location: 'Main Entrance' },
@@ -22,4 +29,5 @@ export const initialData: VenueData = {
     { id: 'marker-5', type: 'poi', label: 'Restrooms', x: 15, y: 75 },
     { id: 'marker-6', type: 'poi', label: 'First Aid', x: 85, y: 75 },
   ],
+  mapImageUrl: mapBg,
 };

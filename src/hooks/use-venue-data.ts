@@ -28,7 +28,12 @@ export const useVenueData = () => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
         try {
-          setData(JSON.parse(e.newValue));
+          const parsedData = JSON.parse(e.newValue);
+          // Only update if data is different to avoid loops
+          // A simple JSON.stringify comparison is good enough for this app's data structure
+          if (JSON.stringify(parsedData) !== JSON.stringify(data)) {
+            setData(parsedData);
+          }
         } catch (error) {
           console.warn(`Error parsing localStorage key “${STORAGE_KEY}”:`, error);
         }
@@ -39,7 +44,7 @@ export const useVenueData = () => {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [data]);
 
   // Effect to ensure initial state is from localStorage on mount
   useEffect(() => {
@@ -49,16 +54,22 @@ export const useVenueData = () => {
   const updateData = useCallback((newData: VenueData) => {
     try {
       const jsonValue = JSON.stringify(newData);
-      window.localStorage.setItem(STORAGE_KEY, jsonValue);
-      setData(newData); // Update state in current tab
-      
-      // Manually dispatch a storage event to notify other components in the same tab
-      window.dispatchEvent(
-        new StorageEvent('storage', {
-          key: STORAGE_KEY,
-          newValue: jsonValue,
-        })
-      );
+      // Check if data has actually changed before setting it
+      const currentData = window.localStorage.getItem(STORAGE_KEY);
+      if (jsonValue !== currentData) {
+        window.localStorage.setItem(STORAGE_KEY, jsonValue);
+        setData(newData); // Update state in current tab
+        
+        // Manually dispatch a storage event to notify other components/tabs
+        window.dispatchEvent(
+          new StorageEvent('storage', {
+            key: STORAGE_KEY,
+            newValue: jsonValue,
+            oldValue: currentData,
+            storageArea: window.localStorage,
+          })
+        );
+      }
     } catch (error) {
       console.error(`Error setting localStorage key “${STORAGE_KEY}”:`, error);
     }
