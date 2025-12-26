@@ -222,7 +222,7 @@ export const useVenueData = () => {
             time,
             event: item.event,
             location: item.location,
-            staffId: item.staffId,
+            staffId: item.staffId || null,
         };
         const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', newId);
         batch.set(scheduleDocRef, newScheduleItem);
@@ -250,5 +250,4 @@ export const useVenueData = () => {
 
   return { data, addStaff, addStaffBatch, updateStaff, deleteStaff, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, updateMapImage, initializeFirestoreData, isLoading: !venueDoc || !staff || !schedule || !markers, updateMarkerPosition };
 };
-
     
