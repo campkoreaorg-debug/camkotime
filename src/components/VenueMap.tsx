@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { Shield, User, MapPin, BriefcaseMedical } from 'lucide-react';
-import type { MapMarker, StaffMember } from '@/lib/types';
+import type { MapMarker, StaffMember, Role, RoleKorean } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import {
   Tooltip,
@@ -42,6 +42,13 @@ const getBgForRole = (role: StaffMember['role']) => {
       default:
         return 'bg-gray-600';
     }
+}
+
+const roleToKorean: Record<Role, RoleKorean> = {
+    'Security': '보안',
+    'Medical': '의료',
+    'Operations': '운영',
+    'Info': '안내'
 }
 
 export function VenueMap({ markers, staff }: VenueMapProps) {
@@ -86,7 +93,7 @@ export function VenueMap({ markers, staff }: VenueMapProps) {
                     <TooltipContent>
                         <div className='flex items-center gap-2'>
                         <p className="font-semibold">{marker.label}</p>
-                        {staffMember && <Badge variant="secondary">{staffMember.role}</Badge>}
+                        {staffMember && <Badge variant="secondary">{roleToKorean[staffMember.role]}</Badge>}
                         </div>
                     </TooltipContent>
                 </Tooltip>

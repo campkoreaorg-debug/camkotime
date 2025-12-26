@@ -34,15 +34,15 @@ export default function LoginPage() {
         } catch (error) {
             toast({
                 variant: 'destructive',
-                title: 'Login Failed',
-                description: 'Could not access session storage. Please enable cookies and try again.',
+                title: '로그인 실패',
+                description: '세션 저장소에 접근할 수 없습니다. 쿠키를 활성화하고 다시 시도해 주세요.',
             });
         }
       } else {
         toast({
           variant: 'destructive',
-          title: 'Incorrect Password',
-          description: 'Please check the password and try again.',
+          title: '잘못된 비밀번호',
+          description: '비밀번호를 확인하고 다시 시도해 주세요.',
         });
       }
       setIsLoading(false);
@@ -62,16 +62,16 @@ export default function LoginPage() {
               VenueSync
             </h1>
             <CardDescription>
-              Real-time venue management at your fingertips.
+              실시간 공연장 관리를 손쉽게.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="password">Admin Password</Label>
+              <Label htmlFor="password">관리자 비밀번호</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter admin password"
+                placeholder="관리자 비밀번호를 입력하세요"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()}
@@ -84,7 +84,7 @@ export default function LoginPage() {
               disabled={isLoading}
             >
               <Shield className="mr-2 h-4 w-4" />
-              {isLoading ? 'Verifying...' : 'Login as Admin'}
+              {isLoading ? '확인 중...' : '관리자로 로그인'}
             </Button>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
@@ -94,7 +94,7 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-card px-2 text-muted-foreground">
-                  Or
+                  또는
                 </span>
               </div>
             </div>
@@ -104,7 +104,7 @@ export default function LoginPage() {
               onClick={handleViewerAccess}
             >
               <Eye className="mr-2 h-4 w-4" />
-              Continue as Viewer
+              뷰어로 계속하기
             </Button>
           </CardFooter>
         </Card>

@@ -54,7 +54,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 const staffSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  name: z.string().min(2, '이름은 최소 2자 이상이어야 합니다.'),
   role: z.enum(['Security', 'Medical', 'Operations', 'Info']),
 });
 
@@ -131,42 +131,42 @@ export function StaffPanel() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-headline font-semibold">Manage Staff</h2>
+        <h2 className="text-2xl font-headline font-semibold">스태프 관리</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => handleDialogOpen()}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Staff
+              <PlusCircle className="mr-2 h-4 w-4" /> 스태프 추가
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-headline">
-                {editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}
+                {editingStaff ? '스태프 정보 수정' : '새 스태프 추가'}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">이름</Label>
                 <Input id="name" {...form.register('name')} />
                 {form.formState.errors.name && (
                   <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="role">역할</Label>
                  <Controller
                     control={form.control}
                     name="role"
                     render={({ field }) => (
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <SelectTrigger>
-                            <SelectValue placeholder="Select a role" />
+                            <SelectValue placeholder="역할을 선택하세요" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="Security">Security</SelectItem>
-                            <SelectItem value="Medical">Medical</SelectItem>
-                            <SelectItem value="Operations">Operations</SelectItem>
-                            <SelectItem value="Info">Info</SelectItem>
+                            <SelectItem value="Security">보안</SelectItem>
+                            <SelectItem value="Medical">의료</SelectItem>
+                            <SelectItem value="Operations">운영</SelectItem>
+                            <SelectItem value="Info">안내</SelectItem>
                         </SelectContent>
                     </Select>
                     )}
@@ -177,9 +177,9 @@ export function StaffPanel() {
               </div>
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button type="button" variant="secondary">Cancel</Button>
+                  <Button type="button" variant="secondary">취소</Button>
                 </DialogClose>
-                <Button type="submit">Save</Button>
+                <Button type="submit">저장</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -189,15 +189,21 @@ export function StaffPanel() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Avatar</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead>아바타</TableHead>
+            <TableHead>이름</TableHead>
+            <TableHead>역할</TableHead>
+            <TableHead className="text-right">작업</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.staff.map((s) => {
              const avatarImage = PlaceHolderImages.find(p => p.id === s.avatar);
+             const roleKorean = {
+                Security: '보안',
+                Medical: '의료',
+                Operations: '운영',
+                Info: '안내',
+             }[s.role]
             return (
                 <TableRow key={s.id}>
                     <TableCell>
@@ -207,24 +213,24 @@ export function StaffPanel() {
                         </Avatar>
                     </TableCell>
                     <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell>{s.role}</TableCell>
+                    <TableCell>{roleKorean}</TableCell>
                     <TableCell className="text-right">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
+                            <span className="sr-only">메뉴 열기</span>
                             <MoreHorizontal className="h-4 w-4" />
                         </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleDialogOpen(s)}>
-                            Edit
+                            수정
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => handleDeleteConfirmation(s)}
                         >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            <Trash2 className="mr-2 h-4 w-4" /> 삭제
                         </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -239,14 +245,14 @@ export function StaffPanel() {
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
             <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete {staffToDelete?.name} and remove them from the map.
+                이 작업은 되돌릴 수 없습니다. {staffToDelete?.name} 님을 영구적으로 삭제하고 지도에서 제거합니다.
             </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>Delete</AlertDialogAction>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>삭제</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

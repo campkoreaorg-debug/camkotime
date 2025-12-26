@@ -1,7 +1,10 @@
+export type Role = 'Security' | 'Medical' | 'Operations' | 'Info';
+export type RoleKorean = '보안' | '의료' | '운영' | '안내';
+
 export interface StaffMember {
   id: string;
   name: string;
-  role: 'Security' | 'Medical' | 'Operations' | 'Info';
+  role: Role;
   avatar: string;
 }
 

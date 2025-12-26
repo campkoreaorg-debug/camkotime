@@ -54,10 +54,10 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-background">
         <header className='flex justify-between items-center p-4 border-b bg-card'>
-            <h1 className='font-headline text-2xl font-bold text-primary'>VenueSync Dashboard</h1>
+            <h1 className='font-headline text-2xl font-bold text-primary'>VenueSync 대시보드</h1>
             <Button variant="ghost" onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
-                Logout
+                로그아웃
             </Button>
         </header>
       <main className="p-4 md:p-8">
@@ -65,15 +65,15 @@ export default function AdminPage() {
           <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
             <TabsTrigger value="map">
               <Map className="mr-2 h-4 w-4" />
-              Map View
+              지도 보기
             </TabsTrigger>
             <TabsTrigger value="staff">
               <Users className="mr-2 h-4 w-4" />
-              Staff
+              스태프
             </TabsTrigger>
             <TabsTrigger value="schedule">
               <Calendar className="mr-2 h-4 w-4" />
-              Schedule
+              스케줄
             </TabsTrigger>
           </TabsList>
           <TabsContent value="map" className="mt-4">
