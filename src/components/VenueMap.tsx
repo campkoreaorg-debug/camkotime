@@ -32,7 +32,8 @@ export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = 
 
   const handleDragStart = (e: MouseEvent | TouchEvent, markerId: string) => {
     if (!isDraggable) return;
-    e.preventDefault();
+    // Stop propagation to prevent Popover from closing immediately
+    e.stopPropagation();
     setDraggingMarker(markerId);
   };
 
@@ -60,7 +61,7 @@ export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = 
 
   const handleDragEnd = (e: MouseEvent | TouchEvent) => {
     if (!draggingMarker || !mapRef.current) return;
-    e.preventDefault();
+    // e.preventDefault(); // This might interfere with click events for popover
 
     const mapBounds = mapRef.current.getBoundingClientRect();
     const clientX = 'changedTouches' in e ? e.changedTouches[0].clientX : e.clientX;
@@ -120,7 +121,7 @@ export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = 
 
     return (
         <Popover>
-            <PopoverTrigger asChild disabled={isDraggable}>
+            <PopoverTrigger asChild>
                {MarkerContent}
             </PopoverTrigger>
             <PopoverContent className="w-80">
