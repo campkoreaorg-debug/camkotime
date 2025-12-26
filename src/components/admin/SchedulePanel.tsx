@@ -202,7 +202,7 @@ export function SchedulePanel() {
                 {selectedSlot && selectedSlot.day === day && (
                     <>
                     <Separator />
-                    <div className="p-4 space-y-6 max-w-2xl mx-auto">
+                    <div className="p-4 space-y-6 max-w-5xl mx-auto">
                         <div className="space-y-4">
                             <h3 className="font-headline text-lg font-semibold text-center">
                                 {selectedSlot.day}일차 {selectedSlot.time} 스케줄 입력
