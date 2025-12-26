@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit } from 'lucide-react';
+import { Plus, Trash2, Edit, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -53,8 +53,12 @@ const days = [0, 1, 2, 3];
 
 export function SchedulePanel() {
   const { data, addSchedule, updateSchedule, deleteSchedule } = useVenueData();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [isListDialogOpen, setIsListDialogOpen] = useState(false);
+  
   const [editingInfo, setEditingInfo] = useState<{item: ScheduleItem | null, day: number, time: string} | null>(null);
+  const [listInfo, setListInfo] = useState<{items: ScheduleItem[], day: number, time: string} | null>(null);
+
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ScheduleItem | null>(null);
 
@@ -62,15 +66,21 @@ export function SchedulePanel() {
     resolver: zodResolver(scheduleSchema),
   });
 
-  const handleDialogOpen = (info: {item: ScheduleItem | null, day: number, time: string}) => {
+  const handleOpenFormDialog = (info: {item: ScheduleItem | null, day: number, time: string}) => {
     setEditingInfo(info);
     if (info.item) {
       form.reset({ event: info.item.event, location: info.item.location });
     } else {
       form.reset({ event: '', location: '' });
     }
-    setIsDialogOpen(true);
+    setIsListDialogOpen(false); // Close list dialog if open
+    setIsFormDialogOpen(true);
   };
+  
+  const handleOpenListDialog = (items: ScheduleItem[], day: number, time: string) => {
+    setListInfo({ items, day, time });
+    setIsListDialogOpen(true);
+  }
 
   const onSubmit = (values: z.infer<typeof scheduleSchema>) => {
     if (!editingInfo) return;
@@ -84,8 +94,11 @@ export function SchedulePanel() {
         time: editingInfo.time,
       });
     }
-    setIsDialogOpen(false);
+    setIsFormDialogOpen(false);
     setEditingInfo(null);
+    // After submit, we might need to refresh the list dialog if it was open
+    // For simplicity, we just close it. A better UX would be to update it in place.
+    setIsListDialogOpen(false); 
   };
 
   const handleDeleteConfirmation = (item: ScheduleItem) => {
@@ -98,6 +111,8 @@ export function SchedulePanel() {
     deleteSchedule(itemToDelete.id);
     setIsAlertOpen(false);
     setItemToDelete(null);
+     // After delete, we might need to refresh the list dialog
+    setIsListDialogOpen(false);
   };
 
   return (
@@ -114,37 +129,35 @@ export function SchedulePanel() {
           </TabsList>
           {days.map(day => {
             const daySchedules = data.schedule.filter(s => s.day === day).reduce((acc, item) => {
-                acc[item.time] = item;
+                if (!acc[item.time]) {
+                    acc[item.time] = [];
+                }
+                acc[item.time].push(item);
                 return acc;
-            }, {} as Record<string, ScheduleItem>);
+            }, {} as Record<string, ScheduleItem[]>);
 
             return (
               <TabsContent key={day} value={`day-${day}`}>
                 <ScrollArea className="w-full whitespace-nowrap">
                   <div className="flex space-x-2 pb-4">
                     {timeSlots.map(time => {
-                      const item = daySchedules[time];
+                      const items = daySchedules[time] || [];
                       return (
-                        <div key={time} className="flex-shrink-0 w-48 h-40">
+                        <div key={time} className="flex-shrink-0 w-48 h-40 cursor-pointer" onClick={() => items.length > 0 ? handleOpenListDialog(items, day, time) : handleOpenFormDialog({item: null, day, time})}>
                            <div className="text-sm font-semibold text-center mb-1">{time}</div>
-                           <div className="relative h-full border rounded-lg p-2 flex flex-col justify-center items-center text-center bg-muted/40">
-                            {item ? (
+                           <div className="relative h-full border rounded-lg p-2 flex flex-col justify-center items-center text-center bg-muted/40 hover:border-primary transition-all">
+                            {items.length > 0 ? (
                                 <>
-                                    <p className="text-sm font-bold">{item.event}</p>
-                                    <p className="text-xs text-muted-foreground">{item.location}</p>
-                                    <div className="absolute top-1 right-1 flex gap-1">
-                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDialogOpen({item, day, time})}>
-                                            <Edit className="h-3 w-3"/>
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirmation(item)}>
-                                            <Trash2 className="h-3 w-3"/>
-                                        </Button>
-                                    </div>
+                                    <p className="text-sm font-bold">{items[0].event}</p>
+                                    <p className="text-xs text-muted-foreground">{items[0].location}</p>
+                                    {items.length > 1 && (
+                                        <div className="absolute bottom-2 right-2 text-xs font-bold bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center">
+                                            {items.length}
+                                        </div>
+                                    )}
                                 </>
                             ) : (
-                                <Button variant="ghost" size="icon" onClick={() => handleDialogOpen({item: null, day, time})}>
-                                    <Plus className="h-6 w-6 text-muted-foreground"/>
-                                </Button>
+                                <Plus className="h-6 w-6 text-muted-foreground"/>
                             )}
                            </div>
                         </div>
@@ -158,7 +171,8 @@ export function SchedulePanel() {
           })}
         </Tabs>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        {/* Dialog for Creating/Editing an item */}
+        <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
             <DialogContent>
                 <DialogHeader>
                 <DialogTitle className="font-headline">
@@ -193,6 +207,41 @@ export function SchedulePanel() {
             </DialogContent>
         </Dialog>
         
+        {/* Dialog for Listing items */}
+        <Dialog open={isListDialogOpen} onOpenChange={setIsListDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle className="font-headline">
+                        {listInfo?.day}일차 {listInfo?.time} 스케줄
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                    {listInfo?.items.map(item => (
+                        <div key={item.id} className="p-3 rounded-lg border bg-muted/50 flex justify-between items-start">
+                           <div>
+                             <p className="font-semibold">{item.event}</p>
+                             <p className="text-sm text-muted-foreground">{item.location}</p>
+                           </div>
+                           <div className="flex gap-1">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenFormDialog({item, day: item.day, time: item.time})}>
+                                    <Edit className="h-4 w-4"/>
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirmation(item)}>
+                                    <Trash2 className="h-4 w-4"/>
+                                </Button>
+                           </div>
+                        </div>
+                    ))}
+                </div>
+                 <DialogFooter>
+                    <Button onClick={() => listInfo && handleOpenFormDialog({item: null, day: listInfo.day, time: listInfo.time})}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        새 스케줄 추가
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
         <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader>
