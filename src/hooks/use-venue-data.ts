@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -21,6 +22,8 @@ import { initialData } from '@/lib/data';
 import { useCallback } from 'react';
 
 const VENUE_ID = 'main-venue'; // Using a single venue for this app
+
+type ClipboardItem = Omit<ScheduleItem, 'id' | 'day' | 'time'>;
 
 export const useVenueData = () => {
   const firestore = useFirestore();
@@ -196,6 +199,36 @@ export const useVenueData = () => {
     const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
     deleteDocumentNonBlocking(scheduleDocRef);
   };
+
+  const deleteSchedulesBatch = (scheduleIds: string[]) => {
+    if (!firestore || scheduleIds.length === 0) return;
+    const batch = writeBatch(firestore);
+    scheduleIds.forEach(id => {
+        const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', id);
+        batch.delete(scheduleDocRef);
+    });
+    batch.commit();
+  };
+  
+  const pasteSchedules = (day: number, time: string, clipboard: ClipboardItem[]) => {
+    if (!firestore || clipboard.length === 0) return;
+    const batch = writeBatch(firestore);
+    const timestamp = Date.now();
+    clipboard.forEach((item, index) => {
+        const newId = `sch-${timestamp}-${index}`;
+        const newScheduleItem: ScheduleItem = {
+            id: newId,
+            day,
+            time,
+            event: item.event,
+            location: item.location,
+            staffId: item.staffId,
+        };
+        const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', newId);
+        batch.set(scheduleDocRef, newScheduleItem);
+    });
+    batch.commit();
+  };
   
   const updateMapImage = (newUrl: string) => {
       if(!venueRef) return;
@@ -215,5 +248,7 @@ export const useVenueData = () => {
     mapImageUrl: venueDoc?.mapImageUrl,
   };
 
-  return { data, addStaff, addStaffBatch, updateStaff, deleteStaff, addSchedule, updateSchedule, deleteSchedule, updateMapImage, initializeFirestoreData, isLoading: !venueDoc || !staff || !schedule || !markers, updateMarkerPosition };
+  return { data, addStaff, addStaffBatch, updateStaff, deleteStaff, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, updateMapImage, initializeFirestoreData, isLoading: !venueDoc || !staff || !schedule || !markers, updateMarkerPosition };
 };
+
+    

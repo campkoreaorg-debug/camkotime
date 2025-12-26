@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, User } from 'lucide-react';
+import { Plus, Trash2, Edit, User, Copy, ClipboardPaste } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -26,6 +26,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { Checkbox } from '../ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
+
 
 const scheduleSchema = z.object({
   event: z.string().min(1, '이벤트 내용을 입력해주세요.'),
@@ -34,6 +37,8 @@ const scheduleSchema = z.object({
 });
 
 type ScheduleFormValues = z.infer<typeof scheduleSchema>;
+
+type ClipboardItem = Omit<ScheduleItem, 'id' | 'day' | 'time'>;
 
 const generateTimeSlots = () => {
     const slots = [];
@@ -56,13 +61,18 @@ function getAdjacentTime(time: string, minutes: number): string {
 }
 
 export function SchedulePanel() {
-  const { data, addSchedule, updateSchedule, deleteSchedule } = useVenueData();
+  const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules } = useVenueData();
+  const { toast } = useToast();
   
   const [selectedSlot, setSelectedSlot] = useState<{ day: number, time: string} | null>(null);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
   
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ScheduleItem | null>(null);
+  const [itemsToDelete, setItemsToDelete] = useState<string[]>([]);
+
+  const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([]);
+  const [clipboard, setClipboard] = useState<ClipboardItem[]>([]);
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
@@ -73,11 +83,13 @@ export function SchedulePanel() {
     setSelectedSlot({ day, time });
     setEditingItem(null);
     form.reset({ event: '', location: '', staffId: ''});
+    setSelectedScheduleIds([]); // 다른 슬롯 선택 시 선택 해제
   }
 
   const handleEditClick = (item: ScheduleItem) => {
     setEditingItem(item);
     form.reset({ event: item.event, location: item.location || '', staffId: item.staffId || '' });
+    setSelectedScheduleIds([]); // 수정 시작 시 선택 해제
   };
   
   const handleCancelEdit = () => {
@@ -107,29 +119,42 @@ export function SchedulePanel() {
   
   const handleDeleteConfirmation = (item: ScheduleItem) => {
     setItemToDelete(item);
+    setItemsToDelete([]);
+    setIsAlertOpen(true);
+  };
+  
+  const handleBulkDeleteConfirmation = () => {
+    if (selectedScheduleIds.length === 0) return;
+    setItemsToDelete(selectedScheduleIds);
+    setItemToDelete(null);
     setIsAlertOpen(true);
   };
 
   const handleDelete = () => {
-    if (!itemToDelete) return;
-    deleteSchedule(itemToDelete.id);
-
-    // If we delete the last item in a slot, we can close the details view
-    if (selectedSlot) {
-        const remainingItems = data.schedule.filter(i => i.day === selectedSlot.day && i.time === selectedSlot.time && i.id !== itemToDelete.id);
-        if (remainingItems.length === 0) {
-            setSelectedSlot(null);
+    if (itemToDelete) {
+        deleteSchedule(itemToDelete.id);
+        if (selectedSlot) {
+            const remainingItems = data.schedule.filter(i => i.day === selectedSlot.day && i.time === selectedSlot.time && i.id !== itemToDelete.id);
+            if (remainingItems.length === 0) {
+                setSelectedSlot(null);
+            }
         }
+    } else if (itemsToDelete.length > 0) {
+        deleteSchedulesBatch(itemsToDelete);
+        setSelectedScheduleIds([]);
     }
 
     setIsAlertOpen(false);
     setItemToDelete(null);
+    setItemsToDelete([]);
   };
 
   const handleTabChange = () => {
     setSelectedSlot(null);
     setEditingItem(null);
     form.reset();
+    setSelectedScheduleIds([]);
+    setClipboard([]);
   }
 
   const daySchedules = useMemo(() => {
@@ -165,6 +190,33 @@ export function SchedulePanel() {
     return schedulesByTime;
   }, [selectedSlot, daySchedules]);
 
+  const handleCheckboxChange = (itemId: string) => {
+    setSelectedScheduleIds(prev =>
+      prev.includes(itemId)
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+  
+  const handleCopy = () => {
+    const itemsToCopy = data.schedule
+      .filter(item => selectedScheduleIds.includes(item.id))
+      .map(({ id, day, time, ...rest }) => rest);
+    setClipboard(itemsToCopy);
+    toast({
+      title: "복사 완료",
+      description: `${itemsToCopy.length}개의 스케줄이 복사되었습니다.`,
+    });
+  };
+
+  const handlePaste = () => {
+    if (!selectedSlot || clipboard.length === 0) return;
+    pasteSchedules(selectedSlot.day, selectedSlot.time, clipboard);
+    toast({
+        title: "붙여넣기 완료",
+        description: `${clipboard.length}개의 스케줄이 ${selectedSlot.day}일차 ${selectedSlot.time}에 추가되었습니다.`,
+    });
+  };
 
   return (
     <Card>
@@ -206,9 +258,17 @@ export function SchedulePanel() {
                     <Separator />
                     <div className="p-4 space-y-6 max-w-5xl mx-auto">
                         <div className="space-y-4">
-                            <h3 className="font-headline text-lg font-semibold text-center">
-                                {selectedSlot.day}일차 {selectedSlot.time} 스케줄 입력
-                            </h3>
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-headline text-lg font-semibold text-center">
+                                    {selectedSlot.day}일차 {selectedSlot.time} 스케줄 입력
+                                </h3>
+                                {selectedScheduleIds.length > 0 && (
+                                    <div className='flex gap-2'>
+                                        <Button size="sm" variant="outline" onClick={handleCopy}><Copy className='mr-2' /> 복사</Button>
+                                        <Button size="sm" variant="destructive" onClick={handleBulkDeleteConfirmation}><Trash2 className='mr-2' /> 선택 삭제</Button>
+                                    </div>
+                                )}
+                            </div>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                                 <div className="flex gap-2 items-start">
                                     <div className='flex-grow'>
@@ -252,14 +312,24 @@ export function SchedulePanel() {
                                         </Select>
                                       )}
                                     />
-
                                 </div>
-                                {editingItem && (
-                                    <div className="flex justify-end gap-2">
-                                        <Button type="submit">저장</Button>
-                                        <Button type="button" variant="ghost" onClick={handleCancelEdit}>취소</Button>
-                                    </div>
-                                )}
+                                
+                                <div className="flex justify-between items-center">
+                                    {editingItem ? (
+                                        <div className="flex justify-end gap-2">
+                                            <Button type="submit">저장</Button>
+                                            <Button type="button" variant="ghost" onClick={handleCancelEdit}>취소</Button>
+                                        </div>
+                                    ) : (
+                                        <div /> 
+                                    )}
+                                     {clipboard.length > 0 && !editingItem && (
+                                        <Button type="button" variant="secondary" onClick={handlePaste}>
+                                            <ClipboardPaste className='mr-2' />
+                                            {clipboard.length}개 항목 붙여넣기
+                                        </Button>
+                                    )}
+                                </div>
                             </form>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -273,23 +343,33 @@ export function SchedulePanel() {
                                             const assignedStaff = data.staff.find(s => s.id === item.staffId);
                                             return (
                                             <div key={item.id} className="p-2 rounded-md border bg-background flex justify-between items-center group">
-                                                <div>
-                                                    <p className="font-medium text-sm">{item.event}</p>
-                                                    <div className='flex items-center gap-2 mt-1'>
-                                                        {assignedStaff ? (
-                                                            <>
-                                                                <Avatar className="h-5 w-5">
-                                                                    <AvatarImage src={assignedStaff.avatar} alt={assignedStaff.name} />
-                                                                    <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
-                                                                </Avatar>
-                                                                <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <User className='h-4 w-4 text-muted-foreground' />
-                                                                <p className="text-xs text-muted-foreground">담당자 미지정</p>
-                                                            </>
-                                                        )}
+                                                <div className="flex items-center gap-3">
+                                                    {isCurrent && (
+                                                      <Checkbox
+                                                        id={`select-${item.id}`}
+                                                        checked={selectedScheduleIds.includes(item.id)}
+                                                        onCheckedChange={() => handleCheckboxChange(item.id)}
+                                                        aria-label={`Select item ${item.event}`}
+                                                      />
+                                                    )}
+                                                    <div>
+                                                        <p className="font-medium text-sm">{item.event}</p>
+                                                        <div className='flex items-center gap-2 mt-1'>
+                                                            {assignedStaff ? (
+                                                                <>
+                                                                    <Avatar className="h-5 w-5">
+                                                                        <AvatarImage src={assignedStaff.avatar} alt={assignedStaff.name} />
+                                                                        <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <User className='h-4 w-4 text-muted-foreground' />
+                                                                    <p className="text-xs text-muted-foreground">담당자 미지정</p>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 {isCurrent && (
@@ -326,7 +406,10 @@ export function SchedulePanel() {
                 <AlertDialogHeader>
                 <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    이 작업은 되돌릴 수 없습니다. "{itemToDelete?.event}" 이벤트를 영구적으로 삭제합니다.
+                    {itemToDelete 
+                        ? `이 작업은 되돌릴 수 없습니다. "${itemToDelete.event}" 이벤트를 영구적으로 삭제합니다.`
+                        : `이 작업은 되돌릴 수 없습니다. 선택한 ${itemsToDelete.length}개의 스케줄을 영구적으로 삭제합니다.`
+                    }
                 </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -340,3 +423,5 @@ export function SchedulePanel() {
     </Card>
   );
 }
+
+    

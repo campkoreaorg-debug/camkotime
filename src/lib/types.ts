@@ -1,3 +1,4 @@
+
 export type Role = 'Security' | 'Medical' | 'Operations' | 'Info';
 export type RoleKorean = '보안' | '의료' | '운영' | '안내';
 
@@ -15,6 +16,7 @@ export interface ScheduleItem {
   event: string;
   location: string;
   staffId?: string;
+  selected?: boolean;
 }
 
 export interface MapMarker {
@@ -32,3 +34,5 @@ export interface VenueData {
   markers: MapMarker[];
   mapImageUrl?: string;
 }
+
+    
