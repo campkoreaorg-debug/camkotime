@@ -91,11 +91,13 @@ export function VenueMap({ markers, staff, mapImageUrl, isDraggable = false, onM
             />
           )}
           <div className="absolute inset-0 bg-black/20" />
-          {markers.map((marker) => {
+          {markers.filter(marker => marker.type === 'staff').map((marker) => {
             const staffMember = marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined;
             const staffIndex = staffMember ? staff.findIndex(s => s.id === staffMember.id) : -1;
             const staffNumber = staffIndex !== -1 ? staffIndex + 1 : null;
             
+            if (!staffMember) return null; // If staff member not found, don't render marker
+
             return (
                 <div
                     key={marker.id}
@@ -109,24 +111,13 @@ export function VenueMap({ markers, staff, mapImageUrl, isDraggable = false, onM
                     onMouseDown={(e) => handleDragStart(e, marker.id)}
                     onTouchStart={(e) => handleDragStart(e, marker.id)}
                 >
-                    {marker.type === 'staff' && staffMember ? (
-                        <>
-                            <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
-                                <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
-                                <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
-                                {staffNumber}. {staffMember.name}
-                            </div>
-                        </>
-                    ) : (
-                        <div className="relative flex flex-col items-center">
-                            <MapPin className="h-8 w-8 text-accent drop-shadow-lg" fill="hsl(var(--accent))" stroke="white" strokeWidth={1.5} />
-                             <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
-                                {marker.label}
-                            </div>
-                        </div>
-                    )}
+                    <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
+                        <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
+                        <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
+                        {staffNumber}. {staffMember.name}
+                    </div>
                 </div>
             )
           })}
