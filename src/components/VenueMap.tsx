@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef, MouseEvent, TouchEvent } from 'react';
+import React, { useState, useRef, MouseEvent, TouchEvent, useMemo } from 'react';
 import Image from 'next/image';
-import { MapPin, CalendarClock } from 'lucide-react';
+import { CalendarClock } from 'lucide-react';
 import type { MapMarker, StaffMember, ScheduleItem } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,10 @@ interface VenueMapProps {
   mapImageUrl?: string;
   isDraggable?: boolean;
   onMarkerDragEnd?: (markerId: string, x: number, y: number) => void;
+}
+
+interface GroupedTasks {
+  [key: string]: ScheduleItem[];
 }
 
 export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = false, onMarkerDragEnd }: VenueMapProps) {
@@ -72,6 +76,93 @@ export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = 
     setDraggingMarker(null);
   };
 
+  const StaffMarker = ({ marker }: { marker: MapMarker }) => {
+    const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId]);
+    const staffIndex = useMemo(() => staffMember ? staff.findIndex(s => s.id === staffMember.id) : -1, [staffMember]);
+    const staffNumber = staffIndex !== -1 ? staffIndex + 1 : null;
+    
+    const staffTasks = useMemo(() => schedule.filter(task => task.staffId === staffMember?.id), [staffMember]);
+
+    const groupedTasks = useMemo(() => {
+        return staffTasks.reduce((acc, task) => {
+            const key = `${task.day}-${task.time}`;
+            if (!acc[key]) {
+                acc[key] = [];
+            }
+            acc[key].push(task);
+            return acc;
+        }, {} as GroupedTasks);
+    }, [staffTasks]);
+
+    if (!staffMember) return null; // If staff member not found, don't render marker
+
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <div
+                    data-marker-id={marker.id}
+                    className={cn(
+                        "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer",
+                        isDraggable && "cursor-grab",
+                        draggingMarker === marker.id && "cursor-grabbing z-10"
+                    )}
+                    style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
+                    onMouseDown={(e) => handleDragStart(e, marker.id)}
+                    onTouchStart={(e) => handleDragStart(e, marker.id)}
+                >
+                    <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
+                        <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
+                        <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
+                        {staffNumber}. {staffMember.name}
+                    </div>
+                </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+                <div className="flex items-center gap-4 mb-4">
+                    <Avatar className="h-12 w-12">
+                        <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
+                        <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <h3 className="text-lg font-semibold">{staffMember.name}</h3>
+                        <p className="text-sm text-muted-foreground">{staffMember.role}</p>
+                    </div>
+                </div>
+                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                   <CalendarClock className='h-4 w-4 text-muted-foreground'/> 담당 스케줄
+                </h4>
+                <ScrollArea className="h-[200px]">
+                {staffTasks.length > 0 ? (
+                    <div className='space-y-3 pr-4'>
+                        {Object.entries(groupedTasks).map(([key, tasks]) => {
+                             const [day, time] = key.split('-');
+                             return (
+                                 <div key={key} className="p-2 border rounded-md bg-muted/30">
+                                     <p className="font-semibold text-xs mb-2">{day}일차 {time}</p>
+                                     <div className="space-y-1">
+                                         {tasks.map(task => (
+                                             <div key={task.id} className="text-sm bg-background/50 p-1.5 rounded-sm">
+                                                 <p>{task.event}</p>
+                                             </div>
+                                         ))}
+                                     </div>
+                                 </div>
+                             )
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center text-sm text-muted-foreground py-8">
+                        배정된 업무가 없습니다.
+                    </div>
+                )}
+                </ScrollArea>
+            </PopoverContent>
+        </Popover>
+    )
+  }
+
   return (
     <div className="w-full h-full p-4 bg-card rounded-lg shadow-inner overflow-hidden">
         <div 
@@ -94,72 +185,9 @@ export function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = 
             />
           )}
           <div className="absolute inset-0 bg-black/20" />
-          {markers.filter(marker => marker.type === 'staff').map((marker) => {
-            const staffMember = marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined;
-            const staffIndex = staffMember ? staff.findIndex(s => s.id === staffMember.id) : -1;
-            const staffNumber = staffIndex !== -1 ? staffIndex + 1 : null;
-            
-            if (!staffMember) return null; // If staff member not found, don't render marker
-
-            const staffTasks = schedule.filter(task => task.staffId === staffMember.id);
-
-            return (
-                <Popover key={marker.id}>
-                    <PopoverTrigger asChild>
-                        <div
-                            data-marker-id={marker.id}
-                            className={cn(
-                                "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer",
-                                isDraggable && "cursor-grab",
-                                draggingMarker === marker.id && "cursor-grabbing z-10"
-                            )}
-                            style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                            onMouseDown={(e) => handleDragStart(e, marker.id)}
-                            onTouchStart={(e) => handleDragStart(e, marker.id)}
-                        >
-                            <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
-                                <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
-                                <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
-                                {staffNumber}. {staffMember.name}
-                            </div>
-                        </div>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                        <div className="flex items-center gap-4 mb-4">
-                            <Avatar className="h-12 w-12">
-                                <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
-                                <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <h3 className="text-lg font-semibold">{staffMember.name}</h3>
-                                <p className="text-sm text-muted-foreground">{staffMember.role}</p>
-                            </div>
-                        </div>
-                        <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                           <CalendarClock className='h-4 w-4 text-muted-foreground'/> 담당 스케줄
-                        </h4>
-                        <ScrollArea className="h-[200px]">
-                        {staffTasks.length > 0 ? (
-                            <div className='space-y-2 pr-4'>
-                                {staffTasks.map(task => (
-                                    <div key={task.id} className="p-2 border rounded-md bg-muted/30">
-                                        <p className="font-semibold text-xs">{task.day}일차 {task.time}</p>
-                                        <p className="text-sm">{task.event}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center text-sm text-muted-foreground py-8">
-                                배정된 업무가 없습니다.
-                            </div>
-                        )}
-                        </ScrollArea>
-                    </PopoverContent>
-                </Popover>
-            )
-          })}
+          {markers.filter(marker => marker.type === 'staff').map((marker) => (
+             <StaffMarker key={marker.id} marker={marker} />
+          ))}
         </div>
     </div>
   );
