@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -13,7 +12,6 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +27,7 @@ export default function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isViewerLoading, setIsViewerLoading] = useState(false);
 
+  // [리다이렉트] 이미 로그인 되어 있으면 해당 페이지로 보냄
   useEffect(() => {
     if (!isUserLoading && user) {
         if (user.isAnonymous) {
@@ -41,15 +40,22 @@ export default function LoginPage() {
 
   const handleAdminLogin = async () => {
     setIsLoggingIn(true);
-    if (password === 'camp1') {
+    
+    // [수정됨] 비밀번호를 'camp123'으로 변경
+    if (password === 'camp123') {
       try {
+        // 이제 입력한 password(camp123)를 그대로 사용합니다.
         await signInWithEmailAndPassword(auth, 'admin@venue.sync', password);
-        // Successful sign-in is handled by the useEffect
+        // 성공하면 useEffect에서 알아서 이동시킴
       } catch (error: any) {
+        // 계정이 없으면 새로 생성 시도
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
           try {
             await createUserWithEmailAndPassword(auth, 'admin@venue.sync', password);
-            // Successful creation is handled by the useEffect
+            toast({
+                title: "관리자 계정 생성됨",
+                description: "초기 관리자 계정이 생성되었습니다.",
+            });
           } catch (createError: any) {
              toast({
                 variant: 'destructive',
@@ -81,7 +87,6 @@ export default function LoginPage() {
     setIsViewerLoading(true);
     try {
       await signInAnonymously(auth);
-      // Successful sign-in is handled by the useEffect
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -92,14 +97,15 @@ export default function LoginPage() {
     }
   };
   
-  if (isUserLoading || user) {
+  // 로딩 화면
+  if (isUserLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center flex-col gap-2">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">로그인 상태 확인 중...</p>
       </div>
     );
   }
-
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -126,23 +132,26 @@ export default function LoginPage() {
                 disabled={isLoggingIn || isViewerLoading}
               />
             </div>
+            
+            {/* 번역기 에러 방지를 위해 span으로 감쌈 */}
             <Button
               onClick={handleAdminLogin}
               className="w-full"
               disabled={isLoggingIn || isViewerLoading}
             >
               {isLoggingIn ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  확인 중...
-                </>
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>확인 중...</span>
+                </span>
               ) : (
-                <>
-                  <Shield className="mr-2 h-4 w-4" />
-                  관리자로 로그인
-                </>
+                <span className="flex items-center justify-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  <span>관리자로 로그인</span>
+                </span>
               )}
             </Button>
+
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <div className="relative w-full">
@@ -155,6 +164,7 @@ export default function LoginPage() {
                 </span>
               </div>
             </div>
+            
             <Button
               variant="secondary"
               className="w-full"
@@ -162,15 +172,15 @@ export default function LoginPage() {
               disabled={isLoggingIn || isViewerLoading}
             >
               {isViewerLoading ? (
-                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  접속 중...
-                </>
+                 <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>접속 중...</span>
+                </span>
               ) : (
-                <>
-                  <Eye className="mr-2 h-4 w-4" />
-                  뷰어로 계속하기
-                </>
+                <span className="flex items-center justify-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  <span>뷰어로 계속하기</span>
+                </span>
               )}
             </Button>
           </CardFooter>
