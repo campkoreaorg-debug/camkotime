@@ -5,14 +5,7 @@ import Image from 'next/image';
 import { MapPin } from 'lucide-react';
 import type { MapMarker, StaffMember } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 
 interface VenueMapProps {
@@ -78,7 +71,6 @@ export function VenueMap({ markers, staff, mapImageUrl, isDraggable = false, onM
 
   return (
     <div className="w-full h-full p-4 bg-card rounded-lg shadow-inner overflow-hidden">
-      <TooltipProvider>
         <div 
           ref={mapRef}
           className="relative w-full aspect-[3/2] rounded-lg overflow-hidden border"
@@ -101,44 +93,44 @@ export function VenueMap({ markers, staff, mapImageUrl, isDraggable = false, onM
           <div className="absolute inset-0 bg-black/20" />
           {markers.map((marker) => {
             const staffMember = marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined;
+            const staffIndex = staffMember ? staff.findIndex(s => s.id === staffMember.id) : -1;
+            const staffNumber = staffIndex !== -1 ? staffIndex + 1 : null;
             
             return (
-                <Tooltip key={marker.id}>
-                    <TooltipTrigger asChild>
-                    <div
-                        data-marker-id={marker.id}
-                        className={cn(
-                            "absolute -translate-x-1/2 -translate-y-1/2",
-                            isDraggable && "cursor-grab",
-                            draggingMarker === marker.id && "cursor-grabbing z-10"
-                        )}
-                        style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                        onMouseDown={(e) => handleDragStart(e, marker.id)}
-                        onTouchStart={(e) => handleDragStart(e, marker.id)}
-                    >
-                        {marker.type === 'staff' && staffMember ? (
+                <div
+                    key={marker.id}
+                    data-marker-id={marker.id}
+                    className={cn(
+                        "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center",
+                        isDraggable && "cursor-grab",
+                        draggingMarker === marker.id && "cursor-grabbing z-10"
+                    )}
+                    style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
+                    onMouseDown={(e) => handleDragStart(e, marker.id)}
+                    onTouchStart={(e) => handleDragStart(e, marker.id)}
+                >
+                    {marker.type === 'staff' && staffMember ? (
+                        <>
                             <Avatar className="h-10 w-10 border-2 border-primary-foreground shadow-lg">
                                 <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
                                 <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
                             </Avatar>
-                        ) : (
-                            <div className="relative">
-                                <MapPin className="h-8 w-8 text-accent drop-shadow-lg" fill="hsl(var(--accent))" stroke="white" strokeWidth={1.5} />
+                            <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
+                                {staffNumber}. {staffMember.name}
                             </div>
-                        )}
-                    </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <div className='flex items-center gap-2'>
-                        <p className="font-semibold">{marker.label}</p>
-                        {staffMember && <Badge variant="secondary">{staffMember.role}</Badge>}
+                        </>
+                    ) : (
+                        <div className="relative flex flex-col items-center">
+                            <MapPin className="h-8 w-8 text-accent drop-shadow-lg" fill="hsl(var(--accent))" stroke="white" strokeWidth={1.5} />
+                             <div className="mt-1 px-2 py-0.5 bg-black/60 rounded-md text-white text-xs text-center whitespace-nowrap">
+                                {marker.label}
+                            </div>
                         </div>
-                    </TooltipContent>
-                </Tooltip>
+                    )}
+                </div>
             )
           })}
         </div>
-      </TooltipProvider>
     </div>
   );
 }
