@@ -22,7 +22,7 @@ import { useVenueData } from '@/hooks/use-venue-data';
 import type { ScheduleItem } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
-import { ScrollArea, ScrollBar } from '../ui/scroll-area';
+import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 
 const scheduleSchema = z.object({
@@ -149,34 +149,24 @@ export function SchedulePanel() {
 
             return (
               <TabsContent key={day} value={`day-${day}`} className="space-y-4">
-                <ScrollArea className="w-full whitespace-nowrap">
-                  <div className="flex space-x-2 pb-4">
+                <ScrollArea className="w-full">
+                  <div className="flex flex-wrap gap-2 pb-4">
                     {timeSlots.map(time => {
                       const items = daySchedules[time] || [];
                       const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
                       return (
-                        <div key={time} className="flex-shrink-0 w-48 h-40 cursor-pointer" onClick={() => handleSelectSlot(items, day, time)}>
-                           <div className="text-sm font-semibold text-center mb-1">{time}</div>
-                           <div className={`relative h-full border rounded-lg p-2 flex flex-col justify-center items-center text-center bg-muted/40 hover:border-primary transition-all ${isSelected ? 'border-primary border-2' : ''}`}>
-                            {items.length > 0 ? (
-                                <>
-                                    <p className="text-sm font-bold whitespace-normal">{items[0].event}</p>
-                                    <p className="text-xs text-muted-foreground whitespace-normal">{items[0].location}</p>
-                                    {items.length > 1 && (
-                                        <div className="absolute bottom-2 right-2 text-xs font-bold bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center">
-                                            {items.length}
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <Plus className="h-6 w-6 text-muted-foreground"/>
-                            )}
-                           </div>
-                        </div>
+                        <Button 
+                            key={time} 
+                            variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
+                            className="flex-shrink-0"
+                            onClick={() => handleSelectSlot(items, day, time)}
+                        >
+                           {time}
+                           {items.length > 0 && <span className="ml-2 h-5 w-5 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">{items.length}</span>}
+                        </Button>
                       )
                     })}
                   </div>
-                  <ScrollBar orientation="horizontal" />
                 </ScrollArea>
 
                 {selectedSlot && selectedSlot.day === day && (
