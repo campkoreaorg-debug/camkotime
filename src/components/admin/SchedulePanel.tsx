@@ -228,9 +228,11 @@ export function SchedulePanel() {
                                 )}
                             </form>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {displayedSchedules.map(({ time, items }) => (
-                                <div key={time} className={`p-4 rounded-lg border ${time === selectedSlot.time ? 'bg-muted/60 border-primary' : 'bg-muted/20'}`}>
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                          {displayedSchedules.map(({ time, items }) => {
+                            const isCurrent = time === selectedSlot.time;
+                            return (
+                                <div key={time} className={`p-4 rounded-lg border ${isCurrent ? 'bg-muted/60 border-primary md:col-span-3' : 'bg-muted/20 md:col-span-1'}`}>
                                     <h4 className="font-semibold text-center mb-3">{time}</h4>
                                     <div className="space-y-2 min-h-[50px]">
                                         {items.map(item => (
@@ -239,7 +241,7 @@ export function SchedulePanel() {
                                                 <p className="font-medium text-sm">{item.event}</p>
                                                 {item.location && <p className="text-xs text-muted-foreground">{item.location}</p>}
                                             </div>
-                                            {time === selectedSlot.time && (
+                                            {isCurrent && (
                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditClick(item)}>
                                                         <Edit className="h-3.5 w-3.5"/>
@@ -258,7 +260,7 @@ export function SchedulePanel() {
                                         )}
                                     </div>
                                 </div>
-                            ))}
+                            )})}
                         </div>
                     </div>
                     </>
@@ -287,5 +289,3 @@ export function SchedulePanel() {
     </Card>
   );
 }
-
-    
