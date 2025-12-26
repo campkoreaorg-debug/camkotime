@@ -228,12 +228,15 @@ export function SchedulePanel() {
                                       control={form.control}
                                       name="staffId"
                                       render={({ field }) => (
-                                        <Select onValueChange={field.onChange} value={field.value}>
+                                        <Select
+                                          onValueChange={(value) => field.onChange(value === 'unassigned' ? '' : value)}
+                                          value={field.value || 'unassigned'}
+                                        >
                                           <SelectTrigger className="w-[180px]">
                                             <SelectValue placeholder="담당자 선택" />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            <SelectItem value="">담당자 없음</SelectItem>
+                                            <SelectItem value="unassigned">담당자 없음</SelectItem>
                                             {data.staff.map(s => (
                                                 <SelectItem key={s.id} value={s.id}>
                                                   <div className="flex items-center gap-2">
