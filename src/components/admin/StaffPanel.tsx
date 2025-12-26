@@ -1,44 +1,24 @@
 "use client";
 
 import { useState, useRef } from 'react';
-import { PlusCircle, Trash2, Upload, User, Loader2 } from 'lucide-react';
+import { Trash2, Upload, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-  } from "@/components/ui/alert-dialog"
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { StaffMember } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 
 export function StaffPanel() {
   const { data, addStaffBatch, deleteStaff } = useVenueData();
   const { toast } = useToast();
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDeleteConfirmation = (staff: StaffMember) => {
-    setStaffToDelete(staff);
-    setIsAlertOpen(true);
-  };
-
-  const handleDelete = () => {
-    if (!staffToDelete) return;
-    deleteStaff(staffToDelete.id);
-    setIsAlertOpen(false);
-    setStaffToDelete(null);
+  const handleDelete = (staffId: string) => {
+    deleteStaff(staffId);
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,14 +72,14 @@ export function StaffPanel() {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-            <div className='space-y-1'>
+            <div className='space-y-1.5'>
                 <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
-                <div className="text-muted-foreground">
+                <CardDescription>
                     총 <Badge variant="secondary">{data.staff.length}</Badge>명의 스태프가 등록되었습니다.
-                </div>
+                </CardDescription>
             </div>
           
             <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
@@ -142,7 +122,7 @@ export function StaffPanel() {
                                 variant="destructive"
                                 size="icon"
                                 className="absolute top-0 right-0 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => handleDeleteConfirmation(s)}
+                                onClick={() => handleDelete(s.id)}
                             >
                                 <Trash2 className="h-4 w-4" />
                             </Button>
@@ -159,21 +139,6 @@ export function StaffPanel() {
             )}
         </CardContent>
       </Card>
-
-      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-            <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-            <AlertDialogDescription>
-                이 작업은 되돌릴 수 없습니다. {staffToDelete?.name} 님을 영구적으로 삭제하고 지도에서 제거합니다.
-            </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>삭제</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

@@ -3,17 +3,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import { VenueMap } from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
-import { Calendar, Users, Map, LogOut, Loader2, Upload } from 'lucide-react';
+import { LogOut, Loader2, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser } from '@/firebase';
 
@@ -86,46 +80,32 @@ export default function AdminPage() {
                 로그아웃
             </Button>
         </header>
-      <main className="p-4 md:p-8">
-        <Tabs defaultValue="map" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
-            <TabsTrigger value="map">
-              <Map className="mr-2 h-4 w-4" />
-              지도 보기
-            </TabsTrigger>
-            <TabsTrigger value="staff">
-              <Users className="mr-2 h-4 w-4" />
-              스태프
-            </TabsTrigger>
-            <TabsTrigger value="schedule">
-              <Calendar className="mr-2 h-4 w-4" />
-              스케줄
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="map" className="mt-4">
-            <div className="flex justify-end mb-4">
-                <Button onClick={() => fileInputRef.current?.click()}>
-                    <Upload className="mr-2 h-4 w-4" />
-                    배경 업로드
-                </Button>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleMapImageUpload}
-                    className="hidden"
-                    accept="image/png, image/jpeg, image/gif"
-                />
-            </div>
-             <VenueMap markers={data.markers} staff={data.staff} mapImageUrl={data.mapImageUrl} />
-          </TabsContent>
-          <TabsContent value="staff" className="mt-4">
-            <StaffPanel />
-          </TabsContent>
-          <TabsContent value="schedule" className="mt-4">
+        <main className="p-4 md:p-8 space-y-8">
+            {/* Schedule Panel */}
             <SchedulePanel />
-          </TabsContent>
-        </Tabs>
-      </main>
+
+            {/* Staff Panel */}
+            <StaffPanel />
+
+            {/* Map Section */}
+            <div className="space-y-4">
+                 <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-headline font-semibold">지도 보기</h2>
+                    <Button onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        배경 업로드
+                    </Button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleMapImageUpload}
+                        className="hidden"
+                        accept="image/png, image/jpeg, image/gif"
+                    />
+                </div>
+                 <VenueMap markers={data.markers} staff={data.staff} mapImageUrl={data.mapImageUrl} />
+            </div>
+        </main>
     </div>
   );
 }

@@ -43,6 +43,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { ScheduleItem } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 
 const scheduleSchema = z.object({
   time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s(AM|PM)$/, '잘못된 시간 형식 (예: 09:00 AM)'),
@@ -93,94 +94,96 @@ export function SchedulePanel() {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-headline font-semibold">스케줄 관리</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleDialogOpen()}>
-              <PlusCircle className="mr-2 h-4 w-4" /> 이벤트 추가
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="font-headline">
-                {editingItem ? '스케줄 이벤트 수정' : '새 스케줄 이벤트 추가'}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="time">시간</Label>
-                <Input id="time" placeholder="예: 09:00 AM" {...form.register('time')} />
-                {form.formState.errors.time && (
-                  <p className="text-sm text-destructive">{form.formState.errors.time.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="event">이벤트</Label>
-                <Input id="event" {...form.register('event')} />
-                {form.formState.errors.event && (
-                  <p className="text-sm text-destructive">{form.formState.errors.event.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">장소</Label>
-                <Input id="location" {...form.register('location')} />
-                {form.formState.errors.location && (
-                  <p className="text-sm text-destructive">{form.formState.errors.location.message}</p>
-                )}
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="secondary">취소</Button>
-                </DialogClose>
-                <Button type="submit">저장</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-      <div className='bg-card p-2 rounded-lg border'>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>시간</TableHead>
-            <TableHead>이벤트</TableHead>
-            <TableHead>장소</TableHead>
-            <TableHead className="text-right">작업</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.schedule.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell className="font-medium">{item.time}</TableCell>
-              <TableCell>{item.event}</TableCell>
-              <TableCell>{item.location}</TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                      <span className="sr-only">메뉴 열기</span>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleDialogOpen(item)}>수정</DropdownMenuItem>
-                    <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => handleDeleteConfirmation(item)}
-                    >
-                        <Trash2 className="mr-2 h-4 w-4" /> 삭제
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      </div>
-
+    <div className="space-y-4">
+       <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+                <Button onClick={() => handleDialogOpen()}>
+                <PlusCircle className="mr-2 h-4 w-4" /> 이벤트 추가
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                <DialogTitle className="font-headline">
+                    {editingItem ? '스케줄 이벤트 수정' : '새 스케줄 이벤트 추가'}
+                </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="time">시간</Label>
+                    <Input id="time" placeholder="예: 09:00 AM" {...form.register('time')} />
+                    {form.formState.errors.time && (
+                    <p className="text-sm text-destructive">{form.formState.errors.time.message}</p>
+                    )}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="event">이벤트</Label>
+                    <Input id="event" {...form.register('event')} />
+                    {form.formState.errors.event && (
+                    <p className="text-sm text-destructive">{form.formState.errors.event.message}</p>
+                    )}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="location">장소</Label>
+                    <Input id="location" {...form.register('location')} />
+                    {form.formState.errors.location && (
+                    <p className="text-sm text-destructive">{form.formState.errors.location.message}</p>
+                    )}
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                    <Button type="button" variant="secondary">취소</Button>
+                    </DialogClose>
+                    <Button type="submit">저장</Button>
+                </DialogFooter>
+                </form>
+            </DialogContent>
+            </Dialog>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                <TableRow>
+                    <TableHead>시간</TableHead>
+                    <TableHead>이벤트</TableHead>
+                    <TableHead>장소</TableHead>
+                    <TableHead className="text-right">작업</TableHead>
+                </TableRow>
+                </TableHeader>
+                <TableBody>
+                {data.schedule.map((item) => (
+                    <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.time}</TableCell>
+                    <TableCell>{item.event}</TableCell>
+                    <TableCell>{item.location}</TableCell>
+                    <TableCell className="text-right">
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">메뉴 열기</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleDialogOpen(item)}>수정</DropdownMenuItem>
+                            <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleDeleteConfirmation(item)}
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" /> 삭제
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                        </DropdownMenu>
+                    </TableCell>
+                    </TableRow>
+                ))}
+                </TableBody>
+            </Table>
+        </CardContent>
+      </Card>
+      
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
