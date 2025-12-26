@@ -106,32 +106,33 @@ export function StaffPanel() {
         </CardHeader>
         <CardContent>
             {data.staff.length > 0 ? (
-                <ScrollArea className="h-96 w-full">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-1">
+                <ScrollArea className="h-auto w-full">
+                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-15 gap-4 p-1">
                     {data.staff.map((s, index) => (
-                        <div key={s.id} className="relative group flex flex-col items-center gap-2">
-                            <span className="absolute -top-2 -left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
+                        <div key={s.id} className="relative group flex flex-col items-center gap-1">
+                            <span className="absolute -top-1 -left-1 z-10 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">
                                 {index + 1}
                             </span>
-                            <Avatar className='h-24 w-24 border-2 border-transparent group-hover:border-primary transition-all'>
+                            <Avatar className='h-16 w-16 border-2 border-transparent group-hover:border-primary transition-all'>
                                 <AvatarImage src={s.avatar} alt={s.name} />
-                                <AvatarFallback><User className='h-10 w-10 text-muted-foreground'/></AvatarFallback>
+                                <AvatarFallback><User className='h-8 w-8 text-muted-foreground'/></AvatarFallback>
                             </Avatar>
-                            <p className="text-sm font-medium truncate w-full text-center">{s.name}</p>
+                            <p className="text-xs font-medium truncate w-full text-center">{s.name}</p>
                             <Button
                                 variant="destructive"
                                 size="icon"
-                                className="absolute top-0 right-0 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-0 right-0 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                                 onClick={() => handleDelete(s.id)}
                             >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3" />
                             </Button>
                         </div>
                     ))}
                     </div>
+                    <div className="h-4" /> 
                 </ScrollArea>
             ) : (
-                <div className="flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg">
+                <div className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-lg">
                     <User className="h-12 w-12 text-muted-foreground" />
                     <p className="mt-4 text-muted-foreground">등록된 스태프가 없습니다.</p>
                     <p className="text-sm text-muted-foreground">'스태프 추가' 버튼을 눌러 이미지를 업로드하세요.</p>
