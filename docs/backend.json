@@ -29,13 +29,18 @@
         "address": {
           "type": "string",
           "description": "Street address of the venue."
+        },
+        "ownerId": {
+            "type": "string",
+            "description": "The UID of the user who owns this venue."
         }
       },
       "required": [
         "id",
         "name",
         "latitude",
-        "longitude"
+        "longitude",
+        "ownerId"
       ]
     },
     "Staff": {

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, Shield } from 'lucide-react';
+import { Eye, Shield, Loader2 } from 'lucide-react';
+import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -16,42 +17,90 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth, useUser } from '@/firebase';
 
 export default function LoginPage() {
   const router = useRouter();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isViewerLoading, setIsViewerLoading] = useState(false);
 
-  const handleAdminLogin = () => {
-    setIsLoading(true);
-    // Simulate network delay
-    setTimeout(() => {
-      if (password === 'camp1') {
-        try {
-            sessionStorage.setItem('is-admin', 'true');
+  useEffect(() => {
+    if (!isUserLoading && user) {
+        if (user.isAnonymous) {
+            router.push('/viewer');
+        } else {
             router.push('/admin');
-        } catch (error) {
+        }
+    }
+  }, [user, isUserLoading, router]);
+
+  const handleAdminLogin = async () => {
+    setIsLoggingIn(true);
+    if (password === 'camp1') {
+      try {
+        await signInWithEmailAndPassword(auth, 'admin@venue.sync', password);
+        router.push('/admin');
+      } catch (error: any) {
+        // If admin user doesn't exist, create it.
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+          try {
+            await auth.createUserWithEmailAndPassword('admin@venue.sync', password);
+            router.push('/admin');
+          } catch (createError: any) {
+             toast({
+                variant: 'destructive',
+                title: '관리자 로그인 실패',
+                description: createError.message,
+              });
+          }
+        } else {
             toast({
                 variant: 'destructive',
-                title: '로그인 실패',
-                description: '세션 저장소에 접근할 수 없습니다. 쿠키를 활성화하고 다시 시도해 주세요.',
+                title: '로그인 오류',
+                description: "알 수 없는 오류가 발생했습니다.",
             });
         }
-      } else {
-        toast({
-          variant: 'destructive',
-          title: '잘못된 비밀번호',
-          description: '비밀번호를 확인하고 다시 시도해 주세요.',
-        });
+      } finally {
+        setIsLoggingIn(false);
       }
-      setIsLoading(false);
-    }, 500);
+    } else {
+      toast({
+        variant: 'destructive',
+        title: '잘못된 비밀번호',
+        description: '비밀번호를 확인하고 다시 시도해 주세요.',
+      });
+      setIsLoggingIn(false);
+    }
   };
 
-  const handleViewerAccess = () => {
-    router.push('/viewer');
+  const handleViewerAccess = async () => {
+    setIsViewerLoading(true);
+    try {
+      await signInAnonymously(auth);
+      router.push('/viewer');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: '뷰어 접속 실패',
+        description: error.message,
+      });
+    } finally {
+        setIsViewerLoading(false);
+    }
   };
+  
+  if (isUserLoading || user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -75,16 +124,25 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()}
-                disabled={isLoading}
+                disabled={isLoggingIn || isViewerLoading}
               />
             </div>
             <Button
               onClick={handleAdminLogin}
               className="w-full"
-              disabled={isLoading}
+              disabled={isLoggingIn || isViewerLoading}
             >
-              <Shield className="mr-2 h-4 w-4" />
-              {isLoading ? '확인 중...' : '관리자로 로그인'}
+              {isLoggingIn ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  확인 중...
+                </>
+              ) : (
+                <>
+                  <Shield className="mr-2 h-4 w-4" />
+                  관리자로 로그인
+                </>
+              )}
             </Button>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
@@ -102,9 +160,19 @@ export default function LoginPage() {
               variant="secondary"
               className="w-full"
               onClick={handleViewerAccess}
+              disabled={isLoggingIn || isViewerLoading}
             >
-              <Eye className="mr-2 h-4 w-4" />
-              뷰어로 계속하기
+              {isViewerLoading ? (
+                 <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  접속 중...
+                </>
+              ) : (
+                <>
+                  <Eye className="mr-2 h-4 w-4" />
+                  뷰어로 계속하기
+                </>
+              )}
             </Button>
           </CardFooter>
         </Card>

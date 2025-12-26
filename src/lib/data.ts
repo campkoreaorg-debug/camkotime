@@ -28,6 +28,7 @@ export const initialData: VenueData = {
     { id: 'marker-4', type: 'poi', label: 'Main Stage', x: 50, y: 20 },
     { id: 'marker-5', type: 'poi', label: 'Restrooms', x: 15, y: 75 },
     { id: 'marker-6', type: 'poi', label: 'First Aid', x: 85, y: 75 },
+    { id: 'marker-7', type: 'staff', label: 'Mary Johnson', x: 30, y: 70, staffId: 'staff-4'}
   ],
   mapImageUrl: mapBg,
 };

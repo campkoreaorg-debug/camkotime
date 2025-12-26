@@ -15,39 +15,33 @@ import { VenueMap } from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Calendar, Users, Map, LogOut, Loader2, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth, useUser } from '@/firebase';
 
 export default function AdminPage() {
   const router = useRouter();
-  const { data, updateData } = useVenueData();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+  const { data, updateMapImage, initializeFirestoreData, isLoading } = useVenueData();
   const { toast } = useToast();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [mapImageUrl, setMapImageUrl] = useState<string | undefined>(data.mapImageUrl);
-
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try {
-        const isAdmin = sessionStorage.getItem('is-admin') === 'true';
-        if (!isAdmin) {
-          router.replace('/');
-        } else {
-          setIsAuthenticated(true);
-        }
-    } catch (error) {
-        router.replace('/');
+    if (!isUserLoading && (!user || user.isAnonymous)) {
+      router.replace('/');
     }
-  }, [router]);
-  
-  useEffect(() => {
-    setMapImageUrl(data.mapImageUrl);
-  }, [data.mapImageUrl]);
+  }, [user, isUserLoading, router]);
 
-  const handleLogout = () => {
-    try {
-        sessionStorage.removeItem('is-admin');
-    } catch (error) {
-        console.error("Could not remove item from session storage.")
+  useEffect(() => {
+    // If data is empty, it might be the first time.
+    // Let's initialize it.
+    if(user && data.staff.length === 0 && !isLoading){
+        initializeFirestoreData();
     }
+  }, [data, user, isLoading, initializeFirestoreData]);
+
+  const handleLogout = async () => {
+    await auth.signOut();
     router.push('/');
   };
 
@@ -65,8 +59,7 @@ export default function AdminPage() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const newMapImageUrl = reader.result as string;
-        updateData({ ...data, mapImageUrl: newMapImageUrl });
-        setMapImageUrl(newMapImageUrl);
+        updateMapImage(newMapImageUrl);
         toast({
           title: '성공',
           description: '지도 배경 이미지가 업데이트되었습니다.',
@@ -76,7 +69,7 @@ export default function AdminPage() {
     }
   };
 
-  if (!isAuthenticated) {
+  if (isUserLoading || !user || isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -123,7 +116,7 @@ export default function AdminPage() {
                     accept="image/png, image/jpeg, image/gif"
                 />
             </div>
-             <VenueMap markers={data.markers} staff={data.staff} mapImageUrl={mapImageUrl} />
+             <VenueMap markers={data.markers} staff={data.staff} mapImageUrl={data.mapImageUrl} />
           </TabsContent>
           <TabsContent value="staff" className="mt-4">
             <StaffPanel />

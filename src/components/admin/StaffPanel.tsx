@@ -5,7 +5,6 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { MoreHorizontal, PlusCircle, Trash2, Upload } from 'lucide-react';
-import Image from 'next/image';
 import {
   Table,
   TableBody,
@@ -50,9 +49,10 @@ import {
     SelectValue,
   } from "@/components/ui/select"
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { StaffMember, MapMarker } from '@/lib/types';
+import type { StaffMember } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useToast } from '@/hooks/use-toast';
+import { User } from 'lucide-react';
 
 const editStaffSchema = z.object({
   name: z.string().min(2, '이름은 최소 2자 이상이어야 합니다.'),
@@ -64,7 +64,7 @@ const addStaffSchema = z.object({
 });
 
 export function StaffPanel() {
-  const { data, updateData } = useVenueData();
+  const { data, addStaff, updateStaff, deleteStaff } = useVenueData();
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -101,11 +101,7 @@ export function StaffPanel() {
 
   const onEditSubmit = (values: z.infer<typeof editStaffSchema>) => {
     if (editingStaff) {
-      const updatedStaffList = data.staff.map((s) =>
-        s.id === editingStaff.id ? { ...s, ...values } : s
-      );
-      const updatedMarkers = data.markers.map(m => m.staffId === editingStaff.id ? {...m, label: values.name} : m)
-      updateData({ ...data, staff: updatedStaffList, markers: updatedMarkers });
+      updateStaff(editingStaff.id, values);
     }
     setIsEditDialogOpen(false);
   };
@@ -115,24 +111,7 @@ export function StaffPanel() {
         toast({ variant: "destructive", title: "오류", description: "이미지를 업로드해주세요." });
         return;
     }
-    const newId = `staff-${Date.now()}`;
-    const newStaff: StaffMember = {
-      id: newId,
-      name: values.name,
-      role: 'Operations', // Default role
-      avatar: avatarFile,
-    };
-    
-    const newMarker: MapMarker = {
-      id: `marker-${Date.now()}`,
-      staffId: newId,
-      type: 'staff',
-      label: newStaff.name,
-      x: Math.round(Math.random() * 80) + 10,
-      y: Math.round(Math.random() * 80) + 10,
-    }
-    
-    updateData({ ...data, staff: [...data.staff, newStaff], markers: [...data.markers, newMarker] });
+    addStaff(values.name, avatarFile);
     setIsAddDialogOpen(false);
   };
 
@@ -143,9 +122,7 @@ export function StaffPanel() {
 
   const handleDelete = () => {
     if (!staffToDelete) return;
-    const updatedStaff = data.staff.filter((s) => s.id !== staffToDelete.id);
-    const updatedMarkers = data.markers.filter(m => m.staffId !== staffToDelete.id);
-    updateData({ ...data, staff: updatedStaff, markers: updatedMarkers });
+    deleteStaff(staffToDelete.id);
     setIsAlertOpen(false);
     setStaffToDelete(null);
   };

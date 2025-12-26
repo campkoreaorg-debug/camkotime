@@ -51,7 +51,7 @@ const scheduleSchema = z.object({
 });
 
 export function SchedulePanel() {
-  const { data, updateData } = useVenueData();
+  const { data, addSchedule, updateSchedule, deleteSchedule } = useVenueData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -73,17 +73,9 @@ export function SchedulePanel() {
 
   const onSubmit = (values: z.infer<typeof scheduleSchema>) => {
     if (editingItem) {
-      const updatedSchedule = data.schedule.map((item) =>
-        item.id === editingItem.id ? { ...item, ...values } : item
-      );
-      updateData({ ...data, schedule: updatedSchedule });
+      updateSchedule(editingItem.id, values);
     } else {
-      const newScheduleItem: ScheduleItem = {
-        id: `sch-${Date.now()}`,
-        ...values,
-      };
-      const updatedSchedule = [...data.schedule, newScheduleItem].sort((a,b) => a.time.localeCompare(b.time));
-      updateData({ ...data, schedule: updatedSchedule });
+      addSchedule(values);
     }
     setIsDialogOpen(false);
   };
@@ -95,8 +87,7 @@ export function SchedulePanel() {
 
   const handleDelete = () => {
     if (!itemToDelete) return;
-    const updatedSchedule = data.schedule.filter((item) => item.id !== itemToDelete.id);
-    updateData({ ...data, schedule: updatedSchedule });
+    deleteSchedule(itemToDelete.id);
     setIsAlertOpen(false);
     setItemToDelete(null);
   };

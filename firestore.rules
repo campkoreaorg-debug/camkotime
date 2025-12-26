@@ -1,116 +1,45 @@
-/**
- * Core Philosophy: This ruleset establishes a "Public Read, Secure Writes" model.
- * All data related to venues, staff, schedules, and devices is publicly readable by anyone,
- * including unauthenticated users. This supports features like public venue directories or
- * event schedules. All write operations (create, update, delete) are currently disabled
- * as a secure default because the data model lacks the necessary fields to determine
- * document ownership or user roles.
- *
- * Data Structure: The data is organized hierarchically. A top-level `/venues` collection
- * holds all venue documents. Each venue document then acts as a parent for its own
- * subcollections: `/staff`, `/schedules`, and `/externalDevices`. This structure ensures
- * data is logically grouped and scoped.
- *
- * Key Security Decisions:
- * - Public Read Access: All collections and subcollections are world-readable to allow
- *   for easy data consumption by clients.
- * - Writes Disabled by Default: All write operations are disallowed (`if false;`). This is
- *   the most secure posture until a clear ownership or role-based model is implemented.
- * - Future-Proofing for Writes: A critical `// TODO` comment has been added to the
- *   `/venues` collection rule. To enable writes, the `Venue` entity in the application
- *   schema must be updated to include an ownership field (e.g., `ownerId`) or a map of
- *   authorized members (e.g., `members: {'uid': 'admin'}`).
- *
- * Denormalization for Authorization: To enable secure writes in the future, authorization
- * data must be denormalized. For example, a `Venue` document should contain an `ownerId`
- * field or a `members` map. This allows security rules to check for ownership or roles
- * directly on the document being accessed, avoiding slow and costly `get()` calls to
- * other documents.
- *
- * Structural Segregation: The use of separate subcollections for staff, schedules, and
- * devices under each venue is an excellent example of structural segregation. It simplifies
- * list queries and security rules by ensuring that when a user requests a list of staff,
- * it is always within the context of a single, specific venue.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * @description Allows public read access to all venue information but disables all write
-     *              operations. Writes are blocked as a security measure because the `Venue`
-     *              entity lacks an `ownerId` or `members` field to verify user permissions.
-     * @path        /venues/{venueId}
-     * @allow       (get) Any user, signed-in or not, can read a specific venue document.
-     * @deny        (create) A signed-in user attempts to create a new venue document. This fails
-     *              because writes are disabled until an ownership model is defined.
-     * @principle   Enforces a secure default (read-only) when the data schema cannot support
-     *              authorization checks for writes.
-     */
+    
+    // Venues can be read by anyone.
+    // Venues can only be created, updated, or deleted by the user
+    // who owns the venue.
     match /venues/{venueId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
+      allow create, update, delete: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
 
-      // CRITICAL: Cannot implement owner-only writes. The 'Venue' entity is missing an 'ownerId' or a `members` map field.
-      // To enable secure writes, update the application schema to include a field that identifies the user(s) authorized to make changes.
-      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field (e.g., request.resource.data.ownerId == request.auth.uid).
-      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field (e.g., resource.data.ownerId == request.auth.uid).
-      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field (e.g., resource.data.ownerId == request.auth.uid).
-    }
+      // Staff can be read by anyone.
+      // Staff can only be created, updated, or deleted by the user
+      // who owns the venue.
+      match /staff/{staffId} {
+        allow get, list: if true;
+        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+      }
 
-    /**
-     * @description Allows public read access to staff members of a venue. All write
-     *              operations are disabled, inheriting the secure posture of the parent venue.
-     * @path        /venues/{venueId}/staff/{staffId}
-     * @allow       (get) Any user can read the information of a staff member for any venue.
-     * @deny        (create) A signed-in user attempts to create a new staff document. This
-     *              fails because the parent venue's security model is read-only.
-     * @principle   Subcollection rules should be consistent with their parent's security model.
-     */
-    match /venues/{venueId}/staff/{staffId} {
-      allow get: if true;
-      allow list: if true;
-
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Allows public read access to the schedules of a venue. All write
-     *              operations are disabled, inheriting the secure posture of the parent venue.
-     * @path        /venues/{venueId}/schedules/{scheduleId}
-     * @allow       (list) Any user can list all schedule entries for a specific venue.
-     * @deny        (update) A signed-in user attempts to update a schedule. This fails
-     *              because the parent venue's security model is read-only.
-     * @principle   Subcollection rules should be consistent with their parent's security model.
-     */
-    match /venues/{venueId}/schedules/{scheduleId} {
-      allow get: if true;
-      allow list: if true;
-
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Allows public read access to external devices associated with a venue.
-     *              All write operations are disabled, inheriting the secure posture of the
-     *              parent venue.
-     * @path        /venues/{venueId}/externalDevices/{deviceId}
-     * @allow       (get) Any user can read the data of an external device for any venue.
-     * @deny        (delete) A signed-in user attempts to delete an external device. This
-     *              fails because the parent venue's security model is read-only.
-     * @principle   Subcollection rules should be consistent with their parent's security model.
-     */
-    match /venues/{venueId}/externalDevices/{deviceId} {
-      allow get: if true;
-      allow list: if true;
-
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      // Schedules can be read by anyone.
+      // Schedules can only be created, updated, or deleted by the user
+      // who owns the venue.
+      match /schedules/{scheduleId} {
+        allow get, list: if true;
+        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+      }
+      
+      // Markers can be read by anyone.
+      // Markers can only be created, updated, or deleted by the user
+      // who owns the venue.
+       match /markers/{markerId} {
+        allow get, list: if true;
+        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+      }
+      
+      // External devices can be read by anyone.
+      // External devices can only be created, updated, or deleted by the user
+      // who owns the venue.
+      match /externalDevices/{deviceId} {
+        allow get, list: if true;
+        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+      }
     }
   }
 }
