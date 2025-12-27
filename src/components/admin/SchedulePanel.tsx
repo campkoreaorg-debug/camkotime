@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, User, Copy, ClipboardPaste } from 'lucide-react';
+import { Plus, Trash2, Edit, User, Copy, ClipboardPaste, Link as LinkIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -26,6 +26,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Checkbox } from '../ui/checkbox';
+import { Switch } from '../ui/switch';
 import { useToast } from '@/hooks/use-toast';
 
 const scheduleSchema = z.object({
@@ -63,9 +64,10 @@ interface SchedulePanelProps {
     selectedSlot: { day: number, time: string } | null;
     onSlotChange: (day: number, time: string) => void;
     isLinked: boolean;
+    onLinkChange: (isLinked: boolean) => void;
 }
 
-export function SchedulePanel({ selectedSlot, onSlotChange, isLinked }: SchedulePanelProps) {
+export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChange }: SchedulePanelProps) {
   const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules } = useVenueData();
   const { toast } = useToast();
   
@@ -214,7 +216,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked }: Schedule
     
     const schedulesByTime: { time: string; items: ScheduleItem[] }[] = [];
 
-    if(prevTime) {
+    if(prevTime && isLinked) {
       const prevItems = daySchedules[day]?.[prevTime] || [];
       schedulesByTime.push({ time: prevTime, items: prevItems });
     }
@@ -222,13 +224,13 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked }: Schedule
     const currentItems = daySchedules[day]?.[time] || [];
     schedulesByTime.push({ time, items: currentItems });
 
-    if(nextTime) {
+    if(nextTime && isLinked) {
       const nextItems = daySchedules[day]?.[nextTime] || [];
       schedulesByTime.push({ time: nextTime, items: nextItems });
     }
 
     return schedulesByTime;
-  }, [selectedSlot, daySchedules]);
+  }, [selectedSlot, daySchedules, isLinked]);
 
   const handleCheckboxChange = (itemId: string) => {
     setSelectedScheduleIds(prev =>
@@ -267,8 +269,19 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked }: Schedule
   return (
     <Card className='lg:col-span-1'>
         <CardHeader>
-          <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
-          <CardDescription>일차를 선택하고 시간대별로 스케줄을 관리하세요.</CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
+              <CardDescription>일차를 선택하고 시간대별로 스케줄을 관리하세요.</CardDescription>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch id="link-panels" checked={isLinked} onCheckedChange={onLinkChange} />
+              <Label htmlFor="link-panels" className='flex items-center gap-2'>
+                <LinkIcon className='h-4 w-4'/>
+                지도 연동
+              </Label>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
@@ -377,12 +390,12 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked }: Schedule
                                   )}
                               </form>
                           </div>
-                          <div className={`grid grid-cols-1 ${!isLinked && 'md:grid-cols-3'} gap-4`}>
+                          <div className={`grid grid-cols-1 ${isLinked && 'md:grid-cols-3'} gap-4`}>
                             {displayedSchedules.map(({ time, items }) => {
                               const isCurrent = time === selectedSlot.time;
-                              if (!isLinked && !isCurrent) return null;
+                              
                               return (
-                                  <div key={time} className={`p-4 rounded-lg border ${isCurrent ? 'bg-muted/60 border-primary' : 'bg-muted/20'}`}>
+                                  <div key={time} className={`p-4 rounded-lg border ${isCurrent ? 'bg-muted/60' : 'bg-muted/20 opacity-70'}`}>
                                       <h4 className="font-semibold text-center mb-3">{time}</h4>
                                       <div className="space-y-2 min-h-[50px]">
                                           {items.map(item => {

@@ -7,10 +7,8 @@ import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import { MapPanel } from '@/components/admin/MapPanel';
-import { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { LogOut, Loader2, ExternalLink } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -18,8 +16,7 @@ export default function AdminPage() {
   const { user, isUserLoading } = useUser();
 
   const [isLinked, setIsLinked] = useState(true);
-  const [scheduleSlot, setScheduleSlot] = useState<{ day: number; time: string } | null>(null);
-  const [mapSlot, setMapSlot] = useState<{ day: number; time: string } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && (!user || user.isAnonymous)) {
@@ -27,24 +24,20 @@ export default function AdminPage() {
     }
   }, [user, isUserLoading, router]);
 
+  useEffect(() => {
+    // Save the selected slot to localStorage whenever it changes
+    if (selectedSlot) {
+      localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(selectedSlot));
+    }
+  }, [selectedSlot]);
+
   const handleSlotChange = (day: number, time: string) => {
-    const newSlot = { day, time };
-    setScheduleSlot(newSlot);
-    if (isLinked) {
-      setMapSlot(newSlot);
-    }
+    setSelectedSlot({ day, time });
   };
-  
-  const handleMapSlotChange = (day: number, time: string) => {
-    const newSlot = { day, time };
-    setMapSlot(newSlot);
-     if (isLinked) {
-      setScheduleSlot(newSlot);
-    }
-  }
 
   const handleLogout = async () => {
     await auth.signOut();
+    localStorage.removeItem('venueSyncSelectedSlot');
     router.push('/');
   };
 
@@ -65,13 +58,6 @@ export default function AdminPage() {
         <header className='flex justify-between items-center p-4 border-b bg-card'>
             <h1 className='font-headline text-2xl font-bold text-primary'>VenueSync 대시보드</h1>
             <div className="flex items-center gap-4">
-              <div className="flex items-center space-x-2">
-                <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
-                <Label htmlFor="link-panels" className='flex items-center gap-2'>
-                  <LinkIcon className='h-4 w-4'/>
-                  시간대 연동
-                </Label>
-              </div>
               <Button variant="outline" onClick={openMapWindow}>
                   <ExternalLink className="mr-2 h-4 w-4" />
                   새 창으로 열기
@@ -85,8 +71,17 @@ export default function AdminPage() {
         <main className="p-4 md:p-8 space-y-8">
             <StaffPanel />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <SchedulePanel selectedSlot={scheduleSlot} onSlotChange={handleSlotChange} isLinked={isLinked} />
-              <MapPanel selectedSlot={mapSlot} onSlotChange={handleMapSlotChange} isLinked={isLinked}/>
+              <SchedulePanel 
+                selectedSlot={selectedSlot} 
+                onSlotChange={handleSlotChange} 
+                isLinked={isLinked}
+                onLinkChange={setIsLinked}
+              />
+              <MapPanel 
+                selectedSlot={selectedSlot} 
+                onSlotChange={handleSlotChange} 
+                isLinked={isLinked}
+              />
             </div>
         </main>
     </div>

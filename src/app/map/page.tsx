@@ -2,18 +2,19 @@
 "use client";
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import VenueMap from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase';
 import { timeSlots } from '@/components/admin/SchedulePanel';
+import { Button } from '@/components/ui/button';
 
 export default function MapPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const { data, isLoading } = useVenueData();
-  const [currentTimeSlot, setCurrentTimeSlot] = useState<{ day: number; time: string } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
 
   useEffect(() => {
     // Allow anonymous users to see the map, but redirect if not logged in at all
@@ -23,26 +24,25 @@ export default function MapPage() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    const now = new Date();
-    const currentDay = 0; // Assuming Day 0 for viewer for now
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
+    const handleStorageChange = () => {
+      const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
+      if (storedSlot) {
+        setSelectedSlot(JSON.parse(storedSlot));
+      }
+    };
     
-    let timeString: string;
-    if (minutes < 30) {
-      timeString = `${String(hours).padStart(2, '0')}:00`;
-    } else {
-      timeString = `${String(hours).padStart(2, '0')}:30`;
-    }
+    // Initial load from localStorage
+    handleStorageChange();
 
-    if (timeSlots.includes(timeString)) {
-      setCurrentTimeSlot({ day: currentDay, time: timeString });
-    } else if (timeSlots.length > 0) {
-      setCurrentTimeSlot({ day: currentDay, time: timeSlots[0] });
-    }
+    // Listen for changes from other tabs
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
-  if (isUserLoading || isLoading || !currentTimeSlot) {
+  if (isUserLoading || isLoading || !selectedSlot) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -53,20 +53,44 @@ export default function MapPage() {
   // Determine if the map should be draggable.
   // Only non-anonymous (admin) users should be able to drag.
   const isDraggable = user ? !user.isAnonymous : false;
+  
+  const currentDay = selectedSlot?.day ?? 0;
+  
+  const handleSelectSlot = (day: number, time: string) => {
+    const newSlot = { day, time };
+    setSelectedSlot(newSlot);
+    localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(newSlot));
+  }
+
 
   return (
-    <div className="h-screen w-screen bg-background p-4">
-       <h1 className='text-2xl font-bold text-center mb-4 text-primary'>
-          VenueSync 실시간 지도 (Day {currentTimeSlot.day} - {currentTimeSlot.time})
+    <div className="h-screen w-screen bg-background p-4 flex flex-col">
+       <h1 className='text-2xl font-bold text-center mb-4 text-primary shrink-0'>
+          VenueSync 실시간 지도 (Day {selectedSlot.day} - {selectedSlot.time})
        </h1>
-       <div className='w-full h-[calc(100vh-80px)]'>
+        <div className="flex flex-wrap gap-2 pb-4 mb-4 border-b shrink-0">
+            {timeSlots.map(time => {
+                const isSelected = selectedSlot?.day === currentDay && selectedSlot?.time === time;
+                return (
+                <Button 
+                    key={time} 
+                    variant={isSelected ? "default" : "outline"}
+                    className="flex-shrink-0 text-xs h-8"
+                    onClick={() => handleSelectSlot(currentDay, time)}
+                >
+                    {time}
+                </Button>
+                )
+            })}
+        </div>
+       <div className='w-full grow'>
           <VenueMap
             allMarkers={data.markers}
             allMaps={data.maps}
             staff={data.staff}
             schedule={data.schedule}
             isDraggable={isDraggable}
-            selectedSlot={currentTimeSlot}
+            selectedSlot={selectedSlot}
           />
       </div>
     </div>
