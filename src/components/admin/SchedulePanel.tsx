@@ -119,7 +119,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
 
   const handleEditClick = (item: ScheduleItem) => {
     setEditingItem(item);
-    form.reset({ event: item.event, location: item.location || '', staffId: item.staffId || '' });
+    form.reset({ event: item.event, location: item.location || '', staffId: item.staffId || item.role || '' });
     setSelectedScheduleIds([]); // 수정 시작 시 선택 해제
   };
   
@@ -133,12 +133,13 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
 
     const assignment = values.staffId || '';
     const isRoleAssignment = roles.includes(assignment as RoleKorean);
+    const isUnassigned = assignment === 'unassigned';
   
     const scheduleData: Omit<ScheduleItem, 'id'> = {
       ...values,
       day: selectedSlot.day,
       time: selectedSlot.time,
-      staffId: isRoleAssignment ? null : assignment,
+      staffId: isRoleAssignment || isUnassigned ? null : assignment,
       role: isRoleAssignment ? (assignment as RoleKorean) : null,
     };
 
@@ -366,7 +367,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                               <SelectValue placeholder="담당자 또는 직책 선택" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="">담당자 없음</SelectItem>
+                                                <SelectItem value="unassigned">담당자 없음</SelectItem>
                                                 <SelectGroup>
                                                   <SelectLabel>직책</SelectLabel>
                                                   {roles.map(r => (
@@ -506,3 +507,5 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     </Card>
   );
 }
+
+    
