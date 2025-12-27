@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -47,6 +48,14 @@ service cloud.firestore {
       // External devices can only be created, updated, or deleted by the user
       // who owns the venue.
       match /externalDevices/{deviceId} {
+        allow get, list: if true;
+        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+      }
+
+      // Roles can be read by anyone.
+      // Roles can only be created, updated, or deleted by the user
+      // who owns the venue.
+       match /roles/{roleId} {
         allow get, list: if true;
         allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
       }
