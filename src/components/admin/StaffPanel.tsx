@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Trash2, User, Loader2, Plus, Edit2 } from 'lucide-react';
+import { Trash2, User, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { StaffMember, RoleKorean } from '@/lib/types';
+import type { StaffMember } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -25,27 +25,23 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-
-const roles: RoleKorean[] = ['보안', '의료', '운영', '안내'];
 
 const staffSchema = z.object({
   name: z.string().min(1, '이름을 입력해주세요.'),
-  role: z.enum(['보안', '의료', '운영', '안내']),
 });
 
 type StaffFormValues = z.infer<typeof staffSchema>;
 
 export function StaffPanel() {
-  const { data, addStaff, deleteStaff, updateStaffRole, initializeFirestoreData, isLoading } = useVenueData();
+  const { data, addStaff, deleteStaff, initializeFirestoreData, isLoading } = useVenueData();
   const { toast } = useToast();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
 
   const form = useForm<StaffFormValues>({
     resolver: zodResolver(staffSchema),
-    defaultValues: { name: '', role: '운영' },
+    defaultValues: { name: '' },
   });
 
   useEffect(() => {
@@ -75,10 +71,10 @@ export function StaffPanel() {
       const avatarOptions = PlaceHolderImages.filter(img => img.id.startsWith('avatar-'));
       const randomAvatar = avatarOptions[Math.floor(Math.random() * avatarOptions.length)].imageUrl;
       
-      await addStaff(values.name, values.role, randomAvatar);
+      await addStaff(values.name, randomAvatar);
       toast({
           title: '성공',
-          description: `${values.name} 스태프가 ${values.role} 직책으로 추가되었습니다.`,
+          description: `${values.name} 스태프가 추가되었습니다.`,
       });
       form.reset();
   }
@@ -97,8 +93,7 @@ export function StaffPanel() {
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <Card>
         <CardHeader className="flex flex-row items-center justify-between">
             <div className='space-y-1.5'>
                 <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
@@ -113,31 +108,14 @@ export function StaffPanel() {
                     <Label htmlFor="name">스태프 이름</Label>
                     <Input id="name" placeholder="예: 홍길동" {...form.register('name')} />
                 </div>
-                <div className='space-y-1'>
-                    <Label htmlFor="role">직책</Label>
-                    <Controller
-                        control={form.control}
-                        name="role"
-                        render={({ field }) => (
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <SelectTrigger className="w-[120px]">
-                                    <SelectValue placeholder="직책 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    />
-                </div>
                 <Button type="submit"><Plus className='mr-2 h-4 w-4' />추가</Button>
             </form>
             {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
 
             {data.staff.length > 0 ? (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 p-1">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.16),1fr))] gap-4 p-1">
                 {data.staff.map((s, index) => (
-                    <div key={s.id} className="relative group flex items-center gap-3 rounded-md border p-2">
+                    <div key={s.id} className="relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center">
                         <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
                             {index + 1}
                         </span>
@@ -146,15 +124,8 @@ export function StaffPanel() {
                             <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
                         </Avatar>
                         <div className='flex-1'>
-                            <p className="font-semibold">{s.name}</p>
-                            <Select defaultValue={s.role} onValueChange={(newRole) => updateStaffRole(s.id, newRole as RoleKorean)}>
-                                <SelectTrigger className="h-7 text-xs mt-1 w-full">
-                                    <SelectValue placeholder="직책" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                            <p className="font-semibold text-sm">{s.name}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{s.role?.name || '직책 없음'}</p>
                         </div>
                         <Button
                             variant="ghost"
@@ -174,7 +145,6 @@ export function StaffPanel() {
                 </div>
             )}
         </CardContent>
-      </Card>
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader>
@@ -189,6 +159,6 @@ export function StaffPanel() {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
-    </div>
+    </Card>
   );
 }

@@ -1,9 +1,10 @@
+
 'use client';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { CalendarClock, X, UserPlus, Upload } from 'lucide-react';
-import type { MapMarker, StaffMember, ScheduleItem, MapInfo, RoleKorean } from '@/lib/types';
+import type { MapMarker, StaffMember, ScheduleItem, MapInfo } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -40,19 +41,20 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
 
   const currentMarkers = useMemo(() => {
       if (!selectedSlot) return [];
-      const roleBasedSchedulesForSlot = schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time && s.role && !s.staffId);
-      const staffWithRoleSchedules = staff.filter(s => roleBasedSchedulesForSlot.some(rs => rs.role === s.role));
+      const scheduledStaffIdsForSlot = new Set(
+          schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time && s.staffId).map(s => s.staffId)
+      );
 
       const timeSpecificMarkers = allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
       const timeSpecificMarkerStaffIds = new Set(timeSpecificMarkers.map(m => m.staffId));
-
+      
       const markersToShow = [...timeSpecificMarkers];
 
-      staffWithRoleSchedules.forEach(s => {
-          if (!timeSpecificMarkerStaffIds.has(s.id)) {
+      scheduledStaffIdsForSlot.forEach(staffId => {
+          if (staffId && !timeSpecificMarkerStaffIds.has(staffId)) {
               const defaultMarker: MapMarker = {
-                  id: `default-marker-${s.id}-${selectedSlot.day}-${selectedSlot.time}`,
-                  staffId: s.id,
+                  id: `default-marker-${staffId}-${selectedSlot.day}-${selectedSlot.time}`,
+                  staffId: staffId,
                   day: selectedSlot.day,
                   time: selectedSlot.time,
                   x: 50,
@@ -61,8 +63,9 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
               markersToShow.push(defaultMarker);
           }
       });
+      
       return markersToShow;
-  }, [allMarkers, schedule, staff, selectedSlot]);
+  }, [allMarkers, schedule, selectedSlot]);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
@@ -171,11 +174,11 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   };
 
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
-    const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId, staff]);
+    const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId]);
     const staffSchedule = useMemo(() => {
         if (!staffMember || !selectedSlot) return [];
         return schedule
-          .filter(task => (task.staffId === staffMember.id || task.role === staffMember.role) && task.day === selectedSlot.day)
+          .filter(task => task.staffId === staffMember.id && task.day === selectedSlot.day)
           .sort((a,b) => a.time.localeCompare(b.time));
     }, [staffMember, schedule, selectedSlot]);
     
@@ -228,7 +231,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                         </Avatar>
                         <div>
                             <h3 className="text-lg font-bold leading-none">{staffMember.name}</h3>
-                            <p className="text-sm text-muted-foreground mt-1">{staffMember.role || 'Staff Member'}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{staffMember.role?.name || '직책 없음'}</p>
                         </div>
                     </div>
                     <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 -mt-2" onClick={() => setActiveMarkerId(null)}>

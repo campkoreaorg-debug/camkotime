@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
+import { RolePanel } from '@/components/admin/RolePanel';
 import { MapPanel } from '@/components/admin/MapPanel';
 import { LogOut, Loader2, ExternalLink } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
@@ -80,7 +81,10 @@ export default function AdminPage() {
             </div>
         </header>
         <main className="p-4 md:p-8 space-y-8">
-            <StaffPanel />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+              <StaffPanel />
+              <RolePanel />
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <SchedulePanel 
                 selectedSlot={selectedSlot} 
