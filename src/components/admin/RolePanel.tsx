@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
 import { ScheduleItem, StaffMember, Role } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { timeSlots } from './SchedulePanel';
+import { timeSlots } from '@/hooks/use-venue-data';
 
 const days = [0, 1, 2, 3];
 
@@ -64,9 +64,10 @@ export function RolePanel() {
         const scheduleTemplates = selectedScheduleIds.map(id => {
             const schedule = data.schedule.find(s => s.id === id);
             if (!schedule) return null;
-            const { id: scheduleId, day, time, ...template } = schedule;
+            // id, staffId는 템플릿에 포함시키지 않습니다.
+            const { id: scheduleId, staffId, ...template } = schedule;
             return template;
-        }).filter(Boolean) as Omit<ScheduleItem, 'id' | 'day' | 'time'>[];
+        }).filter(Boolean) as Omit<ScheduleItem, 'id' | 'staffId'>[];
         
         addRole(newRoleName, scheduleTemplates);
 
