@@ -8,7 +8,7 @@ import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import VenueMap from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
-import { LogOut, Loader2, Upload } from 'lucide-react';
+import { LogOut, Loader2, Upload, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser } from '@/firebase';
 
@@ -64,6 +64,10 @@ export default function AdminPage() {
     }
   };
 
+  const openMapWindow = () => {
+    window.open('/map', '_blank', 'width=1200,height=800');
+  };
+
   if (isUserLoading || !user || isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -92,17 +96,23 @@ export default function AdminPage() {
             <div className="space-y-4">
                  <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-headline font-semibold">지도</h2>
-                    <Button onClick={() => fileInputRef.current?.click()}>
-                        <Upload className="mr-2 h-4 w-4" />
-                        배경 업로드
-                    </Button>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleMapImageUpload}
-                        className="hidden"
-                        accept="image/png, image/jpeg, image/gif"
-                    />
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={openMapWindow}>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            새 창으로 열기
+                        </Button>
+                        <Button onClick={() => fileInputRef.current?.click()}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            배경 업로드
+                        </Button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleMapImageUpload}
+                            className="hidden"
+                            accept="image/png, image/jpeg, image/gif"
+                        />
+                    </div>
                 </div>
                  <VenueMap 
                     markers={data.markers} 
