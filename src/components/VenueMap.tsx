@@ -154,7 +154,9 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId, staff]);
     const staffSchedule = useMemo(() => {
         if (!staffMember || !selectedSlot) return [];
-        return schedule.filter(task => task.staffId === staffMember.id && task.day === selectedSlot.day && task.time === selectedSlot.time);
+        return schedule
+          .filter(task => task.staffId === staffMember.id && task.day === selectedSlot.day)
+          .sort((a,b) => a.time.localeCompare(b.time));
     }, [staffMember, schedule, selectedSlot]);
     
     if (!staffMember) return null;
@@ -217,15 +219,16 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                 
                 <div className="p-4">
                     <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-primary">
-                       <CalendarClock className='h-4 w-4'/> 현재 시간대 담당 스케줄
+                       <CalendarClock className='h-4 w-4'/> 오늘의 담당 스케줄 (Day {selectedSlot?.day})
                     </h4>
                     <ScrollArea className="h-[200px] pr-2">
                     {staffSchedule.length > 0 ? (
                         <div className='space-y-3'>
                             {staffSchedule.map(task => (
                                  <div key={task.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
-                                     <div className="bg-muted px-3 py-1.5 border-b">
+                                     <div className="bg-muted px-3 py-1.5 border-b flex justify-between items-center">
                                         <p className="font-medium text-xs text-muted-foreground">{task.location || 'N/A'}</p>
+                                        <p className="font-bold text-xs text-primary">{task.time}</p>
                                      </div>
                                      <div className="p-2">
                                          <div className="text-sm flex items-start gap-2">
