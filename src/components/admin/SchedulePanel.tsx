@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Checkbox } from '../ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import VenueMap from '../VenueMap';
 
 
 const scheduleSchema = z.object({
@@ -84,10 +85,6 @@ export function SchedulePanel() {
     const now = new Date();
     const currentDay = parseInt(activeTab.split('-')[1], 10);
     
-    // Day 탭이 변경될 때마다 현재 시간을 다시 계산하고 슬롯을 선택
-    // 단, 아직 사용자가 수동으로 슬롯을 선택하지 않았거나, 다른 Day 탭으로 이동했을 때만.
-    // 기존 로직: activeTab이 바뀔때만 실행 -> Day 0 에 머물러있으면 다른 시간으로 가도 업데이트 안됨
-    // 개선 로직: activeTab 또는 data.schedule 이 바뀔 때, selectedSlot이 없으면 현재 시간으로 설정
     if (!selectedSlot || selectedSlot.day !== currentDay) {
         const hours = now.getHours();
         const minutes = now.getMinutes();
@@ -248,7 +245,7 @@ export function SchedulePanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
+        <CardTitle className="font-headline text-2xl font-semibold">스케줄 및 지도 관리</CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
@@ -283,7 +280,7 @@ export function SchedulePanel() {
                 {selectedSlot && selectedSlot.day === day && (
                     <>
                     <Separator />
-                    <div className="p-4 space-y-6 max-w-5xl mx-auto">
+                    <div className="p-4 space-y-6">
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
                                 <h3 className="font-headline text-lg font-semibold text-center">

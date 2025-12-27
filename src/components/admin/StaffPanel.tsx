@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Trash2, Upload, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
@@ -10,15 +11,46 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export function StaffPanel() {
-  const { data, addStaffBatch, deleteStaff } = useVenueData();
+  const { data, addStaffBatch, deleteStaff, initializeFirestoreData, isLoading } = useVenueData();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDelete = (staffId: string) => {
-    deleteStaff(staffId);
+  useEffect(() => {
+    if (!isLoading && data.staff.length === 0) {
+      initializeFirestoreData();
+    }
+  }, [isLoading, data.staff, initializeFirestoreData]);
+
+  const handleDeleteConfirmation = (staff: StaffMember) => {
+    setStaffToDelete(staff);
+    setIsAlertOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (staffToDelete) {
+      deleteStaff(staffToDelete.id);
+      toast({
+        title: "삭제 완료",
+        description: `${staffToDelete.name} 스태프 및 관련 데이터가 삭제되었습니다.`
+      })
+    }
+    setIsAlertOpen(false);
+    setStaffToDelete(null);
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,6 +102,19 @@ export function StaffPanel() {
         }
     }
   };
+  
+  if (isLoading) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </CardContent>
+        </Card>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -122,7 +167,7 @@ export function StaffPanel() {
                                 variant="destructive"
                                 size="icon"
                                 className="absolute top-0 right-0 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => handleDelete(s.id)}
+                                onClick={() => handleDeleteConfirmation(s)}
                             >
                                 <Trash2 className="h-3 w-3" />
                             </Button>
@@ -140,6 +185,20 @@ export function StaffPanel() {
             )}
         </CardContent>
       </Card>
+      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    이 작업은 되돌릴 수 없습니다. <span className="font-bold">{staffToDelete?.name}</span> 스태프와 모든 시간대의 마커 데이터가 영구적으로 삭제됩니다.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>삭제</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }

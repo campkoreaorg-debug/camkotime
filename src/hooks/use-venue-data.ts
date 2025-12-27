@@ -17,6 +17,9 @@ import {
   doc,
   writeBatch,
   deleteDoc,
+  query,
+  where,
+  getDocs,
 } from 'firebase/firestore';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo } from '@/lib/types';
 import { initialData } from '@/lib/data';

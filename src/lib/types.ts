@@ -15,7 +15,7 @@ export interface ScheduleItem {
   time: string; // "07:00", "07:30", ...
   event: string;
   location: string;
-  staffId?: string;
+  staffId?: string | null;
   selected?: boolean;
 }
 
@@ -26,8 +26,6 @@ export interface MapMarker {
   time: string;
   x: number; // percentage
   y: number; // percentage
-  label: string; // From staff member name, denormalized for easier access
-  type: 'staff'; // Type is always staff now
 }
 
 export interface MapInfo {
@@ -42,5 +40,4 @@ export interface VenueData {
   schedule: ScheduleItem[];
   markers: MapMarker[];
   maps: MapInfo[];
-  mapImageUrl?: string; // Legacy, will be phased out
 }

@@ -2,89 +2,86 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { CalendarClock, X } from 'lucide-react';
-import type { MapMarker, StaffMember, ScheduleItem } from '@/lib/types';
+import { CalendarClock, X, UserPlus, Upload } from 'lucide-react';
+import type { MapMarker, StaffMember, ScheduleItem, MapInfo } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
+import { useVenueData } from '@/hooks/use-venue-data';
+import { useToast } from '@/hooks/use-toast';
 
 interface VenueMapProps {
-  markers: MapMarker[];
+  allMarkers: MapMarker[];
+  allMaps: MapInfo[];
   staff: StaffMember[];
   schedule: ScheduleItem[];
-  mapImageUrl?: string;
   isDraggable?: boolean;
-  onMarkerDragEnd?: (markerId: string, x: number, y: number) => void;
+  selectedSlot: { day: number, time: string } | null;
 }
 
 interface GroupedTasks {
   [key: string]: ScheduleItem[];
 }
 
-export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDraggable = false, onMarkerDragEnd }: VenueMapProps) {
+export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDraggable = false, selectedSlot }: VenueMapProps) {
+  const { updateMarkerPosition, addMarker, updateMapImage } = useVenueData();
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const defaultMapImage = PlaceHolderImages.find((img) => img.id === 'map-background');
-  const finalMapImageUrl = mapImageUrl || defaultMapImage?.imageUrl;
+
+  const currentMap = useMemo(() => {
+    if (!selectedSlot) return null;
+    return allMaps.find(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
+  }, [allMaps, selectedSlot]);
+  
+  const finalMapImageUrl = currentMap?.mapImageUrl || defaultMapImage?.imageUrl;
+
+  const currentMarkers = useMemo(() => {
+      if (!selectedSlot) return [];
+      return allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
+  }, [allMarkers, selectedSlot]);
 
   const mapRef = useRef<HTMLDivElement>(null);
-  
-  // 상태 관리
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
   const [draggingMarkerId, setDraggingMarkerId] = useState<string | null>(null);
-  
-  // Refs (렌더링 없이 값 저장)
   const isDraggingRef = useRef(false);
   const startPosRef = useRef({ x: 0, y: 0 });
   const currentInteractIdRef = useRef<string | null>(null);
 
-  // [1] 마우스/터치 시작 (PointerDown)
   const handlePointerDown = (e: React.PointerEvent, markerId: string) => {
-    // 이벤트 전파 방지
     e.stopPropagation();
-    
-    // 다른 팝업이 열려있으면 닫음
     if (activeMarkerId && activeMarkerId !== markerId) {
         setActiveMarkerId(null);
     }
-
-    // 초기화
     startPosRef.current = { x: e.clientX, y: e.clientY };
-    isDraggingRef.current = false; // 일단 클릭으로 가정
+    isDraggingRef.current = false;
     currentInteractIdRef.current = markerId;
-
-    // 전역 이벤트 등록 (드래그가 컴포넌트 밖으로 나가도 추적하기 위함)
     window.addEventListener('pointermove', handleGlobalMove);
     window.addEventListener('pointerup', handleGlobalUp);
   };
 
-  // [2] 움직임 감지 (PointerMove)
   const handleGlobalMove = (e: PointerEvent) => {
     if (!currentInteractIdRef.current || !mapRef.current) return;
 
     const moveX = Math.abs(e.clientX - startPosRef.current.x);
     const moveY = Math.abs(e.clientY - startPosRef.current.y);
 
-    // 5px 이상 움직이면 "드래그 모드"로 진입
     if (!isDraggingRef.current && (moveX > 5 || moveY > 5)) {
-        if (!isDraggable) return; // 드래그 권한 없으면 무시
-        
+        if (!isDraggable) return;
         isDraggingRef.current = true;
-        setDraggingMarkerId(currentInteractIdRef.current); // 시각적 드래그 상태 활성화
-        
-        // 드래그 시작 시 팝업이 열려있었다면 닫기
+        setDraggingMarkerId(currentInteractIdRef.current);
         setActiveMarkerId(null);
     }
 
-    // 드래그 중 위치 업데이트 (DOM 직접 조작으로 성능 최적화)
     if (isDraggingRef.current) {
-        e.preventDefault(); // 스크롤 방지
+        e.preventDefault();
         const mapBounds = mapRef.current.getBoundingClientRect();
-        
         let x = ((e.clientX - mapBounds.left) / mapBounds.width) * 100;
         let y = ((e.clientY - mapBounds.top) / mapBounds.height) * 100;
-
         x = Math.max(0, Math.min(100, x));
         y = Math.max(0, Math.min(100, y));
 
@@ -96,73 +93,76 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
     }
   };
 
-  // [3] 조작 종료 (PointerUp) -> 여기서 클릭 vs 드래그 최종 판별
   const handleGlobalUp = (e: PointerEvent) => {
     const markerId = currentInteractIdRef.current;
-    
     if (markerId && mapRef.current) {
         if (isDraggingRef.current) {
-            // [A] 드래그 종료 -> 위치 저장
             const mapBounds = mapRef.current.getBoundingClientRect();
             let x = ((e.clientX - mapBounds.left) / mapBounds.width) * 100;
             let y = ((e.clientY - mapBounds.top) / mapBounds.height) * 100;
             x = Math.max(0, Math.min(100, x));
             y = Math.max(0, Math.min(100, y));
-
-            onMarkerDragEnd?.(markerId, x, y);
+            updateMarkerPosition(markerId, x, y);
         } else {
-            // [B] 드래그 아님 (5px 미만 이동) -> "이것은 클릭이다!"
-            // 여기서 수동으로 팝업을 토글합니다.
             setActiveMarkerId(prev => prev === markerId ? null : markerId);
         }
     }
-
-    // 정리
     setDraggingMarkerId(null);
     currentInteractIdRef.current = null;
     isDraggingRef.current = false;
-    
     window.removeEventListener('pointermove', handleGlobalMove);
     window.removeEventListener('pointerup', handleGlobalUp);
   };
 
-  // Cleanup
   useEffect(() => {
-      return () => {
+    return () => {
         window.removeEventListener('pointermove', handleGlobalMove);
         window.removeEventListener('pointerup', handleGlobalUp);
-      }
+    }
   }, []);
 
-  // --- 렌더링 ---
+  const handleAddMarkerClick = (staffId: string) => {
+    if(!selectedSlot) return;
+    addMarker(staffId, selectedSlot.day, selectedSlot.time);
+  }
+
+  const handleMapImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if(!selectedSlot) return;
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({
+          variant: 'destructive',
+          title: '이미지 크기 초과',
+          description: '이미지 파일은 2MB를 초과할 수 없습니다.',
+        });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const newMapImageUrl = reader.result as string;
+        updateMapImage(selectedSlot.day, selectedSlot.time, newMapImageUrl);
+        toast({
+          title: '성공',
+          description: `지도 배경 이미지가 ${selectedSlot.day}일차 ${selectedSlot.time}에 맞게 업데이트되었습니다.`,
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
     const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId, staff]);
-    const staffIndex = useMemo(() => staffMember ? staff.findIndex(s => s.id === staffMember.id) : -1, [staffMember, staff]);
-    const staffNumber = staffIndex !== -1 ? staffIndex + 1 : null;
+    const staffSchedule = useMemo(() => {
+        if (!staffMember || !selectedSlot) return [];
+        return schedule.filter(task => task.staffId === staffMember.id && task.day === selectedSlot.day && task.time === selectedSlot.time);
+    }, [staffMember, schedule, selectedSlot]);
     
-    const staffTasks = useMemo(() => schedule.filter(task => task.staffId === staffMember?.id), [staffMember, schedule]);
-    const groupedTasks = useMemo(() => {
-        return staffTasks.reduce((acc, task) => {
-            const key = `${task.day}-${task.time}`;
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(task);
-            return acc;
-        }, {} as GroupedTasks);
-    }, [staffTasks]);
-
     if (!staffMember) return null;
-
     const isOpen = activeMarkerId === marker.id;
 
     return (
-        <Popover 
-            open={isOpen} 
-            onOpenChange={(open) => {
-                // 외부 클릭 시 닫힘 처리
-                // (열림 처리는 handleGlobalUp에서 수동으로 하므로 여기서는 닫힘만 신경 씀)
-                if (!open) setActiveMarkerId(null);
-            }}
-        >
+        <Popover open={isOpen} onOpenChange={(open) => { if (!open) setActiveMarkerId(null); }}>
             <PopoverTrigger asChild>
                 <div
                     data-marker-id={marker.id}
@@ -173,9 +173,7 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                         isOpen && "z-40 scale-110"
                     )}
                     style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                    // [핵심 1] 드래그 시작 감지
                     onPointerDown={(e) => handlePointerDown(e, marker.id)}
-                    // [핵심 2] PopoverTrigger의 기본 클릭 동작 무력화 (우리가 수동 제어하므로)
                     onClick={(e) => e.preventDefault()}
                 >
                     <Avatar className={cn("h-10 w-10 border-2 border-primary-foreground shadow-lg pointer-events-none", (draggingMarkerId === marker.id || isOpen) && "border-primary")}>
@@ -183,7 +181,7 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                         <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none">
-                        {staffNumber}. {staffMember.name}
+                        {staffMember.name}
                     </div>
                 </div>
             </PopoverTrigger>
@@ -192,7 +190,6 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                 className="w-80 p-0 overflow-hidden notranslate" 
                 sideOffset={10}
                 {...{ "translate": "no" } as any}
-                // 팝업 내부 클릭 시 닫히거나 이벤트 버블링 방지
                 onPointerDown={(e) => e.stopPropagation()}
             >
                 <div className="bg-primary/5 p-4 border-b flex items-center justify-between gap-4">
@@ -213,29 +210,24 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                 
                 <div className="p-4">
                     <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-primary">
-                       <CalendarClock className='h-4 w-4'/> 담당 스케줄
+                       <CalendarClock className='h-4 w-4'/> 현재 시간대 담당 스케줄
                     </h4>
                     <ScrollArea className="h-[200px] pr-2">
-                    {staffTasks.length > 0 ? (
+                    {staffSchedule.length > 0 ? (
                         <div className='space-y-3'>
-                            {Object.entries(groupedTasks).map(([key, tasks]) => {
-                                 const [day, time] = key.split('-');
-                                 return (
-                                     <div key={key} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
-                                         <div className="bg-muted px-3 py-1.5 border-b">
-                                            <p className="font-medium text-xs text-muted-foreground">Day {day} • {time}</p>
-                                         </div>
-                                         <div className="p-2 space-y-1">
-                                             {tasks.map(task => (
-                                                 <div key={task.id} className="text-sm flex items-start gap-2">
-                                                     <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                                                     <span className="leading-tight">{task.event}</span>
-                                                 </div>
-                                             ))}
+                            {staffSchedule.map(task => (
+                                 <div key={task.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                                     <div className="bg-muted px-3 py-1.5 border-b">
+                                        <p className="font-medium text-xs text-muted-foreground">{task.location || 'N/A'}</p>
+                                     </div>
+                                     <div className="p-2">
+                                         <div className="text-sm flex items-start gap-2">
+                                             <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                                             <span className="leading-tight">{task.event}</span>
                                          </div>
                                      </div>
-                                 )
-                            })}
+                                 </div>
+                             ))}
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-[150px] text-muted-foreground gap-2">
@@ -250,16 +242,66 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
     )
   }
 
+  const UnassignedStaff = () => {
+    const assignedStaffIds = useMemo(() => new Set(currentMarkers.map(m => m.staffId)), [currentMarkers]);
+    const unassignedStaff = useMemo(() => staff.filter(s => !assignedStaffIds.has(s.id)), [staff, assignedStaffIds]);
+    
+    if (unassignedStaff.length === 0 || !isDraggable) return null;
+
+    return (
+        <div className="absolute bottom-4 left-4 z-10 bg-card p-2 rounded-lg shadow-lg border max-w-sm">
+            <h4 className="font-semibold text-sm mb-2 px-2">미배치 스태프</h4>
+            <ScrollArea className="h-28">
+                <div className="flex flex-wrap gap-2 p-2">
+                    {unassignedStaff.map(s => (
+                        <Button key={s.id} variant="secondary" size="sm" onClick={() => handleAddMarkerClick(s.id)}>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            {s.name}
+                        </Button>
+                    ))}
+                </div>
+            </ScrollArea>
+        </div>
+    )
+  }
+  
+  const MapActions = () => {
+    if (!isDraggable || !selectedSlot) return null;
+
+    return (
+      <div className="absolute top-4 right-4 z-10">
+        <Button onClick={() => fileInputRef.current?.click()}>
+            <Upload className="mr-2 h-4 w-4" />
+            배경 업로드
+        </Button>
+        <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleMapImageUpload}
+            className="hidden"
+            accept="image/png, image/jpeg, image/gif"
+        />
+      </div>
+    )
+  }
+
+  if (!selectedSlot) {
+    return (
+        <div className="w-full h-full min-h-[400px] flex items-center justify-center bg-muted/20 rounded-xl border border-dashed shadow-sm">
+            <p className="text-muted-foreground">시간대를 선택하여 지도를 확인하세요.</p>
+        </div>
+    )
+  }
+
   return (
     <div className="w-full h-full bg-slate-50/50 rounded-xl overflow-hidden border shadow-sm">
         <div 
           ref={mapRef}
-          className="relative w-full h-full min-h-[400px] notranslate"
+          className="relative w-full h-full min-h-[500px] notranslate"
           {...{ "translate": "no" } as any}
-          // 배경 클릭 시 팝업 닫기
           onPointerDown={() => setActiveMarkerId(null)}
         >
-          {finalMapImageUrl && (
+          {finalMapImageUrl ? (
             <Image
               src={finalMapImageUrl}
               alt="Venue Map"
@@ -267,10 +309,18 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
               className="object-cover pointer-events-none"
               priority
             />
+          ) : (
+             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <p className="text-muted-foreground">배경 이미지가 없습니다.</p>
+            </div>
           )}
+
           <div className="absolute inset-0 bg-black/5 pointer-events-none" />
           
-          {markers.filter(marker => marker.type === 'staff').map((marker) => (
+          <MapActions />
+          <UnassignedStaff />
+
+          {currentMarkers.map((marker) => (
              <StaffMarker key={marker.id} marker={marker} />
           ))}
         </div>

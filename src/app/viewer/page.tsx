@@ -1,13 +1,15 @@
+
 "use client";
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import VenueMap from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Button } from '@/components/ui/button';
 import { Home, Loader2, Database } from 'lucide-react';
 import { useUser, useAuth } from '@/firebase';
+import { timeSlots } from '@/components/admin/SchedulePanel';
 
 export default function ViewerPage() {
   // 데이터 불러오기 훅 (초기화 함수 포함)
@@ -15,6 +17,29 @@ export default function ViewerPage() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
+
+  const [currentTimeSlot, setCurrentTimeSlot] = useState<{ day: number; time: string } | null>(null);
+
+  useEffect(() => {
+    const now = new Date();
+    const currentDay = 0; // Assuming Day 0 for simplicity in viewer
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    let timeString: string;
+    if (minutes < 30) {
+      timeString = `${String(hours).padStart(2, '0')}:00`;
+    } else {
+      timeString = `${String(hours).padStart(2, '0')}:30`;
+    }
+
+    if (timeSlots.includes(timeString)) {
+      setCurrentTimeSlot({ day: currentDay, time: timeString });
+    } else {
+      // Default to the first available slot if current time is out of range
+      setCurrentTimeSlot({ day: currentDay, time: timeSlots[0] });
+    }
+  }, []);
 
   const handleReturnHome = async () => {
     await auth.signOut();
@@ -28,7 +53,7 @@ export default function ViewerPage() {
   }, [user, isUserLoading, router]);
 
   // 1. 유저 정보 확인 중일 때
-  if(isUserLoading){
+  if(isUserLoading || isLoading || !currentTimeSlot){
     return (
         <div className="flex h-screen items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -38,7 +63,7 @@ export default function ViewerPage() {
 
   // 2. 데이터 로딩 중 (또는 데이터 없음) 일 때
   // -> 여기서 무한 로딩에 빠지지 않도록 '초기 데이터 생성' 버튼을 보여줍니다.
-  if(isLoading){
+  if(data.staff.length === 0){
     return (
         <div className="flex h-screen flex-col items-center justify-center gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -71,7 +96,9 @@ export default function ViewerPage() {
   return (
     <div className="min-h-screen flex flex-col">
        <header className='flex justify-between items-center p-4 border-b bg-card shadow-sm'>
-            <h1 className='font-headline text-2xl font-bold text-primary'>VenueSync 지도</h1>
+            <h1 className='font-headline text-2xl font-bold text-primary'>
+                VenueSync 지도 (Day {currentTimeSlot.day} - {currentTimeSlot.time})
+            </h1>
             <Button variant="outline" onClick={handleReturnHome}>
                 {/* 번역기 충돌 방지용 span */}
                 <span className="flex items-center gap-2">
@@ -82,11 +109,12 @@ export default function ViewerPage() {
        </header>
        <main className="flex-grow p-4 md:p-8">
            <VenueMap 
-            markers={data.markers} 
-            staff={data.staff} 
-            schedule={data.schedule}
-            mapImageUrl={data.mapImageUrl} 
-            isDraggable={false}
+                allMarkers={data.markers} 
+                allMaps={data.maps}
+                staff={data.staff} 
+                schedule={data.schedule}
+                isDraggable={false}
+                selectedSlot={currentTimeSlot}
            />
        </main>
     </div>
