@@ -25,9 +25,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Checkbox } from '../ui/checkbox';
 import { Switch } from '../ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { timeSlots } from '@/hooks/use-venue-data';
+import { cn } from '@/lib/utils';
 
 const scheduleSchema = z.object({
   event: z.string().min(1, '이벤트 내용을 입력해주세요.'),
@@ -39,26 +40,7 @@ type ScheduleFormValues = z.infer<typeof scheduleSchema>;
 
 type ClipboardItem = Omit<ScheduleItem, 'id' | 'day' | 'time'>;
 
-export const timeSlots = (() => {
-    const slots = [];
-    for (let h = 7; h < 24; h++) {
-        slots.push(`${String(h).padStart(2, '0')}:00`);
-        slots.push(`${String(h).padStart(2, '0')}:30`);
-    }
-    slots.push('00:00');
-    return slots;
-})();
-
 const days = [0, 1, 2, 3];
-
-function getAdjacentTime(time: string, minutes: number): string | null {
-    if (!time) return null;
-    const [h, m] = time.split(':').map(Number);
-    const date = new Date(0);
-    date.setHours(h, m + minutes, 0, 0);
-    const newTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-    return timeSlots.includes(newTime) ? newTime : null;
-}
 
 interface SchedulePanelProps {
     selectedSlot: { day: number, time: string } | null;
@@ -79,7 +61,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
 
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardItem[]>([]);
-  const [activeTab, setActiveTab] = useState('day-0');
+  const [activeTab, setActiveTab] = useState(`day-${selectedSlot?.day ?? 0}`);
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
@@ -87,26 +69,14 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   });
 
   useEffect(() => {
-    const currentDay = parseInt(activeTab.split('-')[1], 10);
-    if (!selectedSlot || selectedSlot.day !== currentDay) {
-        const now = new Date();
-        const hours = now.getHours();
-        const minutes = now.getMinutes();
-        
-        let timeString: string;
-        if (minutes < 30) {
-          timeString = `${String(hours).padStart(2, '0')}:00`;
-        } else {
-          timeString = `${String(hours).padStart(2, '0')}:30`;
-        }
-
-        if (timeSlots.includes(timeString)) {
-            onSlotChange(currentDay, timeString);
-        } else if (timeSlots.length > 0) {
-            onSlotChange(currentDay, timeSlots[0]);
+    // When selectedSlot changes (e.g. from linking), update the active tab
+    if (selectedSlot) {
+        const newTab = `day-${selectedSlot.day}`;
+        if (newTab !== activeTab) {
+            setActiveTab(newTab);
         }
     }
-  }, [activeTab, selectedSlot, onSlotChange]);
+  }, [selectedSlot]);
 
 
   const handleSelectSlot = (day: number, time: string) => {
@@ -116,7 +86,8 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     setSelectedScheduleIds([]); // 다른 슬롯 선택 시 선택 해제
   }
 
-  const handleEditClick = (item: ScheduleItem) => {
+  const handleEditClick = (e: React.MouseEvent, item: ScheduleItem) => {
+    e.stopPropagation(); // Prevent row selection when clicking edit
     setEditingItem(item);
     form.reset({ event: item.event, location: item.location || '', staffId: item.staffId || 'unassigned' });
     setSelectedScheduleIds([]); // 수정 시작 시 선택 해제
@@ -139,14 +110,17 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
 
     if (editingItem) {
       updateSchedule(editingItem.id, scheduleData);
+      toast({ title: '수정 완료', description: '스케줄이 수정되었습니다.'});
       setEditingItem(null);
     } else {
       addSchedule(scheduleData);
+      toast({ title: '추가 완료', description: '스케줄이 추가되었습니다.'});
     }
     form.reset({ event: '', location: '', staffId: 'unassigned' });
   };
   
-  const handleDeleteConfirmation = (item: ScheduleItem) => {
+  const handleDeleteConfirmation = (e: React.MouseEvent, item: ScheduleItem) => {
+    e.stopPropagation();
     setItemToDelete(item);
     setItemsToDelete([]);
     setIsAlertOpen(true);
@@ -173,31 +147,18 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   };
 
   const handleTabChange = (newTab: string) => {
-    setActiveTab(newTab);
     const newDay = parseInt(newTab.split('-')[1], 10);
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    
-    let timeString: string;
-    if (minutes < 30) {
-      timeString = `${String(hours).padStart(2, '0')}:00`;
-    } else {
-      timeString = `${String(hours).padStart(2, '0')}:30`;
+    setActiveTab(newTab);
+    if(timeSlots.length > 0){
+        onSlotChange(newDay, selectedSlot?.time || timeSlots[0]);
     }
-    if (timeSlots.includes(timeString)) {
-        onSlotChange(newDay, timeString);
-    } else if (timeSlots.length > 0) {
-        onSlotChange(newDay, timeSlots[0])
-    }
-
     setEditingItem(null);
     form.reset();
     setSelectedScheduleIds([]);
     setClipboard([]);
   }
 
-  const daySchedules = useMemo(() => {
+  const scheduleByDay = useMemo(() => {
     return days.map(day => {
         return data.schedule.filter(s => s.day === day).reduce((acc, item) => {
             if (!acc[item.time]) {
@@ -209,32 +170,11 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     });
   }, [data.schedule]);
 
-  const displayedSchedules = useMemo(() => {
-    if (!selectedSlot) return [];
-    
-    const { day, time } = selectedSlot;
-    const prevTime = getAdjacentTime(time, -30);
-    const nextTime = getAdjacentTime(time, 30);
-    
-    const schedulesByTime: { time: string; items: ScheduleItem[] }[] = [];
 
-    if(prevTime && isLinked) {
-      const prevItems = daySchedules[day]?.[prevTime] || [];
-      schedulesByTime.push({ time: prevTime, items: prevItems });
-    }
+  const handleItemClick = (itemId: string) => {
+    // If editing, don't allow selection
+    if (editingItem) return;
 
-    const currentItems = daySchedules[day]?.[time] || [];
-    schedulesByTime.push({ time, items: currentItems });
-
-    if(nextTime && isLinked) {
-      const nextItems = daySchedules[day]?.[nextTime] || [];
-      schedulesByTime.push({ time: nextTime, items: nextItems });
-    }
-
-    return schedulesByTime;
-  }, [selectedSlot, daySchedules, isLinked]);
-
-  const handleCheckboxChange = (itemId: string) => {
     setSelectedScheduleIds(prev =>
       prev.includes(itemId)
         ? prev.filter(id => id !== itemId)
@@ -264,9 +204,9 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   };
 
   const currentDaySchedules = useMemo(() => {
-    const day = selectedSlot?.day ?? parseInt(activeTab.split('-')[1], 10);
-    return daySchedules[day] || {};
-  }, [selectedSlot, daySchedules, activeTab]);
+    const day = parseInt(activeTab.split('-')[1], 10);
+    return scheduleByDay[day] || {};
+  }, [scheduleByDay, activeTab]);
 
   return (
     <Card className='lg:col-span-1'>
@@ -292,166 +232,155 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                 <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
               ))}
             </TabsList>
-            {days.map(day => (
-              <TabsContent key={day} value={`day-${day}`} className="space-y-4">
-                  <div className="flex flex-wrap gap-2 pb-4 border-b">
-                    {timeSlots.map(time => {
-                      const items = currentDaySchedules[time] || [];
-                      const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
-                      return (
-                        <Button 
-                            key={time} 
-                            variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
-                            className="flex-shrink-0 text-xs h-8"
-                            onClick={() => handleSelectSlot(day, time)}
-                        >
-                           {time}
-                           {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.length}</span>}
-                        </Button>
-                      )
-                    })}
-                  </div>
+            
+            <div className="flex flex-wrap gap-2 pb-4 border-b">
+              {timeSlots.map(time => {
+                const day = parseInt(activeTab.split('-')[1], 10);
+                const items = currentDaySchedules[time] || [];
+                const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
+                return (
+                  <Button 
+                      key={time} 
+                      variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
+                      className="flex-shrink-0 text-xs h-8"
+                      onClick={() => handleSelectSlot(day, time)}
+                  >
+                      {time}
+                      {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.length}</span>}
+                  </Button>
+                )
+              })}
+            </div>
 
-                  {selectedSlot && selectedSlot.day === day && (
-                      <div className="p-1 space-y-6">
-                          <div className="space-y-4">
-                              <div className="flex justify-between items-center">
-                                  <h3 className="font-headline text-lg font-semibold text-center">
-                                      {selectedSlot.day}일차 {selectedSlot.time} 스케줄
-                                  </h3>
-                                  <div className='flex gap-2'>
-                                      {selectedScheduleIds.length > 0 && (
-                                        <>
-                                          <Button size="sm" variant="outline" onClick={handleCopy}><Copy className='mr-2 h-4 w-4' /> 복사</Button>
-                                          <Button size="sm" variant="destructive" onClick={handleBulkDeleteConfirmation}><Trash2 className='mr-2 h-4 w-4' /> 선택 삭제</Button>
-                                        </>
-                                      )}
-                                      {clipboard.length > 0 && !editingItem && (
-                                          <Button size="sm" variant="secondary" onClick={handlePaste}>
-                                              <ClipboardPaste className='mr-2 h-4 w-4' />
-                                              {clipboard.length}개 붙여넣기
-                                          </Button>
-                                      )}
-                                  </div>
-                              </div>
-                              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                  <div className="flex gap-2 items-start">
-                                      <div className='flex-grow'>
-                                          <Label htmlFor="event-input" className="sr-only">새 항목</Label>
-                                          <Input 
-                                              id="event-input"
-                                              placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
-                                              {...form.register('event')} 
-                                              autoComplete="off"
-                                          />
-                                          {form.formState.errors.event && (
-                                              <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
-                                          )}
-                                      </div>
-                                      
-                                      <Select
-                                        onValueChange={(value) => form.setValue('staffId', value)}
-                                        value={form.watch('staffId') || 'unassigned'}
-                                      >
-                                        <SelectTrigger className="w-[180px]">
-                                          <SelectValue placeholder="담당자 선택" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="unassigned">담당자 없음</SelectItem>
-                                            {data.staff.map(s => (
-                                                <SelectItem key={s.id} value={s.id}>
-                                                  <div className="flex items-center gap-2">
-                                                    <Avatar className="h-5 w-5">
-                                                      <AvatarImage src={s.avatar} alt={s.name} />
-                                                      <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <span>{s.name}</span>
-                                                  </div>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                      </Select>
-                                      
-                                      <Button type="submit">
-                                          <Plus className="h-4 w-4" />
-                                          <span className="sr-only">{editingItem ? '저장' : '등록'}</span>
-                                      </Button>
-                                  </div>
-                                  
-                                  {editingItem && (
-                                      <div className="flex justify-end gap-2">
-                                          <Button type="submit">저장</Button>
-                                          <Button type="button" variant="ghost" onClick={handleCancelEdit}>취소</Button>
-                                      </div>
-                                  )}
-                              </form>
-                          </div>
-                          <div className={`grid grid-cols-1 ${isLinked && 'md:grid-cols-3'} gap-4`}>
-                            {displayedSchedules.map(({ time, items }) => {
-                              const isCurrent = time === selectedSlot.time;
-                              
-                              return (
-                                  <div key={time} className={`p-4 rounded-lg border ${isCurrent ? 'bg-muted/60' : 'bg-muted/20 opacity-70'}`}>
-                                      <h4 className="font-semibold text-center mb-3">{time}</h4>
-                                      <div className="space-y-2 min-h-[50px]">
-                                          {items.map(item => {
-                                              const assignedStaff = data.staff.find(s => s.id === item.staffId);
-                                              return (
-                                              <div key={item.id} className="p-2 rounded-md border bg-background flex justify-between items-center group">
-                                                  <div className="flex items-center gap-3">
-                                                      {isCurrent && (
-                                                        <Checkbox
-                                                          id={`select-${item.id}`}
-                                                          checked={selectedScheduleIds.includes(item.id)}
-                                                          onCheckedChange={() => handleCheckboxChange(item.id)}
-                                                          aria-label={`Select item ${item.event}`}
-                                                        />
-                                                      )}
-                                                      <div>
-                                                          <p className="font-medium text-sm">{item.event}</p>
-                                                          <div className='flex items-center gap-2 mt-1'>
-                                                              {assignedStaff ? (
-                                                                  <>
-                                                                      <Avatar className="h-5 w-5">
-                                                                          <AvatarImage src={assignedStaff.avatar} alt={assignedStaff.name} />
-                                                                          <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
-                                                                      </Avatar>
-                                                                      <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
-                                                                  </>
-                                                              ) : (
-                                                                  <>
-                                                                      <User className='h-4 w-4 text-muted-foreground' />
-                                                                      <p className="text-xs text-muted-foreground">담당자 미지정</p>
-                                                                  </>
-                                                              )}
-                                                          </div>
-                                                      </div>
-                                                  </div>
-                                                  {isCurrent && (
-                                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditClick(item)}>
-                                                              <Edit className="h-3.5 w-3.5"/>
-                                                          </Button>
-                                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirmation(item)}>
-                                                              <Trash2 className="h-3.5 w-3.5"/>
-                                                          </Button>
-                                                      </div>
-                                                  )}
-                                              </div>
-                                          )})}
-                                          {items.length === 0 && (
-                                              <div className="text-center text-muted-foreground text-xs py-4">
-                                                  <p>스케줄 없음</p>
-                                              </div>
-                                          )}
-                                      </div>
-                                  </div>
-                              )})}
-                          </div>
-                      </div>
-                  )}
-              </TabsContent>
-            ))}
+            {selectedSlot && (
+                <div className="pt-4 space-y-6">
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-headline text-lg font-semibold text-center">
+                                {selectedSlot.day}일차 {selectedSlot.time} 스케줄
+                            </h3>
+                            <div className='flex gap-2'>
+                                {selectedScheduleIds.length > 0 && (
+                                  <>
+                                    <Button size="sm" variant="outline" onClick={handleCopy}><Copy className='mr-2 h-4 w-4' /> 복사</Button>
+                                    <Button size="sm" variant="destructive" onClick={handleBulkDeleteConfirmation}><Trash2 className='mr-2 h-4 w-4' /> 선택 삭제</Button>
+                                  </>
+                                )}
+                                {clipboard.length > 0 && !editingItem && selectedScheduleIds.length === 0 && (
+                                    <Button size="sm" variant="secondary" onClick={handlePaste}>
+                                        <ClipboardPaste className='mr-2 h-4 w-4' />
+                                        {clipboard.length}개 붙여넣기
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                            <div className="flex gap-2 items-start">
+                                <div className='flex-grow'>
+                                    <Label htmlFor="event-input" className="sr-only">새 항목</Label>
+                                    <Input 
+                                        id="event-input"
+                                        placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
+                                        {...form.register('event')} 
+                                        autoComplete="off"
+                                    />
+                                    {form.formState.errors.event && (
+                                        <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
+                                    )}
+                                </div>
+                                
+                                <Select
+                                  onValueChange={(value) => form.setValue('staffId', value)}
+                                  value={form.watch('staffId') || 'unassigned'}
+                                >
+                                  <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="담당자 선택" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="unassigned">담당자 없음</SelectItem>
+                                      {data.staff.map(s => (
+                                          <SelectItem key={s.id} value={s.id}>
+                                            <div className="flex items-center gap-2">
+                                              <Avatar className="h-5 w-5">
+                                                <AvatarImage src={s.avatar} alt={s.name} />
+                                                <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
+                                              </Avatar>
+                                              <span>{s.name}</span>
+                                            </div>
+                                          </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                                
+                                <Button type="submit">
+                                    <Plus className="h-4 w-4" />
+                                    <span className="sr-only">{editingItem ? '저장' : '등록'}</span>
+                                </Button>
+                                {editingItem && (
+                                    <Button type="button" variant="ghost" onClick={handleCancelEdit}>취소</Button>
+                                )}
+                            </div>
+                        </form>
+                    </div>
+                    <div className="space-y-2 min-h-[50px]">
+                        {currentDaySchedules[selectedSlot.time] && currentDaySchedules[selectedSlot.time].length > 0 ? (
+                            currentDaySchedules[selectedSlot.time].map(item => {
+                                const assignedStaff = data.staff.find(s => s.id === item.staffId);
+                                const isSelected = selectedScheduleIds.includes(item.id);
+                                const isEditingThis = editingItem?.id === item.id;
+                                
+                                return (
+                                <div 
+                                    key={item.id} 
+                                    className={cn(
+                                        "p-2 rounded-md border flex justify-between items-center group transition-colors",
+                                        !isEditingThis && "cursor-pointer hover:bg-muted/60",
+                                        isSelected && !isEditingThis && "bg-primary/10 border-primary",
+                                        isEditingThis && "bg-amber-100/50"
+                                    )}
+                                    onClick={() => handleItemClick(item.id)}
+                                >
+                                    <div className="flex items-center gap-3 flex-1">
+                                        <div>
+                                            <p className="font-medium text-sm">{item.event}</p>
+                                            <div className='flex items-center gap-2 mt-1'>
+                                                {assignedStaff ? (
+                                                    <>
+                                                        <Avatar className="h-5 w-5">
+                                                            <AvatarImage src={assignedStaff.avatar} alt={assignedStaff.name} />
+                                                            <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
+                                                        </Avatar>
+                                                        <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <User className='h-4 w-4 text-muted-foreground' />
+                                                        <p className="text-xs text-muted-foreground">담당자 미지정</p>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {!isEditingThis && (
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleEditClick(e, item)}>
+                                                <Edit className="h-3.5 w-3.5"/>
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => handleDeleteConfirmation(e, item)}>
+                                                <Trash2 className="h-3.5 w-3.5"/>
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            )})
+                        ) : (
+                            <div className="text-center text-muted-foreground text-xs py-4">
+                                <p>스케줄 없음</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
           </Tabs>
         </CardContent>
 
@@ -475,5 +404,3 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     </Card>
   );
 }
-
-    

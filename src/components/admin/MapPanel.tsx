@@ -7,7 +7,8 @@ import type { ScheduleItem, StaffMember } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import VenueMap from '../VenueMap';
 import { Button } from '../ui/button';
-import { timeSlots } from './SchedulePanel';
+import { timeSlots } from '@/hooks/use-venue-data';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 interface MapPanelProps {
     selectedSlot: { day: number, time: string } | null;
@@ -19,40 +20,22 @@ const days = [0, 1, 2, 3];
 
 export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps) {
     const { data } = useVenueData();
-    const [activeTab, setActiveTab] = useState('day-0');
-
-    const handleTabChange = (newTab: string) => {
-        setActiveTab(newTab);
-        const newDay = parseInt(newTab.split('-')[1], 10);
-        if (timeSlots.length > 0) {
-          onSlotChange(newDay, timeSlots[0]);
-        }
-    };
+    // Map panel now maintains its own active tab state.
+    const [activeTab, setActiveTab] = useState(`day-${selectedSlot?.day ?? 0}`);
     
+    // When selectedSlot changes (e.g., from linking), update the active tab.
     useEffect(() => {
-      const currentDay = parseInt(activeTab.split('-')[1], 10);
-      if (!selectedSlot || selectedSlot.day !== currentDay) {
-          const now = new Date();
-          const hours = now.getHours();
-          const minutes = now.getMinutes();
-          
-          let timeString: string;
-          if (minutes < 30) {
-            timeString = `${String(hours).padStart(2, '0')}:00`;
-          } else {
-            timeString = `${String(hours).padStart(2, '0')}:30`;
-          }
-  
-          if (timeSlots.includes(timeString)) {
-            onSlotChange(currentDay, timeString);
-          } else if (timeSlots.length > 0) {
-            onSlotChange(currentDay, timeSlots[0]);
-          }
-      }
-    }, [activeTab, selectedSlot, onSlotChange]);
+        if (selectedSlot) {
+            const newTab = `day-${selectedSlot.day}`;
+            if (newTab !== activeTab) {
+                setActiveTab(newTab);
+            }
+        }
+    }, [selectedSlot]);
+
 
     const currentDaySchedules = useMemo(() => {
-        const day = selectedSlot?.day ?? parseInt(activeTab.split('-')[1], 10);
+        const day = parseInt(activeTab.split('-')[1], 10);
         return data.schedule.filter(s => s.day === day).reduce((acc, item) => {
             if (!acc[item.time]) {
                 acc[item.time] = [];
@@ -60,11 +43,16 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
             acc[item.time].push(item);
             return acc;
         }, {} as Record<string, ScheduleItem[]>);
-    }, [selectedSlot, data.schedule, activeTab]);
+    }, [data.schedule, activeTab]);
     
-    const handleSelectSlot = (day: number, time: string) => {
-        onSlotChange(day, time);
-    }
+    const handleTabChange = (newTab: string) => {
+        const currentDay = parseInt(newTab.split('-')[1], 10);
+        setActiveTab(newTab);
+        // When tab changes, if not linked, update only this panel's slot
+        if (timeSlots.length > 0) {
+            onSlotChange(currentDay, selectedSlot?.time || timeSlots[0]);
+        }
+    };
 
     return (
         <Card className='lg:col-span-1'>
@@ -78,26 +66,34 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                {!isLinked && (
-                    <div className="flex flex-wrap gap-2 pb-4 border-b mb-4">
-                        {timeSlots.map(time => {
-                          const day = selectedSlot?.day ?? parseInt(activeTab.split('-')[1], 10);
-                          const items = currentDaySchedules[time] || [];
-                          const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
-                          return (
-                            <Button 
-                                key={time} 
-                                variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
-                                className="flex-shrink-0 text-xs h-8"
-                                onClick={() => handleSelectSlot(day, time)}
-                            >
-                               {time}
-                               {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.length}</span>}
-                            </Button>
-                          )
-                        })}
-                    </div>
-                )}
+                <Tabs value={activeTab} onValueChange={handleTabChange}>
+                    <TabsList className='mb-4'>
+                        {days.map(day => (
+                            <TabsTrigger key={`map-day-${day}`} value={`day-${day}`}>{day}일차</TabsTrigger>
+                        ))}
+                    </TabsList>
+                    
+                    {!isLinked && (
+                        <div className="flex flex-wrap gap-2 pb-4 border-b mb-4">
+                            {timeSlots.map(time => {
+                                const day = parseInt(activeTab.split('-')[1], 10);
+                                const items = currentDaySchedules[time] || [];
+                                const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
+                                return (
+                                <Button 
+                                    key={time} 
+                                    variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
+                                    className="flex-shrink-0 text-xs h-8"
+                                    onClick={() => onSlotChange(day, time)}
+                                >
+                                    {time}
+                                    {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.length}</span>}
+                                </Button>
+                                )
+                            })}
+                        </div>
+                    )}
+                </Tabs>
                 <VenueMap
                     allMarkers={data.markers}
                     allMaps={data.maps}

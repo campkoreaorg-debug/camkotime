@@ -17,7 +17,8 @@ export default function AdminPage() {
   const { user, isUserLoading } = useUser();
 
   const [isLinked, setIsLinked] = useState(true);
-  const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
+  const [scheduleSlot, setScheduleSlot] = useState<{ day: number; time: string } | null>(null);
+  const [mapSlot, setMapSlot] = useState<{ day: number; time: string } | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && (!user || user.isAnonymous)) {
@@ -27,24 +28,41 @@ export default function AdminPage() {
 
   useEffect(() => {
     // Save the selected slot to localStorage whenever it changes
-    if (selectedSlot) {
-      localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(selectedSlot));
+    // If linked, save schedule slot, otherwise, map panel can have its own state
+    const slotToSave = isLinked ? scheduleSlot : mapSlot;
+    if (slotToSave) {
+      localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(slotToSave));
     }
-  }, [selectedSlot]);
+  }, [scheduleSlot, mapSlot, isLinked]);
 
-  // [수정됨] 페이지 로드 시 초기 슬롯 설정
   useEffect(() => {
     const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
     if (storedSlot) {
-      setSelectedSlot(JSON.parse(storedSlot));
+      const parsedSlot = JSON.parse(storedSlot);
+      setScheduleSlot(parsedSlot);
+      setMapSlot(parsedSlot);
     } else {
-      // 기본값으로 첫 번째 시간대 설정
-      setSelectedSlot({ day: 0, time: '07:00' });
+      // Default to the first time slot
+      const defaultSlot = { day: 0, time: '07:00' };
+      setScheduleSlot(defaultSlot);
+      setMapSlot(defaultSlot);
     }
   }, []);
-
-  const handleSlotChange = (day: number, time: string) => {
-    setSelectedSlot({ day, time });
+  
+  const handleScheduleSlotChange = (day: number, time: string) => {
+    const newSlot = { day, time };
+    setScheduleSlot(newSlot);
+    if (isLinked) {
+      setMapSlot(newSlot);
+    }
+  };
+  
+  const handleMapSlotChange = (day: number, time: string) => {
+      const newSlot = { day, time };
+      setMapSlot(newSlot);
+      if (isLinked) {
+        setScheduleSlot(newSlot);
+      }
   };
 
   const handleLogout = async () => {
@@ -57,7 +75,7 @@ export default function AdminPage() {
     window.open('/map', '_blank', 'width=1200,height=800');
   };
 
-  if (isUserLoading || !user || !selectedSlot) {
+  if (isUserLoading || !user || !scheduleSlot || !mapSlot) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -87,14 +105,14 @@ export default function AdminPage() {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <SchedulePanel 
-                selectedSlot={selectedSlot} 
-                onSlotChange={handleSlotChange} 
+                selectedSlot={scheduleSlot} 
+                onSlotChange={handleScheduleSlotChange}
                 isLinked={isLinked}
                 onLinkChange={setIsLinked}
               />
               <MapPanel 
-                selectedSlot={selectedSlot} 
-                onSlotChange={handleSlotChange} 
+                selectedSlot={mapSlot} 
+                onSlotChange={handleMapSlotChange} 
                 isLinked={isLinked}
               />
             </div>
