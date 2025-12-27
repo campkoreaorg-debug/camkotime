@@ -39,43 +39,47 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
   const startPosRef = useRef({ x: 0, y: 0 });
   const currentInteractIdRef = useRef<string | null>(null);
 
-  // 1. 드래그/클릭 시작 (PointerDown)
-  // 마우스와 터치를 통합하여 처리합니다.
+  // [1] 마우스/터치 시작 (PointerDown)
   const handlePointerDown = (e: React.PointerEvent, markerId: string) => {
-    // 팝업 열기/닫기 동작을 위해 이벤트 전파 방지
+    // 이벤트 전파 방지
     e.stopPropagation();
     
-    // 만약 다른 팝업이 열려있고, 다른 마커를 눌렀다면 닫음
+    // 다른 팝업이 열려있으면 닫음
     if (activeMarkerId && activeMarkerId !== markerId) {
         setActiveMarkerId(null);
     }
-    
+
+    // 초기화
     startPosRef.current = { x: e.clientX, y: e.clientY };
     isDraggingRef.current = false; // 일단 클릭으로 가정
     currentInteractIdRef.current = markerId;
 
-    // 전역 이벤트 등록 (마우스가 컴포넌트 밖으로 나가도 추적)
+    // 전역 이벤트 등록 (드래그가 컴포넌트 밖으로 나가도 추적하기 위함)
     window.addEventListener('pointermove', handleGlobalMove);
     window.addEventListener('pointerup', handleGlobalUp);
   };
 
-  // 2. 움직임 감지 (PointerMove)
+  // [2] 움직임 감지 (PointerMove)
   const handleGlobalMove = (e: PointerEvent) => {
     if (!currentInteractIdRef.current || !mapRef.current) return;
 
     const moveX = Math.abs(e.clientX - startPosRef.current.x);
     const moveY = Math.abs(e.clientY - startPosRef.current.y);
 
-    // 5px 이상 움직였을 때만 "드래그"로 상태 변경
+    // 5px 이상 움직이면 "드래그 모드"로 진입
     if (!isDraggingRef.current && (moveX > 5 || moveY > 5)) {
         if (!isDraggable) return; // 드래그 권한 없으면 무시
+        
         isDraggingRef.current = true;
-        setDraggingMarkerId(currentInteractIdRef.current); // 이제서야 시각적 드래그 상태 진입
+        setDraggingMarkerId(currentInteractIdRef.current); // 시각적 드래그 상태 활성화
+        
+        // 드래그 시작 시 팝업이 열려있었다면 닫기
+        setActiveMarkerId(null);
     }
 
-    // 드래그 중일 때 위치 업데이트
+    // 드래그 중 위치 업데이트 (DOM 직접 조작으로 성능 최적화)
     if (isDraggingRef.current) {
-        e.preventDefault();
+        e.preventDefault(); // 스크롤 방지
         const mapBounds = mapRef.current.getBoundingClientRect();
         
         let x = ((e.clientX - mapBounds.left) / mapBounds.width) * 100;
@@ -84,7 +88,6 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
         x = Math.max(0, Math.min(100, x));
         y = Math.max(0, Math.min(100, y));
 
-        // 성능을 위해 DOM 직접 조작
         const markerElement = mapRef.current.querySelector(`[data-marker-id="${currentInteractIdRef.current}"]`) as HTMLElement;
         if (markerElement) {
             markerElement.style.left = `${x}%`;
@@ -93,13 +96,13 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
     }
   };
 
-  // 3. 조작 종료 (PointerUp) -> 여기서 클릭 vs 드래그 최종 판별
+  // [3] 조작 종료 (PointerUp) -> 여기서 클릭 vs 드래그 최종 판별
   const handleGlobalUp = (e: PointerEvent) => {
     const markerId = currentInteractIdRef.current;
     
     if (markerId && mapRef.current) {
         if (isDraggingRef.current) {
-            // [A] 드래그 였음 -> 위치 저장
+            // [A] 드래그 종료 -> 위치 저장
             const mapBounds = mapRef.current.getBoundingClientRect();
             let x = ((e.clientX - mapBounds.left) / mapBounds.width) * 100;
             let y = ((e.clientY - mapBounds.top) / mapBounds.height) * 100;
@@ -108,8 +111,8 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
 
             onMarkerDragEnd?.(markerId, x, y);
         } else {
-            // [B] 드래그 아니었음 (5px 미만 이동) -> "이것이 클릭이다!"
-            // 여기서 팝업 상태를 토글합니다.
+            // [B] 드래그 아님 (5px 미만 이동) -> "이것은 클릭이다!"
+            // 여기서 수동으로 팝업을 토글합니다.
             setActiveMarkerId(prev => prev === markerId ? null : markerId);
         }
     }
@@ -130,7 +133,6 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
         window.removeEventListener('pointerup', handleGlobalUp);
       }
   }, []);
-
 
   // --- 렌더링 ---
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
@@ -157,6 +159,7 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
             open={isOpen} 
             onOpenChange={(open) => {
                 // 외부 클릭 시 닫힘 처리
+                // (열림 처리는 handleGlobalUp에서 수동으로 하므로 여기서는 닫힘만 신경 씀)
                 if (!open) setActiveMarkerId(null);
             }}
         >
@@ -164,20 +167,22 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                 <div
                     data-marker-id={marker.id}
                     className={cn(
-                        "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-transform hover:scale-110 touch-none", // touch-none 중요
+                        "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-transform hover:scale-110 touch-none select-none", 
                         isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
                         draggingMarkerId === marker.id && "cursor-grabbing z-50 scale-110",
                         isOpen && "z-40 scale-110"
                     )}
                     style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                    // [핵심] onClick 대신 onPointerDown 하나로 시작
+                    // [핵심 1] 드래그 시작 감지
                     onPointerDown={(e) => handlePointerDown(e, marker.id)}
+                    // [핵심 2] PopoverTrigger의 기본 클릭 동작 무력화 (우리가 수동 제어하므로)
+                    onClick={(e) => e.preventDefault()}
                 >
-                    <Avatar className={cn("h-10 w-10 border-2 border-primary-foreground shadow-lg", (draggingMarkerId === marker.id || isOpen) && "border-primary")}>
+                    <Avatar className={cn("h-10 w-10 border-2 border-primary-foreground shadow-lg pointer-events-none", (draggingMarkerId === marker.id || isOpen) && "border-primary")}>
                         <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
                         <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <div className="mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm">
+                    <div className="mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none">
                         {staffNumber}. {staffMember.name}
                     </div>
                 </div>
@@ -187,7 +192,7 @@ export default function VenueMap({ markers, staff, schedule, mapImageUrl, isDrag
                 className="w-80 p-0 overflow-hidden notranslate" 
                 sideOffset={10}
                 {...{ "translate": "no" } as any}
-                // 팝업 내부 클릭 시 닫히지 않게 이벤트 전파 방지
+                // 팝업 내부 클릭 시 닫히거나 이벤트 버블링 방지
                 onPointerDown={(e) => e.stopPropagation()}
             >
                 <div className="bg-primary/5 p-4 border-b flex items-center justify-between gap-4">

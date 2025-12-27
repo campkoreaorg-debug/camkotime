@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
@@ -90,7 +91,7 @@ export default function AdminPage() {
             {/* Map Section */}
             <div className="space-y-4">
                  <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-headline font-semibold">지도 보기</h2>
+                    <h2 className="text-2xl font-headline font-semibold">지도</h2>
                     <Button onClick={() => fileInputRef.current?.click()}>
                         <Upload className="mr-2 h-4 w-4" />
                         배경 업로드
