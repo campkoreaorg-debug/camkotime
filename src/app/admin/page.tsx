@@ -31,6 +31,17 @@ export default function AdminPage() {
     }
   }, [selectedSlot]);
 
+  // [수정됨] 페이지 로드 시 초기 슬롯 설정
+  useEffect(() => {
+    const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
+    if (storedSlot) {
+      setSelectedSlot(JSON.parse(storedSlot));
+    } else {
+      // 기본값으로 첫 번째 시간대 설정
+      setSelectedSlot({ day: 0, time: '07:00' });
+    }
+  }, []);
+
   const handleSlotChange = (day: number, time: string) => {
     setSelectedSlot({ day, time });
   };
@@ -45,7 +56,7 @@ export default function AdminPage() {
     window.open('/map', '_blank', 'width=1200,height=800');
   };
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || !user || !selectedSlot) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

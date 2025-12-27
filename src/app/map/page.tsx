@@ -28,6 +28,9 @@ export default function MapPage() {
       const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
       if (storedSlot) {
         setSelectedSlot(JSON.parse(storedSlot));
+      } else {
+        // [수정됨] localStorage에 값이 없으면 기본값 설정
+        setSelectedSlot({ day: 0, time: '07:00' });
       }
     };
     
@@ -68,7 +71,7 @@ export default function MapPage() {
        <h1 className='text-2xl font-bold text-center mb-4 text-primary shrink-0'>
           VenueSync 실시간 지도 (Day {selectedSlot.day} - {selectedSlot.time})
        </h1>
-        <div className="flex flex-wrap gap-2 pb-4 mb-4 border-b shrink-0">
+        <div className="flex flex-wrap gap-2 pb-4 mb-4 border-b shrink-0 justify-center">
             {timeSlots.map(time => {
                 const isSelected = selectedSlot?.day === currentDay && selectedSlot?.time === time;
                 return (
