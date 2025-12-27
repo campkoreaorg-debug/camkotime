@@ -51,7 +51,7 @@ const generateTimeSlots = () => {
     return slots;
 }
 
-const timeSlots = generateTimeSlots();
+export const timeSlots = generateTimeSlots();
 const days = [0, 1, 2, 3];
 
 function getAdjacentTime(time: string, minutes: number): string {
@@ -288,8 +288,8 @@ export function SchedulePanel() {
                                 </h3>
                                 {selectedScheduleIds.length > 0 && (
                                     <div className='flex gap-2'>
-                                        <Button size="sm" variant="outline" onClick={handleCopy}><Copy className='mr-2' /> 복사</Button>
-                                        <Button size="sm" variant="destructive" onClick={handleBulkDeleteConfirmation}><Trash2 className='mr-2' /> 선택 삭제</Button>
+                                        <Button size="sm" variant="outline" onClick={handleCopy}><Copy className='mr-2 h-4 w-4' /> 복사</Button>
+                                        <Button size="sm" variant="destructive" onClick={handleBulkDeleteConfirmation}><Trash2 className='mr-2 h-4 w-4' /> 선택 삭제</Button>
                                     </div>
                                 )}
                             </div>
@@ -337,7 +337,10 @@ export function SchedulePanel() {
                                       )}
                                     />
                                     {!editingItem && (
-                                      <Button type="submit">등록</Button>
+                                      <Button type="submit">
+                                        <Plus className="h-4 w-4" />
+                                        등록
+                                      </Button>
                                     )}
                                 </div>
                                 
@@ -352,7 +355,7 @@ export function SchedulePanel() {
                                     )}
                                      {clipboard.length > 0 && !editingItem && (
                                         <Button type="button" variant="secondary" onClick={handlePaste}>
-                                            <ClipboardPaste className='mr-2' />
+                                            <ClipboardPaste className='mr-2 h-4 w-4' />
                                             {clipboard.length}개 항목 붙여넣기
                                         </Button>
                                     )}
