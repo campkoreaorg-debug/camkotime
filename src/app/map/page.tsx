@@ -7,7 +7,7 @@ import VenueMap from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase';
-import { timeSlots } from '@/components/admin/SchedulePanel';
+import { timeSlots } from '@/hooks/use-venue-data';
 import { Button } from '@/components/ui/button';
 
 export default function MapPage() {

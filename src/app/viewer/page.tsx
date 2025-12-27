@@ -9,7 +9,7 @@ import { useVenueData } from '@/hooks/use-venue-data';
 import { Button } from '@/components/ui/button';
 import { Home, Loader2, Database, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useUser, useAuth } from '@/firebase';
-import { timeSlots } from '@/components/admin/SchedulePanel';
+import { timeSlots } from '@/hooks/use-venue-data';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 
