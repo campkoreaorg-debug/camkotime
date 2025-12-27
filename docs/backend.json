@@ -31,17 +31,11 @@
           "description": "Street address of the venue."
         },
         "ownerId": {
-            "type": "string",
-            "description": "The UID of the user who owns this venue."
+          "type": "string",
+          "description": "The UID of the user who owns this venue."
         }
       },
-      "required": [
-        "id",
-        "name",
-        "latitude",
-        "longitude",
-        "ownerId"
-      ]
+      "required": ["id", "name", "latitude", "longitude", "ownerId"]
     },
     "Staff": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -66,12 +60,7 @@
           "description": "Reference to Venue. (Relationship: Venue 1:N Staff)"
         }
       },
-      "required": [
-        "id",
-        "name",
-        "role",
-        "venueId"
-      ]
+      "required": ["id", "name", "role", "venueId"]
     },
     "Schedule": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -96,26 +85,19 @@
           "description": "Start time of the scheduled event in HH:mm format."
         },
         "event": {
-            "type": "string",
-            "description": "Name of the event."
+          "type": "string",
+          "description": "Name of the event."
         },
         "location": {
-            "type": "string",
-            "description": "Location of the event."
+          "type": "string",
+          "description": "Location of the event."
         },
         "staffId": {
-            "type": "string",
-            "description": "ID of the assigned staff member."
+          "type": "string",
+          "description": "ID of the assigned staff member."
         }
       },
-      "required": [
-        "id",
-        "venueId",
-        "day",
-        "time",
-        "event",
-        "location"
-      ]
+      "required": ["id", "venueId", "day", "time", "event", "location"]
     },
     "ExternalDevice": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -144,19 +126,69 @@
           "description": "Current status of the external device (e.g., active, inactive)."
         }
       },
-      "required": [
-        "id",
-        "deviceId",
-        "deviceType",
-        "venueId"
-      ]
+      "required": ["id", "deviceId", "deviceType", "venueId"]
+    },
+    "MapInfo": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MapInfo",
+      "type": "object",
+      "description": "Stores map information for a specific time slot.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier, likely combining day and time."
+        },
+        "day": {
+          "type": "number",
+          "description": "The day for this map."
+        },
+        "time": {
+          "type": "string",
+          "description": "The time slot for this map in HH:mm format."
+        },
+        "mapImageUrl": {
+          "type": "string",
+          "description": "URL for the background image of the map for this time slot."
+        }
+      },
+      "required": ["id", "day", "time", "mapImageUrl"]
+    },
+    "MapMarker": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MapMarker",
+      "type": "object",
+      "description": "Represents a marker on the map for a specific time slot.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the marker."
+        },
+        "day": {
+          "type": "number",
+          "description": "The day this marker position is for."
+        },
+        "time": {
+          "type": "string",
+          "description": "The time slot this marker position is for."
+        },
+        "staffId": {
+          "type": "string",
+          "description": "ID of the staff member this marker represents."
+        },
+        "x": {
+          "type": "number",
+          "description": "The x-coordinate percentage."
+        },
+        "y": {
+          "type": "number",
+          "description": "The y-coordinate percentage."
+        }
+      },
+      "required": ["id", "day", "time", "staffId", "x", "y"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
     "structure": [
@@ -235,8 +267,48 @@
             }
           ]
         }
+      },
+      {
+        "path": "/venues/{venueId}/maps/{mapId}",
+        "definition": {
+          "entityName": "MapInfo",
+          "schema": {
+            "$ref": "#/backend/entities/MapInfo"
+          },
+          "description": "Stores map background images for specific time slots. The mapId is a combination of day and time.",
+          "params": [
+            {
+              "name": "venueId",
+              "description": "Unique identifier for the venue."
+            },
+            {
+              "name": "mapId",
+              "description": "Unique identifier for the map info, e.g., 'day0-0900'."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/venues/{venueId}/markers/{markerId}",
+        "definition": {
+          "entityName": "MapMarker",
+          "schema": {
+            "$ref": "#/backend/entities/MapMarker"
+          },
+          "description": "Stores marker positions for staff members at specific time slots. The markerId is unique for each marker instance.",
+          "params": [
+            {
+              "name": "venueId",
+              "description": "Unique identifier for the venue."
+            },
+            {
+              "name": "markerId",
+              "description": "Unique identifier for the marker."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support VenueSync's real-time updates and role-based access (admin/viewer) while adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling.  The structure uses path-based ownership and denormalization to avoid `get()` calls in security rules, enhancing security and scalability. \n\n*   **Venues Collection:** Top-level collection to store venue details.  All other data related to a venue (staff, schedules, devices) are stored in subcollections under each venue. This enforces a clear hierarchy and ownership.\n*   **Staff, Schedules, ExternalDevices Subcollections:** Each venue has its own subcollections for staff, schedules, and external devices.  This segregation allows for specific security rules at each level and supports the 1:N relationships.\n\n**Authorization Independence (Denormalization):** No `get()` calls are required in the security rules. The data structure is designed for Authorization Independence because it utilizes path-based ownership.\n\n**QAPs (Rules are not Filters):**\n*   Secure `list` operations are supported by the structural segregation. For instance, listing schedules is always scoped to a specific venue.  There's no need to filter based on authorization within the rules themselves.\n\nThis design facilitates simple and robust security rules and supports the application's core features of real-time updates and role-based access."
+    "reasoning": "The Firestore structure is designed to support VenueSync's real-time updates and role-based access (admin/viewer) while adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling.  The structure uses path-based ownership and denormalization to avoid `get()` calls in security rules, enhancing security and scalability. \n\n*   **Venues Collection:** Top-level collection to store venue details.  All other data related to a venue (staff, schedules, devices, maps, markers) are stored in subcollections under each venue. This enforces a clear hierarchy and ownership.\n*   **Staff, Schedules, ExternalDevices, Maps, Markers Subcollections:** Each venue has its own subcollections. This segregation allows for specific security rules at each level. The new `maps` collection stores time-slot specific background images. The `markers` collection now stores staff locations for each specific time slot, enabling dynamic positioning."
   }
 }

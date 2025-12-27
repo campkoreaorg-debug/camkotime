@@ -20,19 +20,27 @@ export interface ScheduleItem {
 }
 
 export interface MapMarker {
-  id: string; // can be staff id or a unique POI id
-  type: 'staff' | 'poi';
-  label: string;
+  id: string;
+  staffId: string;
+  day: number;
+  time: string;
   x: number; // percentage
   y: number; // percentage
-  staffId?: string; // link to staff member
+  label: string; // From staff member name, denormalized for easier access
+  type: 'staff'; // Type is always staff now
+}
+
+export interface MapInfo {
+  id: string; // e.g., 'day0-0930'
+  day: number;
+  time: string;
+  mapImageUrl: string;
 }
 
 export interface VenueData {
   staff: StaffMember[];
   schedule: ScheduleItem[];
   markers: MapMarker[];
-  mapImageUrl?: string;
+  maps: MapInfo[];
+  mapImageUrl?: string; // Legacy, will be phased out
 }
-
-    
