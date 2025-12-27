@@ -16,10 +16,11 @@ import {
   collection,
   doc,
   writeBatch,
+  deleteDoc,
 } from 'firebase/firestore';
-import type { VenueData, StaffMember, ScheduleItem, MapMarker } from '@/lib/types';
+import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo } from '@/lib/types';
 import { initialData } from '@/lib/data';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 const VENUE_ID = 'main-venue'; // Using a single venue for this app
 
@@ -54,11 +55,17 @@ export const useVenueData = () => {
         : null,
     [firestore]
   );
+  
+  const mapsColRef = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'venues', VENUE_ID, 'maps') : null),
+    [firestore]
+  );
 
   const { data: venueDoc } = useDoc<any>(venueRef);
   const { data: staff } = useCollection<StaffMember>(staffColRef);
   const { data: schedule } = useCollection<ScheduleItem>(scheduleColRef);
   const { data: markers } = useCollection<MapMarker>(markersColRef);
+  const { data: maps } = useCollection<MapInfo>(mapsColRef);
 
   // Function to initialize data if it doesn't exist
   const initializeFirestoreData = useCallback(async () => {
@@ -69,15 +76,15 @@ export const useVenueData = () => {
 
     // Set venue
     const venueDocRef = doc(firestore, 'venues', VENUE_ID);
-    batch.set(venueDocRef, { name: 'My Main Venue', mapImageUrl: initialData.mapImageUrl, ownerId: user.uid });
+    batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid });
     
-    // Set staff (now empty)
+    // Set staff
     initialData.staff.forEach((staffMember) => {
         const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffMember.id);
         batch.set(staffDocRef, staffMember);
     });
 
-    // Set schedule (now empty)
+    // Set schedule
     initialData.schedule.forEach((scheduleItem) => {
         const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleItem.id);
         batch.set(scheduleDocRef, scheduleItem);
@@ -87,6 +94,12 @@ export const useVenueData = () => {
     initialData.markers.forEach((marker) => {
         const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', marker.id);
         batch.set(markerDocRef, marker);
+    });
+    
+    // Set maps
+    initialData.maps.forEach((map) => {
+        const mapDocRef = doc(firestore, 'venues', VENUE_ID, 'maps', map.id);
+        batch.set(mapDocRef, map);
     });
 
     // Commit the batch
@@ -104,19 +117,8 @@ export const useVenueData = () => {
       role: 'Operations', // Default role
       avatar,
     };
-    const newMarker: MapMarker = {
-        id: `marker-${Date.now()}`,
-        staffId: newId,
-        type: 'staff',
-        label: newStaff.name,
-        x: Math.round(Math.random() * 80) + 10,
-        y: Math.round(Math.random() * 80) + 10,
-    }
     const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', newId);
-    const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', newMarker.id);
-    
     setDocumentNonBlocking(staffDocRef, newStaff, {});
-    setDocumentNonBlocking(markerDocRef, newMarker, {});
   };
 
   const addStaffBatch = async (newStaffMembers: { name: string; avatar: string }[]) => {
@@ -126,29 +128,14 @@ export const useVenueData = () => {
 
     newStaffMembers.forEach((member, index) => {
         const staffId = `staff-${timestamp}-${index}`;
-        const markerId = `marker-${timestamp}-${index}`;
-        
         const newStaff: StaffMember = {
             id: staffId,
             name: member.name,
-            role: 'Operations', // Default role
+            role: 'Operations',
             avatar: member.avatar,
         };
-
-        const newMarker: MapMarker = {
-            id: markerId,
-            staffId: staffId,
-            type: 'staff',
-            label: member.name,
-            x: Math.round(Math.random() * 80) + 10,
-            y: Math.round(Math.random() * 80) + 10,
-        };
-
         const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
         batch.set(staffDocRef, newStaff);
-        
-        const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
-        batch.set(markerDocRef, newMarker);
     });
 
     await batch.commit();
@@ -158,26 +145,26 @@ export const useVenueData = () => {
     if (!firestore) return;
     const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
     updateDocumentNonBlocking(staffDocRef, data);
-
-    if(data.name){
-        const markerToUpdate = markers?.find(m => m.staffId === staffId);
-        if(markerToUpdate){
-            const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerToUpdate.id);
-            updateDocumentNonBlocking(markerDocRef, { label: data.name });
-        }
-    }
   };
 
-  const deleteStaff = (staffId: string) => {
+  const deleteStaff = async (staffId: string) => {
     if (!firestore) return;
-    const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
-    deleteDocumentNonBlocking(staffDocRef);
+    
+    // Create a batch to delete staff and their associated markers
+    const batch = writeBatch(firestore);
 
-    const markerToDelete = markers?.find(m => m.staffId === staffId);
-    if(markerToDelete){
-        const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerToDelete.id);
-        deleteDocumentNonBlocking(markerDocRef);
-    }
+    // Delete staff member
+    const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
+    batch.delete(staffDocRef);
+
+    // Find and delete all markers for this staff member
+    const staffMarkers = markers?.filter(m => m.staffId === staffId) || [];
+    staffMarkers.forEach(marker => {
+      const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', marker.id);
+      batch.delete(markerDocRef);
+    });
+
+    await batch.commit();
   };
 
   const addSchedule = (values: Omit<ScheduleItem, 'id'>) => {
@@ -230,9 +217,11 @@ export const useVenueData = () => {
     batch.commit();
   };
   
-  const updateMapImage = (newUrl: string) => {
-      if(!venueRef) return;
-      updateDocumentNonBlocking(venueRef, { mapImageUrl: newUrl });
+  const updateMapImage = (day: number, time: string, newUrl: string) => {
+    if (!firestore) return;
+    const mapId = `day${day}-${time.replace(':', '')}`;
+    const mapDocRef = doc(firestore, 'venues', VENUE_ID, 'maps', mapId);
+    setDocumentNonBlocking(mapDocRef, { day, time, mapImageUrl: newUrl }, { merge: true });
   }
 
   const updateMarkerPosition = (markerId: string, x: number, y: number) => {
@@ -240,14 +229,48 @@ export const useVenueData = () => {
     const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
     updateDocumentNonBlocking(markerDocRef, { x, y });
   };
-
-  const data: VenueData = {
-    staff: staff ? [...staff].sort((a,b) => a.id.localeCompare(b.id)) : [],
-    schedule: schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [],
-    markers: markers || [],
-    mapImageUrl: venueDoc?.mapImageUrl,
+  
+  const addMarker = async (staffId: string, day: number, time: string) => {
+    if (!firestore) return;
+    const markerId = `marker-${staffId}-${day}-${time.replace(':', '')}`;
+    const newMarker: Omit<MapMarker, 'id'> = {
+        staffId,
+        day,
+        time,
+        x: Math.round(Math.random() * 80) + 10,
+        y: Math.round(Math.random() * 80) + 10,
+    };
+    const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
+    await setDocumentNonBlocking(markerDocRef, newMarker, { merge: true });
   };
+  
 
-  return { data, addStaff, addStaffBatch, updateStaff, deleteStaff, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, updateMapImage, initializeFirestoreData, isLoading: !venueDoc || !staff || !schedule || !markers, updateMarkerPosition };
+  // Memoized data for rendering
+  const memoizedData: VenueData = useMemo(() => {
+    return {
+      staff: staff ? [...staff].sort((a,b) => a.id.localeCompare(b.id)) : [],
+      schedule: schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [],
+      markers: markers || [],
+      maps: maps || [],
+    };
+  }, [staff, schedule, markers, maps]);
+
+  return { 
+    data: memoizedData, 
+    addStaff, 
+    addStaffBatch, 
+    updateStaff, 
+    deleteStaff, 
+    addSchedule, 
+    updateSchedule, 
+    deleteSchedule, 
+    deleteSchedulesBatch, 
+    pasteSchedules, 
+    updateMapImage, 
+    initializeFirestoreData, 
+    isLoading: !venueDoc || !staff || !schedule || !markers || !maps, 
+    updateMarkerPosition,
+    addMarker,
+  };
 };
     
