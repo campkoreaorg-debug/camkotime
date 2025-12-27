@@ -19,6 +19,7 @@ import {
   query,
   where,
   getDocs,
+  deleteDoc,
 } from 'firebase/firestore';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role } from '@/lib/types';
 import { initialData } from '@/lib/data';
@@ -112,13 +113,53 @@ export const useVenueData = () => {
 
   }, [firestore, user]);
 
-  const addStaff = async (name: string, avatar: string) => {
+  const addStaff = (name: string, avatar: string, role: {id: string, name: string} | null) => {
     if (!firestore) return;
     const staffId = `staff-${Date.now()}`;
-    const newStaff: Omit<StaffMember, 'role'> = { id: staffId, name, avatar };
+    const newStaff: StaffMember = { id: staffId, name, avatar, role };
     const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
     setDocumentNonBlocking(staffDocRef, newStaff, {});
   };
+  
+  const updateStaffRole = async (staffId: string, role: Role | null) => {
+    if (!firestore || !scheduleColRef) return;
+
+    const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
+    
+    const batch = writeBatch(firestore);
+    
+    batch.update(staffDocRef, { role: role ? { id: role.id, name: role.name } : null });
+    
+    const q = query(scheduleColRef, where('staffId', '==', staffId));
+    const oldSchedulesSnapshot = await getDocs(q);
+    oldSchedulesSnapshot.forEach(doc => batch.delete(doc.ref));
+
+    if (role && role.scheduleTemplates) {
+      const days = [0, 1, 2, 3];
+      days.forEach(day => {
+        timeSlots.forEach(time => {
+          role.scheduleTemplates?.forEach(template => {
+            if(template.day === day && template.time === time) {
+              const scheduleId = `sch-${staffId}-${day}-${time.replace(':', '')}-${Math.random().toString(36).substr(2, 5)}`;
+              const newSchedule: ScheduleItem = {
+                id: scheduleId,
+                day,
+                time,
+                event: template.event,
+                location: template.location,
+                staffId: staffId,
+              };
+              const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
+              batch.set(scheduleDocRef, newSchedule);
+            }
+          })
+        })
+      });
+    }
+    
+    await batch.commit();
+  }
+
 
   const deleteStaff = async (staffId: string) => {
     if (!firestore || !scheduleColRef || !markersColRef) return;
@@ -145,7 +186,7 @@ export const useVenueData = () => {
   const addSchedule = (values: Omit<ScheduleItem, 'id'>) => {
     if (!firestore) return;
     const newId = `sch-${Date.now()}`;
-    const newScheduleItem: ScheduleItem = { id: newId, ...values, role: null };
+    const newScheduleItem: ScheduleItem = { id: newId, ...values };
     const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', newId);
     setDocumentNonBlocking(scheduleDocRef, newScheduleItem, {});
   };
@@ -154,6 +195,12 @@ export const useVenueData = () => {
     if (!firestore) return;
     const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
     updateDocumentNonBlocking(scheduleDocRef, data);
+  };
+  
+  const deleteSchedule = (scheduleId: string) => {
+    if (!firestore) return;
+    const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
+    deleteDoc(scheduleDocRef);
   };
 
   const deleteSchedulesBatch = (scheduleIds: string[]) => {
@@ -186,7 +233,7 @@ export const useVenueData = () => {
     batch.commit();
   };
 
-  const addRole = (name: string, scheduleTemplates: Omit<ScheduleItem, 'id' | 'day' | 'time'>[]) => {
+  const addRole = (name: string, scheduleTemplates: Omit<ScheduleItem, 'id' | 'staffId'>[]) => {
     if (!firestore) return;
     const newId = `role-${Date.now()}`;
     const newRole: Role = { id: newId, name, scheduleTemplates };
@@ -198,7 +245,8 @@ export const useVenueData = () => {
     if (!firestore || !staffColRef || !scheduleColRef) return;
     
     const roleToAssign = roles?.find(r => r.id === roleId);
-    if (!roleToAssign) return;
+    const staffToAssign = staff?.find(s => s.id === staffId);
+    if (!roleToAssign || !staffToAssign) return;
 
     const batch = writeBatch(firestore);
 
@@ -213,30 +261,19 @@ export const useVenueData = () => {
 
     // 3. Add new schedules based on the role template
     if (roleToAssign.scheduleTemplates) {
-      const days = [0, 1, 2, 3];
-      const timeSlots = Array.from({ length: 35 }, (_, i) => {
-        const hour = Math.floor(i / 2) + 7;
-        const minute = (i % 2) * 30;
-        return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-      });
-
-      days.forEach(day => {
-        timeSlots.forEach(time => {
-          roleToAssign.scheduleTemplates?.forEach(template => {
-             const scheduleId = `sch-${staffId}-${day}-${time.replace(':', '')}-${Math.random().toString(36).substr(2, 5)}`;
-             const newSchedule: ScheduleItem = {
-               id: scheduleId,
-               day,
-               time,
-               event: template.event,
-               location: template.location,
-               staffId: staffId,
-             };
-             const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
-             batch.set(scheduleDocRef, newSchedule);
-          })
-        })
-      });
+      roleToAssign.scheduleTemplates?.forEach(template => {
+          const scheduleId = `sch-${staffId}-${template.day}-${template.time.replace(':', '')}-${Math.random().toString(36).substr(2, 5)}`;
+          const newSchedule: ScheduleItem = {
+            id: scheduleId,
+            day: template.day,
+            time: template.time,
+            event: template.event,
+            location: template.location,
+            staffId: staffId,
+          };
+          const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
+          batch.set(scheduleDocRef, newSchedule);
+      })
     }
     
     await batch.commit();
@@ -291,14 +328,29 @@ export const useVenueData = () => {
     deleteStaff,
     addSchedule, 
     updateSchedule, 
+    deleteSchedule,
     deleteSchedulesBatch, 
     pasteSchedules, 
     updateMapImage, 
     initializeFirestoreData, 
     addRole,
     assignRoleToStaff,
+    updateStaffRole,
     isLoading: !venueDoc || !staff || !roles || !schedule || !markers || !maps, 
     updateMarkerPosition,
     addMarker,
   };
 };
+
+// This needs to be available to other components, so we export it.
+export const timeSlots = (() => {
+  const slots = [];
+  for (let h = 7; h < 24; h++) {
+      slots.push(`${String(h).padStart(2, '0')}:00`);
+      slots.push(`${String(h).padStart(2, '0')}:30`);
+  }
+  slots.push('00:00');
+  return slots;
+})();
+
+    
