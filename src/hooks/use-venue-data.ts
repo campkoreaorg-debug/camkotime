@@ -113,10 +113,10 @@ export const useVenueData = () => {
 
   }, [firestore, user]);
 
-  const addStaff = (name: string, avatar: string, role: {id: string, name: string} | null) => {
+  const addStaff = (name: string, avatar: string) => {
     if (!firestore) return;
     const staffId = `staff-${Date.now()}`;
-    const newStaff: StaffMember = { id: staffId, name, avatar, role };
+    const newStaff: StaffMember = { id: staffId, name, avatar, role: null };
     const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
     setDocumentNonBlocking(staffDocRef, newStaff, {});
   };
@@ -212,6 +212,16 @@ export const useVenueData = () => {
     });
     batch.commit();
   };
+
+  const deleteAllSchedules = async () => {
+    if (!firestore || !scheduleColRef) return;
+    const batch = writeBatch(firestore);
+    const snapshot = await getDocs(scheduleColRef);
+    snapshot.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    await batch.commit();
+  }
   
   const pasteSchedules = (day: number, time: string, clipboard: ClipboardItem[]) => {
     if (!firestore || clipboard.length === 0) return;
@@ -225,7 +235,7 @@ export const useVenueData = () => {
             time,
             event: item.event,
             location: item.location,
-            staffId: item.staffId || null,
+            staffId: item.staffId || "",
         };
         const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', newId);
         batch.set(scheduleDocRef, newScheduleItem);
@@ -330,6 +340,7 @@ export const useVenueData = () => {
     updateSchedule, 
     deleteSchedule,
     deleteSchedulesBatch, 
+    deleteAllSchedules,
     pasteSchedules, 
     updateMapImage, 
     initializeFirestoreData, 
@@ -352,5 +363,7 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    
 
     

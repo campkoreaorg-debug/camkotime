@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User } from 'lucide-react';
+import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { ScheduleItem } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Switch } from '../ui/switch';
@@ -50,12 +50,13 @@ interface SchedulePanelProps {
 }
 
 export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChange }: SchedulePanelProps) {
-  const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules } = useVenueData();
+  const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, deleteAllSchedules } = useVenueData();
   const { toast } = useToast();
   
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
   
   const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [isDeleteAllAlertOpen, setIsDeleteAllAlertOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ScheduleItem | null>(null);
   const [itemsToDelete, setItemsToDelete] = useState<string[]>([]);
 
@@ -76,7 +77,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
             setActiveTab(newTab);
         }
     }
-  }, [selectedSlot]);
+  }, [selectedSlot, activeTab]);
 
 
   const handleSelectSlot = (day: number, time: string) => {
@@ -105,7 +106,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       ...values,
       day: selectedSlot.day,
       time: selectedSlot.time,
-      staffId: values.staffId === 'unassigned' ? null : values.staffId,
+      staffId: values.staffId === 'unassigned' ? "" : values.staffId,
     };
 
     if (editingItem) {
@@ -145,6 +146,15 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     setItemToDelete(null);
     setItemsToDelete([]);
   };
+
+  const handleDeleteAll = () => {
+    deleteAllSchedules();
+    toast({
+        title: "전체 삭제 완료",
+        description: "모든 스케줄이 삭제되었습니다."
+    });
+    setIsDeleteAllAlertOpen(false);
+  }
 
   const handleTabChange = (newTab: string) => {
     const newDay = parseInt(newTab.split('-')[1], 10);
@@ -211,17 +221,23 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   return (
     <Card className='lg:col-span-1'>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-start">
             <div>
               <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
               <CardDescription>일차를 선택하고 시간대별로 스케줄을 관리하세요.</CardDescription>
             </div>
-            <div className="flex items-center space-x-2">
-              <Switch id="link-panels" checked={isLinked} onCheckedChange={onLinkChange} />
-              <Label htmlFor="link-panels" className='flex items-center gap-2'>
-                <LinkIcon className='h-4 w-4'/>
-                지도 연동
-              </Label>
+            <div className="flex items-center gap-4">
+              <Button variant="destructive" size="sm" onClick={() => setIsDeleteAllAlertOpen(true)}>
+                  <ShieldAlert className='mr-2 h-4 w-4' />
+                  전체 삭제
+              </Button>
+              <div className="flex items-center space-x-2">
+                <Switch id="link-panels" checked={isLinked} onCheckedChange={onLinkChange} />
+                <Label htmlFor="link-panels" className='flex items-center gap-2'>
+                  <LinkIcon className='h-4 w-4'/>
+                  지도 연동
+                </Label>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -401,6 +417,22 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={isDeleteAllAlertOpen} onOpenChange={setIsDeleteAllAlertOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+              <AlertDialogTitle>정말로 모든 스케줄을 삭제하시겠습니까?</AlertDialogTitle>
+              <AlertDialogDescription>
+                  이 작업은 되돌릴 수 없습니다. 이 베뉴의 모든 스케줄을 영구적으로 삭제합니다.
+              </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteAll} className='bg-destructive hover:bg-destructive/90'>전체 삭제</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
+
+    
