@@ -3,7 +3,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { CalendarClock, X, UserPlus, Upload } from 'lucide-react';
-import type { MapMarker, StaffMember, ScheduleItem, MapInfo } from '@/lib/types';
+import type { MapMarker, StaffMember, ScheduleItem, MapInfo, RoleKorean } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -40,9 +40,29 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
 
   const currentMarkers = useMemo(() => {
       if (!selectedSlot) return [];
-      // This logic is now time-specific for markers as well
-      return allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
-  }, [allMarkers, selectedSlot]);
+      const roleBasedSchedulesForSlot = schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time && s.role && !s.staffId);
+      const staffWithRoleSchedules = staff.filter(s => roleBasedSchedulesForSlot.some(rs => rs.role === s.role));
+
+      const timeSpecificMarkers = allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
+      const timeSpecificMarkerStaffIds = new Set(timeSpecificMarkers.map(m => m.staffId));
+
+      const markersToShow = [...timeSpecificMarkers];
+
+      staffWithRoleSchedules.forEach(s => {
+          if (!timeSpecificMarkerStaffIds.has(s.id)) {
+              const defaultMarker: MapMarker = {
+                  id: `default-marker-${s.id}-${selectedSlot.day}-${selectedSlot.time}`,
+                  staffId: s.id,
+                  day: selectedSlot.day,
+                  time: selectedSlot.time,
+                  x: 50,
+                  y: 50,
+              };
+              markersToShow.push(defaultMarker);
+          }
+      });
+      return markersToShow;
+  }, [allMarkers, schedule, staff, selectedSlot]);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
@@ -150,19 +170,18 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     }
   };
 
-  const StaffMarker = ({ marker, index }: { marker: MapMarker, index: number }) => {
+  const StaffMarker = ({ marker }: { marker: MapMarker }) => {
     const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId, staff]);
     const staffSchedule = useMemo(() => {
         if (!staffMember || !selectedSlot) return [];
         return schedule
-          .filter(task => task.staffId === staffMember.id && task.day === selectedSlot.day)
+          .filter(task => (task.staffId === staffMember.id || task.role === staffMember.role) && task.day === selectedSlot.day)
           .sort((a,b) => a.time.localeCompare(b.time));
     }, [staffMember, schedule, selectedSlot]);
     
     if (!staffMember) return null;
     const isOpen = activeMarkerId === marker.id;
 
-    // Find the original index of the staff member in the main staff list
     const staffIndex = staff.findIndex(s => s.id === staffMember.id);
 
     return (
@@ -190,7 +209,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                         </Avatar>
                     </div>
                     <div className="mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none">
-                        {staffMember.name}
+                       {staffIndex + 1}. {staffMember.name}
                     </div>
                 </div>
             </PopoverTrigger>
@@ -358,8 +377,8 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
           <MapActions />
           <UnassignedStaff />
 
-          {currentMarkers.map((marker, index) => (
-             <StaffMarker key={marker.id} marker={marker} index={index} />
+          {currentMarkers.map((marker) => (
+             <StaffMarker key={marker.id} marker={marker} />
           ))}
         </div>
     </div>

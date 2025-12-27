@@ -1,10 +1,15 @@
-import type { VenueData } from './types';
+import type { VenueData, RoleKorean } from './types';
 import { PlaceHolderImages } from './placeholder-images';
 
 const mapBg = PlaceHolderImages.find(p => p.id === 'map-background')?.imageUrl || '';
 
-// This is just placeholder data. The actual data will be in Firestore.
-// The use-venue-data hook handles initialization.
+export const roleSchedules: { role: RoleKorean, event: string, location: string }[] = [
+    { role: '보안', event: '구역 순찰', location: '전체 구역' },
+    { role: '의료', event: '의료 부스 대기', location: '의료 센터' },
+    { role: '안내', event: '관객 안내', location: '메인 게이트' },
+    { role: '운영', event: '상황실 대기', location: '운영 본부' }
+];
+
 export const initialData: VenueData = {
   staff: [
     { id: 'staff-1', name: '이보람', role: '보안', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '' },

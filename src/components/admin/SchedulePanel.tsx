@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, User, Copy, ClipboardPaste, Link as LinkIcon } from 'lucide-react';
+import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -20,10 +20,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { ScheduleItem } from '@/lib/types';
+import type { ScheduleItem, RoleKorean } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Checkbox } from '../ui/checkbox';
 import { Switch } from '../ui/switch';
@@ -50,6 +50,7 @@ export const timeSlots = (() => {
 })();
 
 const days = [0, 1, 2, 3];
+const roles: RoleKorean[] = ['보안', '의료', '운영', '안내'];
 
 function getAdjacentTime(time: string, minutes: number): string | null {
     if (!time) return null;
@@ -130,16 +131,22 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   const onSubmit = (values: ScheduleFormValues) => {
     if (!selectedSlot) return;
 
+    const assignment = values.staffId || '';
+    const isRoleAssignment = roles.includes(assignment as RoleKorean);
+  
+    const scheduleData: Omit<ScheduleItem, 'id'> = {
+      ...values,
+      day: selectedSlot.day,
+      time: selectedSlot.time,
+      staffId: isRoleAssignment ? null : assignment,
+      role: isRoleAssignment ? (assignment as RoleKorean) : null,
+    };
+
     if (editingItem) {
-      const updatedItem = { ...editingItem, ...values };
-      updateSchedule(editingItem.id, updatedItem);
+      updateSchedule(editingItem.id, scheduleData);
       setEditingItem(null);
     } else {
-      addSchedule({
-        ...values,
-        day: selectedSlot.day,
-        time: selectedSlot.time,
-      });
+      addSchedule(scheduleData);
     }
     form.reset({ event: '', location: '', staffId: ''});
   };
@@ -352,25 +359,39 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                         name="staffId"
                                         render={({ field }) => (
                                           <Select
-                                            onValueChange={(value) => field.onChange(value === 'unassigned' ? '' : value)}
-                                            value={field.value || 'unassigned'}
+                                            onValueChange={field.onChange}
+                                            value={field.value || ''}
                                           >
                                             <SelectTrigger className="w-[180px]">
-                                              <SelectValue placeholder="담당자 선택" />
+                                              <SelectValue placeholder="담당자 또는 직책 선택" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                              <SelectItem value="unassigned">담당자 없음</SelectItem>
-                                              {data.staff.map(s => (
-                                                  <SelectItem key={s.id} value={s.id}>
-                                                    <div className="flex items-center gap-2">
-                                                      <Avatar className="h-5 w-5">
-                                                        <AvatarImage src={s.avatar} alt={s.name} />
-                                                        <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
-                                                      </Avatar>
-                                                      <span>{s.name}</span>
-                                                    </div>
-                                                  </SelectItem>
-                                              ))}
+                                                <SelectItem value="">담당자 없음</SelectItem>
+                                                <SelectGroup>
+                                                  <SelectLabel>직책</SelectLabel>
+                                                  {roles.map(r => (
+                                                    <SelectItem key={r} value={r}>
+                                                      <div className="flex items-center gap-2">
+                                                        <Users className="h-4 w-4" />
+                                                        <span>{r} (그룹)</span>
+                                                      </div>
+                                                    </SelectItem>
+                                                  ))}
+                                                </SelectGroup>
+                                                <SelectGroup>
+                                                  <SelectLabel>스태프</SelectLabel>
+                                                  {data.staff.map(s => (
+                                                      <SelectItem key={s.id} value={s.id}>
+                                                        <div className="flex items-center gap-2">
+                                                          <Avatar className="h-5 w-5">
+                                                            <AvatarImage src={s.avatar} alt={s.name} />
+                                                            <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
+                                                          </Avatar>
+                                                          <span>{s.name}</span>
+                                                        </div>
+                                                      </SelectItem>
+                                                  ))}
+                                                </SelectGroup>
                                             </SelectContent>
                                           </Select>
                                         )}
@@ -400,6 +421,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                       <div className="space-y-2 min-h-[50px]">
                                           {items.map(item => {
                                               const assignedStaff = data.staff.find(s => s.id === item.staffId);
+                                              const isRoleBased = item.role && !item.staffId;
                                               return (
                                               <div key={item.id} className="p-2 rounded-md border bg-background flex justify-between items-center group">
                                                   <div className="flex items-center gap-3">
@@ -421,6 +443,11 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                                                           <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
                                                                       </Avatar>
                                                                       <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
+                                                                  </>
+                                                              ) : isRoleBased ? (
+                                                                  <>
+                                                                    <Users className='h-4 w-4 text-muted-foreground' />
+                                                                    <p className="text-xs text-muted-foreground">{item.role} (그룹)</p>
                                                                   </>
                                                               ) : (
                                                                   <>
