@@ -152,7 +152,7 @@ export function StaffPanel() {
         <CardContent>
             {data.staff.length > 0 ? (
                 <ScrollArea className="h-auto w-full">
-                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-15 gap-4 p-1">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.16),1fr))] gap-4 p-1">
                     {data.staff.map((s, index) => (
                         <div key={s.id} className="relative group flex flex-col items-center gap-1">
                             <span className="absolute -top-1 -left-1 z-10 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">

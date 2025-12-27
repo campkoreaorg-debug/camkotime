@@ -12,6 +12,8 @@ import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from './ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface VenueMapProps {
   allMarkers: MapMarker[];
@@ -20,10 +22,6 @@ interface VenueMapProps {
   schedule: ScheduleItem[];
   isDraggable?: boolean;
   selectedSlot: { day: number, time: string } | null;
-}
-
-interface GroupedTasks {
-  [key: string]: ScheduleItem[];
 }
 
 export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDraggable = false, selectedSlot }: VenueMapProps) {
@@ -42,6 +40,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
 
   const currentMarkers = useMemo(() => {
       if (!selectedSlot) return [];
+      // This logic is now time-specific for markers as well
       return allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
   }, [allMarkers, selectedSlot]);
 
@@ -151,7 +150,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     }
   };
 
-  const StaffMarker = ({ marker }: { marker: MapMarker }) => {
+  const StaffMarker = ({ marker, index }: { marker: MapMarker, index: number }) => {
     const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId, staff]);
     const staffSchedule = useMemo(() => {
         if (!staffMember || !selectedSlot) return [];
@@ -160,6 +159,9 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     
     if (!staffMember) return null;
     const isOpen = activeMarkerId === marker.id;
+
+    // Find the original index of the staff member in the main staff list
+    const staffIndex = staff.findIndex(s => s.id === staffMember.id);
 
     return (
         <Popover open={isOpen} onOpenChange={(open) => { if (!open) setActiveMarkerId(null); }}>
@@ -176,10 +178,15 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                     onPointerDown={(e) => handlePointerDown(e, marker.id)}
                     onClick={(e) => e.preventDefault()}
                 >
-                    <Avatar className={cn("h-10 w-10 border-2 border-primary-foreground shadow-lg pointer-events-none", (draggingMarkerId === marker.id || isOpen) && "border-primary")}>
-                        <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
-                        <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
+                    <div className="relative">
+                         <span className="absolute -top-1 -left-1 z-10 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">
+                            {staffIndex + 1}
+                        </span>
+                        <Avatar className={cn("h-10 w-10 border-2 border-primary-foreground shadow-lg pointer-events-none", (draggingMarkerId === marker.id || isOpen) && "border-primary")}>
+                            <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
+                            <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                    </div>
                     <div className="mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none">
                         {staffMember.name}
                     </div>
@@ -249,19 +256,47 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     if (unassignedStaff.length === 0 || !isDraggable) return null;
 
     return (
-        <div className="absolute bottom-4 left-4 z-10 bg-card p-2 rounded-lg shadow-lg border max-w-sm">
-            <h4 className="font-semibold text-sm mb-2 px-2">미배치 스태프</h4>
-            <ScrollArea className="h-28">
-                <div className="flex flex-wrap gap-2 p-2">
-                    {unassignedStaff.map(s => (
-                        <Button key={s.id} variant="secondary" size="sm" onClick={() => handleAddMarkerClick(s.id)}>
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            {s.name}
-                        </Button>
-                    ))}
+        <Popover>
+            <PopoverTrigger asChild>
+                <div className="absolute bottom-4 left-4 z-10">
+                    <Button>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        미배치 스태프 <Badge variant="secondary" className="ml-2">{unassignedStaff.length}</Badge>
+                    </Button>
                 </div>
-            </ScrollArea>
-        </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-96 p-2" side="top" align="start">
+                 <h4 className="font-semibold text-sm mb-2 px-2">미배치 스태프</h4>
+                 <ScrollArea className="h-60">
+                    <div className="grid grid-cols-5 gap-2 p-2">
+                        {unassignedStaff.map(s => {
+                            const staffIndex = staff.findIndex(staffMember => staffMember.id === s.id);
+                            return (
+                                <TooltipProvider key={s.id}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <div className="relative group flex flex-col items-center gap-1 cursor-pointer" onClick={() => handleAddMarkerClick(s.id)}>
+                                                 <span className="absolute -top-1 -left-1 z-10 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">
+                                                    {staffIndex + 1}
+                                                </span>
+                                                <Avatar className='h-12 w-12 border-2 border-transparent group-hover:border-primary transition-all'>
+                                                    <AvatarImage src={s.avatar} alt={s.name} />
+                                                    <AvatarFallback><UserPlus className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
+                                                </Avatar>
+                                            </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>{s.name}님을 지도에 추가</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )
+                        })}
+                    </div>
+                </ScrollArea>
+            </PopoverContent>
+        </Popover>
+
     )
   }
   
@@ -320,8 +355,8 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
           <MapActions />
           <UnassignedStaff />
 
-          {currentMarkers.map((marker) => (
-             <StaffMarker key={marker.id} marker={marker} />
+          {currentMarkers.map((marker, index) => (
+             <StaffMarker key={marker.id} marker={marker} index={index} />
           ))}
         </div>
     </div>
