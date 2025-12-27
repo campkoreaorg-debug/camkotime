@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { ScheduleItem, StaffMember } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -102,6 +102,7 @@ export function SchedulePanel() {
     }
   }, [activeTab, selectedSlot]);
 
+
   const handleSelectSlot = (day: number, time: string) => {
     setSelectedSlot({ day, time });
     setEditingItem(null);
@@ -123,8 +124,6 @@ export function SchedulePanel() {
   const onSubmit = (values: ScheduleFormValues) => {
     if (!selectedSlot) return;
 
-    const currentItems = data.schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time);
-
     if (editingItem) {
       const updatedItem = { ...editingItem, ...values };
       updateSchedule(editingItem.id, updatedItem);
@@ -132,7 +131,6 @@ export function SchedulePanel() {
     } else {
       addSchedule({
         ...values,
-        location: values.location || currentItems[0]?.location || 'N/A',
         day: selectedSlot.day,
         time: selectedSlot.time,
       });
@@ -159,7 +157,8 @@ export function SchedulePanel() {
         if (selectedSlot) {
             const remainingItems = data.schedule.filter(i => i.day === selectedSlot.day && i.time === selectedSlot.time && i.id !== itemToDelete.id);
             if (remainingItems.length === 0) {
-                setSelectedSlot(null);
+                // If the last item of a slot is deleted, do not deselect the slot
+                // setSelectedSlot(null); 
             }
         }
     } else if (itemsToDelete.length > 0) {
@@ -174,7 +173,23 @@ export function SchedulePanel() {
 
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
-    setSelectedSlot(null);
+    const newDay = parseInt(newTab.split('-')[1], 10);
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    let timeString: string;
+    if (minutes < 30) {
+      timeString = `${String(hours).padStart(2, '0')}:00`;
+    } else {
+      timeString = `${String(hours).padStart(2, '0')}:30`;
+    }
+    if (timeSlots.includes(timeString)) {
+        setSelectedSlot({ day: newDay, time: timeString });
+    } else {
+        setSelectedSlot({ day: newDay, time: '09:00'})
+    }
+
     setEditingItem(null);
     form.reset();
     setSelectedScheduleIds([]);
@@ -223,13 +238,14 @@ export function SchedulePanel() {
   };
   
   const handleCopy = () => {
+    if(!selectedSlot) return;
     const itemsToCopy = data.schedule
       .filter(item => selectedScheduleIds.includes(item.id))
       .map(({ id, day, time, ...rest }) => rest);
     setClipboard(itemsToCopy);
     toast({
       title: "복사 완료",
-      description: `${itemsToCopy.length}개의 스케줄이 복사되었습니다.`,
+      description: `${itemsToCopy.length}개의 스케줄이 복사되었습니다. 다른 시간대에 붙여넣을 수 있습니다.`,
     });
   };
 
@@ -243,215 +259,228 @@ export function SchedulePanel() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-headline text-2xl font-semibold">스케줄 및 지도 관리</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
-          <TabsList>
-            {days.map(day => (
-              <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
-            ))}
-          </TabsList>
-          {days.map(day => {
-            const currentDaySchedules = daySchedules[day] || {};
+    <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
+      <Card className='lg:col-span-1'>
+        <CardHeader>
+          <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
+          <CardDescription>일차를 선택하고 시간대별로 스케줄을 관리하세요.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className='mb-4'>
+              {days.map(day => (
+                <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
+              ))}
+            </TabsList>
+            {days.map(day => {
+              const currentDaySchedules = daySchedules[day] || {};
 
-            return (
-              <TabsContent key={day} value={`day-${day}`} className="space-y-4">
-                <div className="flex flex-wrap gap-2 pb-4">
-                  {timeSlots.map(time => {
-                    const items = currentDaySchedules[time] || [];
-                    const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
-                    return (
-                      <Button 
-                          key={time} 
-                          variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
-                          className="flex-shrink-0"
-                          onClick={() => handleSelectSlot(day, time)}
-                      >
-                         {time}
-                         {items.length > 0 && <span className="ml-2 h-5 w-5 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">{items.length}</span>}
-                      </Button>
-                    )
-                  })}
-                </div>
+              return (
+                <TabsContent key={day} value={`day-${day}`} className="space-y-4">
+                  <div className="flex flex-wrap gap-2 pb-4 border-b">
+                    {timeSlots.map(time => {
+                      const items = currentDaySchedules[time] || [];
+                      const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
+                      return (
+                        <Button 
+                            key={time} 
+                            variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
+                            className="flex-shrink-0 text-xs h-8"
+                            onClick={() => handleSelectSlot(day, time)}
+                        >
+                           {time}
+                           {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.length}</span>}
+                        </Button>
+                      )
+                    })}
+                  </div>
 
-                {selectedSlot && selectedSlot.day === day && (
-                    <>
-                    <Separator />
-                    <div className="p-4 space-y-6">
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <h3 className="font-headline text-lg font-semibold text-center">
-                                    {selectedSlot.day}일차 {selectedSlot.time} 스케줄 입력
-                                </h3>
-                                {selectedScheduleIds.length > 0 && (
-                                    <div className='flex gap-2'>
-                                        <Button size="sm" variant="outline" onClick={handleCopy}><Copy className='mr-2 h-4 w-4' /> 복사</Button>
-                                        <Button size="sm" variant="destructive" onClick={handleBulkDeleteConfirmation}><Trash2 className='mr-2 h-4 w-4' /> 선택 삭제</Button>
-                                    </div>
-                                )}
-                            </div>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <div className="flex gap-2 items-start">
-                                    <div className='flex-grow'>
-                                        <Label htmlFor="event-input" className="sr-only">새 항목</Label>
-                                        <Input 
-                                            id="event-input"
-                                            placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
-                                            {...form.register('event')} 
-                                            autoComplete="off"
-                                        />
-                                        {form.formState.errors.event && (
-                                            <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
-                                        )}
-                                    </div>
-                                    
-                                    <Controller
-                                      control={form.control}
-                                      name="staffId"
-                                      render={({ field }) => (
-                                        <Select
-                                          onValueChange={(value) => field.onChange(value === 'unassigned' ? '' : value)}
-                                          value={field.value || 'unassigned'}
-                                        >
-                                          <SelectTrigger className="w-[180px]">
-                                            <SelectValue placeholder="담당자 선택" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="unassigned">담당자 없음</SelectItem>
-                                            {data.staff.map(s => (
-                                                <SelectItem key={s.id} value={s.id}>
-                                                  <div className="flex items-center gap-2">
-                                                    <Avatar className="h-5 w-5">
-                                                      <AvatarImage src={s.avatar} alt={s.name} />
-                                                      <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <span>{s.name}</span>
-                                                  </div>
-                                                </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
+                  {selectedSlot && selectedSlot.day === day && (
+                      <div className="p-1 space-y-6">
+                          <div className="space-y-4">
+                              <div className="flex justify-between items-center">
+                                  <h3 className="font-headline text-lg font-semibold text-center">
+                                      {selectedSlot.day}일차 {selectedSlot.time} 스케줄
+                                  </h3>
+                                  <div className='flex gap-2'>
+                                      {selectedScheduleIds.length > 0 && (
+                                        <>
+                                          <Button size="sm" variant="outline" onClick={handleCopy}><Copy className='mr-2 h-4 w-4' /> 복사</Button>
+                                          <Button size="sm" variant="destructive" onClick={handleBulkDeleteConfirmation}><Trash2 className='mr-2 h-4 w-4' /> 선택 삭제</Button>
+                                        </>
                                       )}
-                                    />
-                                    {!editingItem && (
-                                      <Button type="submit">
-                                        <Plus className="h-4 w-4" />
-                                        등록
-                                      </Button>
-                                    )}
-                                </div>
-                                
-                                <div className="flex justify-between items-center">
-                                    {editingItem ? (
-                                        <div className="flex justify-end gap-2">
-                                            <Button type="submit">저장</Button>
-                                            <Button type="button" variant="ghost" onClick={handleCancelEdit}>취소</Button>
-                                        </div>
-                                    ) : (
-                                        <div /> 
-                                    )}
-                                     {clipboard.length > 0 && !editingItem && (
-                                        <Button type="button" variant="secondary" onClick={handlePaste}>
-                                            <ClipboardPaste className='mr-2 h-4 w-4' />
-                                            {clipboard.length}개 항목 붙여넣기
-                                        </Button>
-                                    )}
-                                </div>
-                            </form>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                          {displayedSchedules.map(({ time, items }) => {
-                            const isCurrent = time === selectedSlot.time;
-                            return (
-                                <div key={time} className={`p-4 rounded-lg border ${isCurrent ? 'bg-muted/60 border-primary md:col-span-3' : 'bg-muted/20 md:col-span-1'}`}>
-                                    <h4 className="font-semibold text-center mb-3">{time}</h4>
-                                    <div className="space-y-2 min-h-[50px]">
-                                        {items.map(item => {
-                                            const assignedStaff = data.staff.find(s => s.id === item.staffId);
-                                            return (
-                                            <div key={item.id} className="p-2 rounded-md border bg-background flex justify-between items-center group">
-                                                <div className="flex items-center gap-3">
-                                                    {isCurrent && (
-                                                      <Checkbox
-                                                        id={`select-${item.id}`}
-                                                        checked={selectedScheduleIds.includes(item.id)}
-                                                        onCheckedChange={() => handleCheckboxChange(item.id)}
-                                                        aria-label={`Select item ${item.event}`}
-                                                      />
-                                                    )}
-                                                    <div>
-                                                        <p className="font-medium text-sm">{item.event}</p>
-                                                        <div className='flex items-center gap-2 mt-1'>
-                                                            {assignedStaff ? (
-                                                                <>
-                                                                    <Avatar className="h-5 w-5">
-                                                                        <AvatarImage src={assignedStaff.avatar} alt={assignedStaff.name} />
-                                                                        <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
-                                                                    </Avatar>
-                                                                    <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <User className='h-4 w-4 text-muted-foreground' />
-                                                                    <p className="text-xs text-muted-foreground">담당자 미지정</p>
-                                                                </>
-                                                            )}
-                                                        </div>
+                                      {clipboard.length > 0 && !editingItem && (
+                                          <Button size="sm" variant="secondary" onClick={handlePaste}>
+                                              <ClipboardPaste className='mr-2 h-4 w-4' />
+                                              {clipboard.length}개 붙여넣기
+                                          </Button>
+                                      )}
+                                  </div>
+                              </div>
+                              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                                  <div className="flex gap-2 items-start">
+                                      <div className='flex-grow'>
+                                          <Label htmlFor="event-input" className="sr-only">새 항목</Label>
+                                          <Input 
+                                              id="event-input"
+                                              placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
+                                              {...form.register('event')} 
+                                              autoComplete="off"
+                                          />
+                                          {form.formState.errors.event && (
+                                              <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
+                                          )}
+                                      </div>
+                                      
+                                      <Controller
+                                        control={form.control}
+                                        name="staffId"
+                                        render={({ field }) => (
+                                          <Select
+                                            onValueChange={(value) => field.onChange(value === 'unassigned' ? '' : value)}
+                                            value={field.value || 'unassigned'}
+                                          >
+                                            <SelectTrigger className="w-[180px]">
+                                              <SelectValue placeholder="담당자 선택" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="unassigned">담당자 없음</SelectItem>
+                                              {data.staff.map(s => (
+                                                  <SelectItem key={s.id} value={s.id}>
+                                                    <div className="flex items-center gap-2">
+                                                      <Avatar className="h-5 w-5">
+                                                        <AvatarImage src={s.avatar} alt={s.name} />
+                                                        <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
+                                                      </Avatar>
+                                                      <span>{s.name}</span>
                                                     </div>
-                                                </div>
-                                                {isCurrent && (
-                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditClick(item)}>
-                                                            <Edit className="h-3.5 w-3.5"/>
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirmation(item)}>
-                                                            <Trash2 className="h-3.5 w-3.5"/>
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )})}
-                                        {items.length === 0 && (
-                                            <div className="text-center text-muted-foreground text-xs py-4">
-                                                <p>스케줄 없음</p>
-                                            </div>
+                                                  </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
                                         )}
-                                    </div>
-                                </div>
-                            )})}
-                        </div>
-                    </div>
-                    </>
-                )}
-              </TabsContent>
-            )
-          })}
-        </Tabs>
+                                      />
+                                      
+                                      <Button type="submit">
+                                          <Plus className="h-4 w-4" />
+                                          <span className="sr-only">{editingItem ? '저장' : '등록'}</span>
+                                      </Button>
+                                  </div>
+                                  
+                                  {editingItem && (
+                                      <div className="flex justify-end gap-2">
+                                          <Button type="submit">저장</Button>
+                                          <Button type="button" variant="ghost" onClick={handleCancelEdit}>취소</Button>
+                                      </div>
+                                  )}
+                              </form>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {displayedSchedules.map(({ time, items }) => {
+                              const isCurrent = time === selectedSlot.time;
+                              return (
+                                  <div key={time} className={`p-4 rounded-lg border ${isCurrent ? 'bg-muted/60 border-primary' : 'bg-muted/20'}`}>
+                                      <h4 className="font-semibold text-center mb-3">{time}</h4>
+                                      <div className="space-y-2 min-h-[50px]">
+                                          {items.map(item => {
+                                              const assignedStaff = data.staff.find(s => s.id === item.staffId);
+                                              return (
+                                              <div key={item.id} className="p-2 rounded-md border bg-background flex justify-between items-center group">
+                                                  <div className="flex items-center gap-3">
+                                                      {isCurrent && (
+                                                        <Checkbox
+                                                          id={`select-${item.id}`}
+                                                          checked={selectedScheduleIds.includes(item.id)}
+                                                          onCheckedChange={() => handleCheckboxChange(item.id)}
+                                                          aria-label={`Select item ${item.event}`}
+                                                        />
+                                                      )}
+                                                      <div>
+                                                          <p className="font-medium text-sm">{item.event}</p>
+                                                          <div className='flex items-center gap-2 mt-1'>
+                                                              {assignedStaff ? (
+                                                                  <>
+                                                                      <Avatar className="h-5 w-5">
+                                                                          <AvatarImage src={assignedStaff.avatar} alt={assignedStaff.name} />
+                                                                          <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
+                                                                      </Avatar>
+                                                                      <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
+                                                                  </>
+                                                              ) : (
+                                                                  <>
+                                                                      <User className='h-4 w-4 text-muted-foreground' />
+                                                                      <p className="text-xs text-muted-foreground">담당자 미지정</p>
+                                                                  </>
+                                                              )}
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                                  {isCurrent && (
+                                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditClick(item)}>
+                                                              <Edit className="h-3.5 w-3.5"/>
+                                                          </Button>
+                                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirmation(item)}>
+                                                              <Trash2 className="h-3.5 w-3.5"/>
+                                                          </Button>
+                                                      </div>
+                                                  )}
+                                              </div>
+                                          )})}
+                                          {items.length === 0 && (
+                                              <div className="text-center text-muted-foreground text-xs py-4">
+                                                  <p>스케줄 없음</p>
+                                              </div>
+                                          )}
+                                      </div>
+                                  </div>
+                              )})}
+                          </div>
+                      </div>
+                  )}
+                </TabsContent>
+              )
+            })}
+          </Tabs>
+        </CardContent>
+      </Card>
+      
+      <Card className='lg:col-span-1'>
+        <CardHeader>
+          <CardTitle className="font-headline text-2xl font-semibold">지도</CardTitle>
+          <CardDescription>
+            {selectedSlot ? `${selectedSlot.day}일차 ${selectedSlot.time}의 지도입니다. 스태프를 드래그하여 위치를 옮기세요.` : '시간대를 선택하여 지도를 확인하세요.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <VenueMap
+            allMarkers={data.markers}
+            allMaps={data.maps}
+            staff={data.staff}
+            schedule={data.schedule}
+            isDraggable={true}
+            selectedSlot={selectedSlot}
+          />
+        </CardContent>
+      </Card>
 
-        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    {itemToDelete 
-                        ? `이 작업은 되돌릴 수 없습니다. "${itemToDelete.event}" 이벤트를 영구적으로 삭제합니다.`
-                        : `이 작업은 되돌릴 수 없습니다. 선택한 ${itemsToDelete.length}개의 스케줄을 영구적으로 삭제합니다.`
-                    }
-                </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                <AlertDialogCancel>취소</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>삭제</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-
-      </CardContent>
-    </Card>
+      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+              <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+              <AlertDialogDescription>
+                  {itemToDelete 
+                      ? `이 작업은 되돌릴 수 없습니다. "${itemToDelete.event}" 이벤트를 영구적으로 삭제합니다.`
+                      : `이 작업은 되돌릴 수 없습니다. 선택한 ${itemsToDelete.length}개의 스케줄을 영구적으로 삭제합니다.`
+                  }
+              </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>삭제</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
-
-    
