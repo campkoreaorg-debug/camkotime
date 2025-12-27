@@ -17,9 +17,6 @@ import {
   doc,
   writeBatch,
   deleteDoc,
-  query,
-  where,
-  getDocs,
 } from 'firebase/firestore';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo } from '@/lib/types';
 import { initialData } from '@/lib/data';
@@ -233,7 +230,7 @@ export const useVenueData = () => {
     updateDocumentNonBlocking(markerDocRef, { x, y });
   };
   
-  const addMarker = async (staffId: string, day: number, time: string) => {
+  const addMarker = (staffId: string, day: number, time: string) => {
     if (!firestore) return;
     const markerId = `marker-${staffId}-${day}-${time.replace(':', '')}`;
     const newMarker: Omit<MapMarker, 'id'> = {
@@ -244,7 +241,7 @@ export const useVenueData = () => {
         y: Math.round(Math.random() * 80) + 10,
     };
     const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
-    await setDocumentNonBlocking(markerDocRef, newMarker, { merge: true });
+    setDocumentNonBlocking(markerDocRef, newMarker, { merge: true });
   };
   
 

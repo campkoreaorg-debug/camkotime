@@ -37,7 +37,7 @@ export default function MapPage() {
 
     if (timeSlots.includes(timeString)) {
       setCurrentTimeSlot({ day: currentDay, time: timeString });
-    } else {
+    } else if (timeSlots.length > 0) {
       setCurrentTimeSlot({ day: currentDay, time: timeSlots[0] });
     }
   }, []);

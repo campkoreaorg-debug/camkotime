@@ -20,16 +20,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { ScheduleItem, StaffMember } from '@/lib/types';
+import type { ScheduleItem } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
-import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Checkbox } from '../ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import VenueMap from '../VenueMap';
-
 
 const scheduleSchema = z.object({
   event: z.string().min(1, '이벤트 내용을 입력해주세요.'),
@@ -41,7 +38,7 @@ type ScheduleFormValues = z.infer<typeof scheduleSchema>;
 
 type ClipboardItem = Omit<ScheduleItem, 'id' | 'day' | 'time'>;
 
-const generateTimeSlots = () => {
+export const timeSlots = (() => {
     const slots = [];
     for (let h = 7; h < 24; h++) {
         slots.push(`${String(h).padStart(2, '0')}:00`);
@@ -49,23 +46,29 @@ const generateTimeSlots = () => {
     }
     slots.push('00:00');
     return slots;
-}
+})();
 
-export const timeSlots = generateTimeSlots();
 const days = [0, 1, 2, 3];
 
-function getAdjacentTime(time: string, minutes: number): string {
+function getAdjacentTime(time: string, minutes: number): string | null {
+    if (!time) return null;
     const [h, m] = time.split(':').map(Number);
-    const date = new Date();
+    const date = new Date(0);
     date.setHours(h, m + minutes, 0, 0);
-    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    const newTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    return timeSlots.includes(newTime) ? newTime : null;
 }
 
-export function SchedulePanel() {
+interface SchedulePanelProps {
+    selectedSlot: { day: number, time: string } | null;
+    onSlotChange: (day: number, time: string) => void;
+    isLinked: boolean;
+}
+
+export function SchedulePanel({ selectedSlot, onSlotChange, isLinked }: SchedulePanelProps) {
   const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules } = useVenueData();
   const { toast } = useToast();
   
-  const [selectedSlot, setSelectedSlot] = useState<{ day: number, time: string} | null>(null);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
   
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -82,10 +85,9 @@ export function SchedulePanel() {
   });
 
   useEffect(() => {
-    const now = new Date();
     const currentDay = parseInt(activeTab.split('-')[1], 10);
-    
     if (!selectedSlot || selectedSlot.day !== currentDay) {
+        const now = new Date();
         const hours = now.getHours();
         const minutes = now.getMinutes();
         
@@ -97,14 +99,16 @@ export function SchedulePanel() {
         }
 
         if (timeSlots.includes(timeString)) {
-            setSelectedSlot({ day: currentDay, time: timeString });
+            onSlotChange(currentDay, timeString);
+        } else if (timeSlots.length > 0) {
+            onSlotChange(currentDay, timeSlots[0]);
         }
     }
-  }, [activeTab, selectedSlot]);
+  }, [activeTab, selectedSlot, onSlotChange]);
 
 
   const handleSelectSlot = (day: number, time: string) => {
-    setSelectedSlot({ day, time });
+    onSlotChange(day, time);
     setEditingItem(null);
     form.reset({ event: '', location: '', staffId: ''});
     setSelectedScheduleIds([]); // 다른 슬롯 선택 시 선택 해제
@@ -154,13 +158,6 @@ export function SchedulePanel() {
   const handleDelete = () => {
     if (itemToDelete) {
         deleteSchedule(itemToDelete.id);
-        if (selectedSlot) {
-            const remainingItems = data.schedule.filter(i => i.day === selectedSlot.day && i.time === selectedSlot.time && i.id !== itemToDelete.id);
-            if (remainingItems.length === 0) {
-                // If the last item of a slot is deleted, do not deselect the slot
-                // setSelectedSlot(null); 
-            }
-        }
     } else if (itemsToDelete.length > 0) {
         deleteSchedulesBatch(itemsToDelete);
         setSelectedScheduleIds([]);
@@ -185,9 +182,9 @@ export function SchedulePanel() {
       timeString = `${String(hours).padStart(2, '0')}:30`;
     }
     if (timeSlots.includes(timeString)) {
-        setSelectedSlot({ day: newDay, time: timeString });
-    } else {
-        setSelectedSlot({ day: newDay, time: '09:00'})
+        onSlotChange(newDay, timeString);
+    } else if (timeSlots.length > 0) {
+        onSlotChange(newDay, timeSlots[0])
     }
 
     setEditingItem(null);
@@ -217,14 +214,18 @@ export function SchedulePanel() {
     
     const schedulesByTime: { time: string; items: ScheduleItem[] }[] = [];
 
-    const prevItems = daySchedules[day]?.[prevTime] || [];
-    if(timeSlots.includes(prevTime)) schedulesByTime.push({ time: prevTime, items: prevItems });
+    if(prevTime) {
+      const prevItems = daySchedules[day]?.[prevTime] || [];
+      schedulesByTime.push({ time: prevTime, items: prevItems });
+    }
 
     const currentItems = daySchedules[day]?.[time] || [];
     schedulesByTime.push({ time, items: currentItems });
 
-    const nextItems = daySchedules[day]?.[nextTime] || [];
-    if(timeSlots.includes(nextTime)) schedulesByTime.push({ time: nextTime, items: nextItems });
+    if(nextTime) {
+      const nextItems = daySchedules[day]?.[nextTime] || [];
+      schedulesByTime.push({ time: nextTime, items: nextItems });
+    }
 
     return schedulesByTime;
   }, [selectedSlot, daySchedules]);
@@ -258,9 +259,13 @@ export function SchedulePanel() {
     });
   };
 
+  const currentDaySchedules = useMemo(() => {
+    const day = selectedSlot?.day ?? parseInt(activeTab.split('-')[1], 10);
+    return daySchedules[day] || {};
+  }, [selectedSlot, daySchedules, activeTab]);
+
   return (
-    <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
-      <Card className='lg:col-span-1'>
+    <Card className='lg:col-span-1'>
         <CardHeader>
           <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
           <CardDescription>일차를 선택하고 시간대별로 스케줄을 관리하세요.</CardDescription>
@@ -272,11 +277,8 @@ export function SchedulePanel() {
                 <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
               ))}
             </TabsList>
-            {days.map(day => {
-              const currentDaySchedules = daySchedules[day] || {};
-
-              return (
-                <TabsContent key={day} value={`day-${day}`} className="space-y-4">
+            {days.map(day => (
+              <TabsContent key={day} value={`day-${day}`} className="space-y-4">
                   <div className="flex flex-wrap gap-2 pb-4 border-b">
                     {timeSlots.map(time => {
                       const items = currentDaySchedules[time] || [];
@@ -375,9 +377,10 @@ export function SchedulePanel() {
                                   )}
                               </form>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className={`grid grid-cols-1 ${!isLinked && 'md:grid-cols-3'} gap-4`}>
                             {displayedSchedules.map(({ time, items }) => {
                               const isCurrent = time === selectedSlot.time;
+                              if (!isLinked && !isCurrent) return null;
                               return (
                                   <div key={time} className={`p-4 rounded-lg border ${isCurrent ? 'bg-muted/60 border-primary' : 'bg-muted/20'}`}>
                                       <h4 className="font-semibold text-center mb-3">{time}</h4>
@@ -438,33 +441,12 @@ export function SchedulePanel() {
                           </div>
                       </div>
                   )}
-                </TabsContent>
-              )
-            })}
+              </TabsContent>
+            ))}
           </Tabs>
         </CardContent>
-      </Card>
-      
-      <Card className='lg:col-span-1'>
-        <CardHeader>
-          <CardTitle className="font-headline text-2xl font-semibold">지도</CardTitle>
-          <CardDescription>
-            {selectedSlot ? `${selectedSlot.day}일차 ${selectedSlot.time}의 지도입니다. 스태프를 드래그하여 위치를 옮기세요.` : '시간대를 선택하여 지도를 확인하세요.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <VenueMap
-            allMarkers={data.markers}
-            allMaps={data.maps}
-            staff={data.staff}
-            schedule={data.schedule}
-            isDraggable={true}
-            selectedSlot={selectedSlot}
-          />
-        </CardContent>
-      </Card>
 
-      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
           <AlertDialogContent>
               <AlertDialogHeader>
               <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
@@ -481,6 +463,6 @@ export function SchedulePanel() {
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </Card>
   );
 }
