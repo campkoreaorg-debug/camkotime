@@ -30,6 +30,14 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const { updateMarkerPosition, addMarker, updateMapImage } = useVenueData();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isBannerVisible, setIsBannerVisible] = useState(true);
+
+  useEffect(() => {
+    // When a new notification comes in, show the banner again
+    if (notification) {
+      setIsBannerVisible(true);
+    }
+  }, [notification]);
   
   const defaultMapImage = PlaceHolderImages.find((img) => img.id === 'map-background');
 
@@ -353,12 +361,20 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }
   
   const NotificationBanner = () => {
-    if (!notification) return null;
+    if (!notification || !isBannerVisible) return null;
     
     return (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-accent/90 text-accent-foreground px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in-0 slide-in-from-top-4">
-            <Megaphone className="h-5 w-5"/>
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-accent/90 backdrop-blur-sm text-accent-foreground px-4 py-2 rounded-lg shadow-lg flex items-center gap-4 animate-in fade-in-0 slide-in-from-top-4">
+            <Megaphone className="h-5 w-5 shrink-0"/>
             <p className="font-semibold text-sm">{notification}</p>
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6 shrink-0 -mr-2 text-accent-foreground/70 hover:text-accent-foreground hover:bg-accent-foreground/10"
+                onClick={() => setIsBannerVisible(false)}
+            >
+                <X className="h-4 w-4" />
+            </Button>
         </div>
     )
   }
@@ -406,4 +422,5 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     </div>
   );
 }
+
 
