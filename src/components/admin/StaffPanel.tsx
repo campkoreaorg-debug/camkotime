@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Trash2, User, Loader2, Plus, Image as ImageIcon } from 'lucide-react';
+import { Trash2, User, Loader2, Plus, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { StaffMember } from '@/lib/types';
@@ -26,25 +26,19 @@ import {
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 
-const staffSchema = z.object({
-  name: z.string().min(1, '이름을 입력해주세요.'),
-});
-
-type StaffFormValues = z.infer<typeof staffSchema>;
+interface PendingStaff {
+    key: string;
+    name: string;
+    avatarDataUrl: string;
+}
 
 export function StaffPanel() {
-  const { data, addStaff, deleteStaff, initializeFirestoreData, isLoading } = useVenueData();
+  const { data, addStaffBatch, deleteStaff, initializeFirestoreData, isLoading } = useVenueData();
   const { toast } = useToast();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-
-
-  const form = useForm<StaffFormValues>({
-    resolver: zodResolver(staffSchema),
-    defaultValues: { name: '' },
-  });
+  const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoading && data.staff.length === 0) {
@@ -68,40 +62,49 @@ export function StaffPanel() {
     setIsAlertOpen(false);
     setStaffToDelete(null);
   };
-  
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-        setAvatarFile(file);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file, index) => {
         const reader = new FileReader();
-        reader.onloadend = () => {
-            setAvatarPreview(reader.result as string);
+        reader.onload = (event) => {
+            const avatarDataUrl = event.target?.result as string;
+            setPendingStaff(prev => [
+                ...prev,
+                { key: `pending-${Date.now()}-${index}`, name: '', avatarDataUrl }
+            ]);
         };
         reader.readAsDataURL(file);
+    });
+    
+    // Reset file input to allow selecting the same file again
+    if (fileInputRef.current) {
+        fileInputRef.current.value = '';
     }
-  }
-
-  const handleAddStaff = async (values: StaffFormValues) => {
-      if (!avatarFile) {
-        toast({ variant: 'destructive', title: '아바타 이미지를 선택해주세요.' });
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-          const avatarDataUrl = reader.result as string;
-          await addStaff(values.name, avatarDataUrl);
-          toast({
-              title: '성공',
-              description: `${values.name} 스태프가 추가되었습니다.`,
-          });
-          form.reset();
-          setAvatarFile(null);
-          setAvatarPreview(null);
-      };
-      reader.readAsDataURL(avatarFile);
-  }
+  };
   
+  const updatePendingStaffName = (key: string, name: string) => {
+    setPendingStaff(prev => prev.map(p => p.key === key ? { ...p, name } : p));
+  };
+
+  const removePendingStaff = (key: string) => {
+    setPendingStaff(prev => prev.filter(p => p.key !== key));
+  };
+
+  const handleRegisterAll = async () => {
+    const newStaffMembers = pendingStaff.map(p => ({ name: p.name, avatar: p.avatarDataUrl }));
+    await addStaffBatch(newStaffMembers);
+    toast({
+        title: '일괄 등록 완료',
+        description: `${newStaffMembers.length}명의 스태프가 성공적으로 등록되었습니다.`
+    });
+    setPendingStaff([]);
+  };
+
+  const canRegister = pendingStaff.length > 0 && pendingStaff.every(p => p.name.trim() !== '');
+
   if (isLoading) {
     return (
         <Card>
@@ -124,28 +127,52 @@ export function StaffPanel() {
                     총 <Badge variant="secondary">{data.staff.length}</Badge>명의 스태프가 등록되었습니다.
                 </CardDescription>
             </div>
+             <Button onClick={() => fileInputRef.current?.click()}>
+                <ImageIcon className='mr-2 h-4 w-4' />
+                이미지 추가
+            </Button>
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                multiple 
+                onChange={handleFileSelect} 
+                accept="image/*"
+            />
         </CardHeader>
         <CardContent className='space-y-6'>
-            <form onSubmit={form.handleSubmit(handleAddStaff)} className="grid grid-cols-[1fr_auto] items-end gap-4">
-                <div className='grid grid-cols-2 gap-4'>
-                    <div className='space-y-1'>
-                        <Label htmlFor="name">스태프 이름</Label>
-                        <Input id="name" placeholder="예: 홍길동" {...form.register('name')} />
+            {pendingStaff.length > 0 && (
+                <div className='space-y-4 p-4 border rounded-lg bg-muted/20'>
+                    <div className='flex justify-between items-center'>
+                        <h4 className='font-semibold'>등록 대기중인 스태프</h4>
+                        <Button 
+                            onClick={handleRegisterAll}
+                            disabled={!canRegister}
+                        >
+                           <Upload className='mr-2 h-4 w-4'/> {pendingStaff.length}명 스태프 등록하기
+                        </Button>
                     </div>
-                    <div className='space-y-1'>
-                         <Label htmlFor="avatar">아바타 이미지</Label>
-                         <div className="flex items-center gap-2">
-                             <Avatar>
-                                <AvatarImage src={avatarPreview || undefined} />
-                                <AvatarFallback><ImageIcon className="text-muted-foreground" /></AvatarFallback>
-                             </Avatar>
-                            <Input id="avatar" type="file" onChange={handleAvatarChange} accept="image/*" />
-                         </div>
+                    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                        {pendingStaff.map((p) => (
+                            <div key={p.key} className='flex items-center gap-3 p-2 border rounded-md bg-background'>
+                                <Avatar>
+                                    <AvatarImage src={p.avatarDataUrl} />
+                                    <AvatarFallback><User /></AvatarFallback>
+                                </Avatar>
+                                <Input 
+                                    placeholder='스태프 이름'
+                                    value={p.name}
+                                    onChange={(e) => updatePendingStaffName(p.key, e.target.value)}
+                                    className='flex-grow'
+                                />
+                                <Button variant="ghost" size="icon" className='h-8 w-8 shrink-0' onClick={() => removePendingStaff(p.key)}>
+                                    <X className='h-4 w-4'/>
+                                </Button>
+                            </div>
+                        ))}
                     </div>
                 </div>
-                <Button type="submit"><Plus className='mr-2 h-4 w-4' />추가</Button>
-            </form>
-            {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
+            )}
 
             {data.staff.length > 0 ? (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.24),1fr))] gap-4 p-1">
@@ -173,10 +200,12 @@ export function StaffPanel() {
                 ))}
                 </div>
             ) : (
-                <div className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-lg">
-                    <User className="h-12 w-12 text-muted-foreground" />
-                    <p className="mt-4 text-muted-foreground">등록된 스태프가 없습니다.</p>
-                </div>
+                 pendingStaff.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-lg">
+                        <User className="h-12 w-12 text-muted-foreground" />
+                        <p className="mt-4 text-muted-foreground">등록된 스태프가 없습니다. 이미지를 추가하여 시작하세요.</p>
+                    </div>
+                )
             )}
         </CardContent>
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
@@ -196,3 +225,5 @@ export function StaffPanel() {
     </Card>
   );
 }
+
+    
