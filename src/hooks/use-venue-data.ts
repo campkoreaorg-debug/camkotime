@@ -21,7 +21,7 @@ import {
   getDocs,
   deleteDoc,
 } from 'firebase/firestore';
-import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role } from '@/lib/types';
+import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate } from '@/lib/types';
 import { initialData } from '@/lib/data';
 import { useCallback, useMemo } from 'react';
 
@@ -225,7 +225,7 @@ export const useVenueData = () => {
     batch.commit();
   };
 
-  const addRole = (name: string, scheduleTemplates: Omit<ScheduleItem, 'id' | 'staffId'>[]) => {
+  const addRole = (name: string, scheduleTemplates: ScheduleTemplate[]) => {
     if (!firestore) return;
     const newId = `role-${Date.now()}`;
     const newRole: Role = { id: newId, name, scheduleTemplates };
@@ -254,6 +254,11 @@ export const useVenueData = () => {
     // 3. Add new schedules based on the role template
     if (roleToAssign.scheduleTemplates) {
       roleToAssign.scheduleTemplates?.forEach(template => {
+          // [방어 코드] template.time이 유효한지 확인합니다.
+          if (!template || typeof template.time !== 'string') {
+            console.warn('Skipping invalid schedule template:', template);
+            return; // 유효하지 않은 템플릿은 건너뜁니다.
+          }
           const scheduleId = `sch-${staffId}-${template.day}-${template.time.replace(':', '')}-${Math.random().toString(36).substr(2, 5)}`;
           const newSchedule: ScheduleItem = {
             id: scheduleId,
