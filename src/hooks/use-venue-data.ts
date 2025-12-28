@@ -82,7 +82,7 @@ export const useVenueData = () => {
     const batch = writeBatch(firestore);
 
     const venueDocRef = doc(firestore, 'venues', VENUE_ID);
-    batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid });
+    batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid, notification: '' });
     
     initialData.staff.forEach((staffMember) => {
         const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffMember.id);
@@ -303,6 +303,10 @@ export const useVenueData = () => {
     setDocumentNonBlocking(markerDocRef, newMarker, { merge: true });
   };
   
+  const updateNotification = (text: string) => {
+    if (!venueRef) return;
+    updateDocumentNonBlocking(venueRef, { notification: text });
+  }
 
   const memoizedData: VenueData = useMemo(() => {
     const staffWithRoles = staff?.map(s => {
@@ -316,8 +320,9 @@ export const useVenueData = () => {
       schedule: schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [],
       markers: markers || [],
       maps: maps || [],
+      notification: venueDoc?.notification || '',
     };
-  }, [staff, roles, schedule, markers, maps]);
+  }, [staff, roles, schedule, markers, maps, venueDoc]);
 
   return { 
     data: memoizedData, 
@@ -337,6 +342,7 @@ export const useVenueData = () => {
     isLoading: !venueDoc || !staff || !roles || !schedule || !markers || !maps, 
     updateMarkerPosition,
     addMarker,
+    updateNotification,
   };
 };
 
@@ -357,3 +363,5 @@ export const timeSlots = (() => {
 
 
     
+
+

@@ -33,6 +33,10 @@
         "ownerId": {
           "type": "string",
           "description": "The UID of the user who owns this venue."
+        },
+        "notification": {
+          "type": "string",
+          "description": "A notification text to be displayed on the map for viewers."
         }
       },
       "required": ["id", "name", "latitude", "longitude", "ownerId"]
@@ -97,7 +101,7 @@
           "description": "ID of the assigned staff member."
         }
       },
-      "required": ["id", "venueId", "day", "time", "event", "location"]
+      "required": ["id", "venueId", "day", "time", "event"]
     },
     "ExternalDevice": {
       "$schema": "http://json-schema.org/draft-07/schema#",

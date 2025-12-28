@@ -9,6 +9,9 @@ import VenueMap from '../VenueMap';
 import { Button } from '../ui/button';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Input } from '../ui/input';
+import { Megaphone } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface MapPanelProps {
     selectedSlot: { day: number, time: string } | null;
@@ -19,9 +22,17 @@ interface MapPanelProps {
 const days = [0, 1, 2, 3];
 
 export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps) {
-    const { data } = useVenueData();
+    const { data, updateNotification } = useVenueData();
+    const { toast } = useToast();
     // Map panel now maintains its own active tab state.
     const [activeTab, setActiveTab] = useState(`day-${selectedSlot?.day ?? 0}`);
+    const [notificationText, setNotificationText] = useState('');
+
+    useEffect(() => {
+        if(data.notification) {
+            setNotificationText(data.notification);
+        }
+    }, [data.notification]);
     
     // When selectedSlot changes (e.g., from linking), update the active tab.
     useEffect(() => {
@@ -54,10 +65,18 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
         }
     };
 
+    const handleSaveNotification = () => {
+        updateNotification(notificationText);
+        toast({
+            title: '공지 저장됨',
+            description: '지도에 공지사항이 업데이트되었습니다.',
+        });
+    }
+
     return (
         <Card className='lg:col-span-1'>
             <CardHeader>
-                <CardTitle className="font-headline text-2xl font-semibold">지도</CardTitle>
+                <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
                 <CardDescription>
                 {isLinked ? 
                     '스케줄과 연동된 시간대의 지도입니다. 연동을 해제하면 독립적으로 볼 수 있습니다.' :
@@ -65,7 +84,19 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
                 }
                 </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+                <div className="flex w-full items-center space-x-2">
+                    <Input
+                        type="text"
+                        placeholder="지도에 표시할 공지사항을 입력하세요..."
+                        value={notificationText}
+                        onChange={(e) => setNotificationText(e.target.value)}
+                    />
+                    <Button onClick={handleSaveNotification}>
+                        <Megaphone className="mr-2 h-4 w-4" />
+                        공지 저장
+                    </Button>
+                </div>
                 <Tabs value={activeTab} onValueChange={handleTabChange}>
                     <TabsList className='mb-4'>
                         {days.map(day => (
@@ -101,8 +132,10 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
                     schedule={data.schedule}
                     isDraggable={true}
                     selectedSlot={selectedSlot}
+                    notification={data.notification}
                 />
             </CardContent>
       </Card>
     );
 }
+

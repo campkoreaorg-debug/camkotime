@@ -1,9 +1,16 @@
 
 
+export interface ScheduleTemplate {
+  day: number;
+  time: string;
+  event: string;
+  location?: string;
+}
+
 export interface Role {
   id: string;
   name: string;
-  scheduleTemplates?: Omit<ScheduleItem, 'id' | 'staffId'>[];
+  scheduleTemplates?: ScheduleTemplate[];
 }
 
 export interface StaffMember {
@@ -18,7 +25,7 @@ export interface ScheduleItem {
   day: number;
   time: string;
   event: string;
-  location: string;
+  location?: string;
   staffId?: string | null;
 }
 
@@ -44,4 +51,6 @@ export interface VenueData {
   schedule: ScheduleItem[];
   markers: MapMarker[];
   maps: MapInfo[];
+  notification?: string;
 }
+

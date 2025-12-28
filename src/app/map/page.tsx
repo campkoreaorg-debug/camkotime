@@ -94,8 +94,10 @@ export default function MapPage() {
             schedule={data.schedule}
             isDraggable={isDraggable}
             selectedSlot={selectedSlot}
+            notification={data.notification}
           />
       </div>
     </div>
   );
 }
+

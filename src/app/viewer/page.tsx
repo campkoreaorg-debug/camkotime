@@ -129,8 +129,10 @@ export default function ViewerPage() {
                 schedule={data.schedule}
                 isDraggable={false}
                 selectedSlot={selectedSlot}
+                notification={data.notification}
            />
        </main>
     </div>
   );
 }
+

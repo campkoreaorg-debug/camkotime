@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { CalendarClock, X, UserPlus, Upload } from 'lucide-react';
+import { CalendarClock, X, UserPlus, Upload, Megaphone } from 'lucide-react';
 import type { MapMarker, StaffMember, ScheduleItem, MapInfo } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
@@ -23,9 +23,10 @@ interface VenueMapProps {
   schedule: ScheduleItem[];
   isDraggable?: boolean;
   selectedSlot: { day: number, time: string } | null;
+  notification?: string;
 }
 
-export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDraggable = false, selectedSlot }: VenueMapProps) {
+export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDraggable = false, selectedSlot, notification }: VenueMapProps) {
   const { updateMarkerPosition, addMarker, updateMapImage } = useVenueData();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -350,6 +351,17 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
       </div>
     )
   }
+  
+  const NotificationBanner = () => {
+    if (!notification) return null;
+    
+    return (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-accent/90 text-accent-foreground px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in-0 slide-in-from-top-4">
+            <Megaphone className="h-5 w-5"/>
+            <p className="font-semibold text-sm">{notification}</p>
+        </div>
+    )
+  }
 
   if (!selectedSlot) {
     return (
@@ -383,6 +395,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
 
           <div className="absolute inset-0 bg-black/5 pointer-events-none" />
           
+          <NotificationBanner />
           <MapActions />
           <UnassignedStaff />
 
