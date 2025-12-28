@@ -73,6 +73,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const isDraggingRef = useRef(false);
   const startPosRef = useRef({ x: 0, y: 0 });
   const currentInteractIdRef = useRef<string | null>(null);
+  const [isUnassignedPopoverOpen, setIsUnassignedPopoverOpen] = useState(false);
 
   const handlePointerDown = (e: React.PointerEvent, markerId: string) => {
     e.stopPropagation();
@@ -281,7 +282,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     if (unassignedStaff.length === 0 || !isDraggable) return null;
 
     return (
-        <Popover>
+        <Popover open={isUnassignedPopoverOpen} onOpenChange={setIsUnassignedPopoverOpen}>
             <PopoverTrigger asChild>
                 <div className="absolute bottom-4 left-4 z-10">
                     <Button>
@@ -291,7 +292,12 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                 </div>
             </PopoverTrigger>
             <PopoverContent className="w-96 p-2" side="top" align="start">
-                 <h4 className="font-semibold text-sm mb-2 px-2">미배치 스태프</h4>
+                 <div className="flex justify-between items-center mb-2 px-2">
+                    <h4 className="font-semibold text-sm">미배치 스태프</h4>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsUnassignedPopoverOpen(false)}>
+                        <X className="h-4 w-4" />
+                    </Button>
+                 </div>
                  <ScrollArea className="h-60">
                     <div className="grid grid-cols-5 gap-2 p-2">
                         {unassignedStaff.map(s => {
@@ -387,3 +393,4 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     </div>
   );
 }
+
