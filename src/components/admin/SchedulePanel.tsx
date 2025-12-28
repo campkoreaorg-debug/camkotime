@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -29,6 +29,8 @@ import { Switch } from '../ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { ScrollArea } from '../ui/scroll-area';
 
 const scheduleSchema = z.object({
   event: z.string().min(1, '이벤트 내용을 입력해주세요.'),
@@ -63,6 +65,9 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardItem[]>([]);
   const [activeTab, setActiveTab] = useState(`day-${selectedSlot?.day ?? 0}`);
+  const [filteredStaffId, setFilteredStaffId] = useState<string | null>(null);
+  const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
+
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
@@ -218,6 +223,22 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     return scheduleByDay[day] || {};
   }, [scheduleByDay, activeTab]);
 
+  const displayedSchedules = useMemo(() => {
+    if (!selectedSlot || !currentDaySchedules[selectedSlot.time]) {
+      return [];
+    }
+    const slotSchedules = currentDaySchedules[selectedSlot.time];
+    if (filteredStaffId) {
+      return slotSchedules.filter(item => item.staffId === filteredStaffId);
+    }
+    return slotSchedules;
+  }, [selectedSlot, currentDaySchedules, filteredStaffId]);
+
+  const selectedStaffForFilter = useMemo(() => {
+      if (!filteredStaffId) return null;
+      return data.staff.find(s => s.id === filteredStaffId);
+  }, [filteredStaffId, data.staff]);
+
   return (
     <Card className='lg:col-span-1'>
         <CardHeader>
@@ -276,6 +297,35 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                 {selectedSlot.day}일차 {selectedSlot.time} 스케줄
                             </h3>
                             <div className='flex gap-2'>
+                                <Popover open={isFilterPopoverOpen} onOpenChange={setIsFilterPopoverOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button size="sm" variant="outline"><UserSearch className='mr-2 h-4 w-4' /> 선택 보기</Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 p-2">
+                                        <div className="mb-2 flex justify-between items-center px-2">
+                                            <h4 className="font-medium text-sm">스태프로 필터링</h4>
+                                            <Button variant="ghost" size="sm" onClick={() => { setFilteredStaffId(null); setIsFilterPopoverOpen(false); }}>전체 보기</Button>
+                                        </div>
+                                        <ScrollArea className="h-[200px]">
+                                        <div className='space-y-1'>
+                                        {data.staff.map(staff => (
+                                            <div key={staff.id} 
+                                                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer"
+                                                onClick={() => { setFilteredStaffId(staff.id); setIsFilterPopoverOpen(false); }}
+                                            >
+                                                <Avatar className="h-8 w-8">
+                                                    <AvatarImage src={staff.avatar} alt={staff.name} />
+                                                    <AvatarFallback>{staff.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <span className="text-sm font-medium">{staff.name}</span>
+                                                <span className="text-xs text-muted-foreground">{staff.role?.name}</span>
+                                            </div>
+                                        ))}
+                                        </div>
+                                        </ScrollArea>
+                                    </PopoverContent>
+                                </Popover>
+
                                 {selectedScheduleIds.length > 0 && (
                                   <>
                                     <Button size="sm" variant="outline" onClick={handleCopy}><Copy className='mr-2 h-4 w-4' /> 복사</Button>
@@ -290,6 +340,19 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                 )}
                             </div>
                         </div>
+
+                        {filteredStaffId && selectedStaffForFilter && (
+                            <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-muted text-sm">
+                                <UserSearch className="h-4 w-4 text-primary" />
+                                <p className="text-muted-foreground">
+                                    <span className="font-bold text-primary">{selectedStaffForFilter.name}</span>님의 스케줄만 보는 중
+                                </p>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setFilteredStaffId(null)}>
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                             <div className="flex gap-2 items-start">
                                 <div className='flex-grow'>
@@ -339,8 +402,8 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                         </form>
                     </div>
                     <div className="space-y-2 min-h-[50px]">
-                        {currentDaySchedules[selectedSlot.time] && currentDaySchedules[selectedSlot.time].length > 0 ? (
-                            currentDaySchedules[selectedSlot.time].map(item => {
+                        {displayedSchedules.length > 0 ? (
+                            displayedSchedules.map(item => {
                                 const assignedStaff = data.staff.find(s => s.id === item.staffId);
                                 const isSelected = selectedScheduleIds.includes(item.id);
                                 const isEditingThis = editingItem?.id === item.id;
@@ -391,7 +454,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                             )})
                         ) : (
                             <div className="text-center text-muted-foreground text-xs py-4">
-                                <p>스케줄 없음</p>
+                                <p>{filteredStaffId ? '해당 스태프의 스케줄이 없습니다.' : '스케줄 없음'}</p>
                             </div>
                         )}
                     </div>
