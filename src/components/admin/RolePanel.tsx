@@ -65,8 +65,12 @@ export function RolePanel() {
             const schedule = data.schedule.find(s => s.id === id);
             if (!schedule) return null;
             // id, staffId는 템플릿에 포함시키지 않습니다.
-            const { id: scheduleId, staffId, ...template } = schedule;
-            return template;
+            return {
+                day: schedule.day,
+                time: schedule.time,
+                event: schedule.event,
+                location: schedule.location,
+            };
         }).filter(Boolean) as Omit<ScheduleItem, 'id' | 'staffId'>[];
         
         addRole(newRoleName, scheduleTemplates);
