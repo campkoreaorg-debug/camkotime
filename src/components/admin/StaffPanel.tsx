@@ -2,10 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Trash2, User, Loader2, Plus, Image as ImageIcon, Upload, X } from 'lucide-react';
+import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { StaffMember } from '@/lib/types';
@@ -24,13 +21,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
 
 interface PendingStaff {
     key: string;
     name: string;
     avatarDataUrl: string;
 }
+
+const MAX_IMAGE_WIDTH = 800; // 픽셀 단위
 
 export function StaffPanel() {
   const { data, addStaffBatch, deleteStaff, initializeFirestoreData, isLoading } = useVenueData();
@@ -63,23 +61,75 @@ export function StaffPanel() {
     setStaffToDelete(null);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                if (!ctx) {
+                    return reject(new Error('Canvas context를 얻을 수 없습니다.'));
+                }
+
+                let { width, height } = img;
+                if (width > MAX_IMAGE_WIDTH) {
+                    height = (height * MAX_IMAGE_WIDTH) / width;
+                    width = MAX_IMAGE_WIDTH;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // JPEG 형식으로 압축하여 데이터 URL 생성
+                resolve(canvas.toDataURL('image/jpeg', 0.9)); 
+            };
+            img.onerror = reject;
+            img.src = event.target?.result as string;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    Array.from(files).forEach((file, index) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const avatarDataUrl = event.target?.result as string;
-            setPendingStaff(prev => [
-                ...prev,
-                { key: `pending-${Date.now()}-${index}`, name: '', avatarDataUrl }
-            ]);
-        };
-        reader.readAsDataURL(file);
+    toast({
+      title: '이미지 처리 중...',
+      description: `${files.length}개의 이미지를 리사이징하고 있습니다. 잠시만 기다려주세요.`,
     });
+
+    try {
+        const resizePromises = Array.from(files).map(file => resizeImage(file));
+        const resizedDataUrls = await Promise.all(resizePromises);
+        
+        const newPendingStaff = resizedDataUrls.map((url, index) => ({
+            key: `pending-${Date.now()}-${index}`,
+            name: '',
+            avatarDataUrl: url,
+        }));
+
+        setPendingStaff(prev => [...prev, ...newPendingStaff]);
+
+        toast({
+            title: '이미지 준비 완료',
+            description: `${files.length}개의 이미지가 등록 대기 목록에 추가되었습니다.`,
+        });
+
+    } catch (error) {
+        console.error("이미지 리사이징 실패:", error);
+        toast({
+            variant: 'destructive',
+            title: '이미지 처리 실패',
+            description: '이미지를 처리하는 중 오류가 발생했습니다.',
+        });
+    }
     
-    // Reset file input to allow selecting the same file again
     if (fileInputRef.current) {
         fileInputRef.current.value = '';
     }
@@ -94,6 +144,16 @@ export function StaffPanel() {
   };
 
   const handleRegisterAll = async () => {
+    const invalidStaff = pendingStaff.filter(p => p.name.trim() === '');
+    if (invalidStaff.length > 0) {
+        toast({
+            variant: 'destructive',
+            title: '이름 필요',
+            description: '모든 등록 대기중인 스태프의 이름을 입력해야 합니다.',
+        });
+        return;
+    }
+
     const newStaffMembers = pendingStaff.map(p => ({ name: p.name, avatar: p.avatarDataUrl }));
     await addStaffBatch(newStaffMembers);
     toast({
