@@ -3,7 +3,7 @@
 export interface Role {
   id: string;
   name: string;
-  scheduleTemplates?: Omit<ScheduleItem, 'id' | 'day' | 'time' | 'staffId'>[];
+  scheduleTemplates?: Omit<ScheduleItem, 'id' | 'staffId'>[];
 }
 
 export interface StaffMember {
