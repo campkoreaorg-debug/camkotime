@@ -200,7 +200,7 @@ export const useVenueData = () => {
   const deleteSchedule = (scheduleId: string) => {
     if (!firestore) return;
     const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
-    deleteDoc(scheduleDocRef);
+    deleteDocumentNonBlocking(scheduleDocRef);
   };
 
   const deleteSchedulesBatch = (scheduleIds: string[]) => {

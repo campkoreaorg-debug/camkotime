@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Trash2, User, Loader2, Plus } from 'lucide-react';
+import { Trash2, User, Loader2, Plus, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { StaffMember } from '@/lib/types';
@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 const staffSchema = z.object({
   name: z.string().min(1, '이름을 입력해주세요.'),
@@ -38,6 +37,9 @@ export function StaffPanel() {
   const { toast } = useToast();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
 
   const form = useForm<StaffFormValues>({
     resolver: zodResolver(staffSchema),
@@ -67,16 +69,37 @@ export function StaffPanel() {
     setStaffToDelete(null);
   };
   
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        setAvatarFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setAvatarPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    }
+  }
+
   const handleAddStaff = async (values: StaffFormValues) => {
-      const avatarOptions = PlaceHolderImages.filter(img => img.id.startsWith('avatar-'));
-      const randomAvatar = avatarOptions[Math.floor(Math.random() * avatarOptions.length)].imageUrl;
+      if (!avatarFile) {
+        toast({ variant: 'destructive', title: '아바타 이미지를 선택해주세요.' });
+        return;
+      }
       
-      await addStaff(values.name, randomAvatar);
-      toast({
-          title: '성공',
-          description: `${values.name} 스태프가 추가되었습니다.`,
-      });
-      form.reset();
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+          const avatarDataUrl = reader.result as string;
+          await addStaff(values.name, avatarDataUrl);
+          toast({
+              title: '성공',
+              description: `${values.name} 스태프가 추가되었습니다.`,
+          });
+          form.reset();
+          setAvatarFile(null);
+          setAvatarPreview(null);
+      };
+      reader.readAsDataURL(avatarFile);
   }
   
   if (isLoading) {
@@ -103,17 +126,29 @@ export function StaffPanel() {
             </div>
         </CardHeader>
         <CardContent className='space-y-6'>
-            <form onSubmit={form.handleSubmit(handleAddStaff)} className="flex items-end gap-2">
-                <div className='flex-grow space-y-1'>
-                    <Label htmlFor="name">스태프 이름</Label>
-                    <Input id="name" placeholder="예: 홍길동" {...form.register('name')} />
+            <form onSubmit={form.handleSubmit(handleAddStaff)} className="grid grid-cols-[1fr_auto] items-end gap-4">
+                <div className='grid grid-cols-2 gap-4'>
+                    <div className='space-y-1'>
+                        <Label htmlFor="name">스태프 이름</Label>
+                        <Input id="name" placeholder="예: 홍길동" {...form.register('name')} />
+                    </div>
+                    <div className='space-y-1'>
+                         <Label htmlFor="avatar">아바타 이미지</Label>
+                         <div className="flex items-center gap-2">
+                             <Avatar>
+                                <AvatarImage src={avatarPreview || undefined} />
+                                <AvatarFallback><ImageIcon className="text-muted-foreground" /></AvatarFallback>
+                             </Avatar>
+                            <Input id="avatar" type="file" onChange={handleAvatarChange} accept="image/*" />
+                         </div>
+                    </div>
                 </div>
                 <Button type="submit"><Plus className='mr-2 h-4 w-4' />추가</Button>
             </form>
             {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
 
             {data.staff.length > 0 ? (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.16),1fr))] gap-4 p-1">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.24),1fr))] gap-4 p-1">
                 {data.staff.map((s, index) => (
                     <div key={s.id} className="relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center">
                         <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
@@ -125,7 +160,6 @@ export function StaffPanel() {
                         </Avatar>
                         <div className='flex-1'>
                             <p className="font-semibold text-sm">{s.name}</p>
-                            <p className="text-xs text-muted-foreground mt-1">{s.role?.name || '직책 없음'}</p>
                         </div>
                         <Button
                             variant="ghost"
