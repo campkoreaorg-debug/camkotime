@@ -116,9 +116,6 @@ export default function LoginPage() {
             <h1 className="font-headline text-3xl font-bold tracking-tight text-primary">
               캠프코리아
             </h1>
-            <CardDescription>
-              실시간 공연장 관리를 손쉽게.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
