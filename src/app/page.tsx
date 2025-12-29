@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -113,7 +114,7 @@ export default function LoginPage() {
         <Card className="shadow-2xl">
           <CardHeader className="text-center">
             <h1 className="font-headline text-3xl font-bold tracking-tight text-primary">
-              VenueSync
+              캠프코리아
             </h1>
             <CardDescription>
               실시간 공연장 관리를 손쉽게.
@@ -160,7 +161,7 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-card px-2 text-muted-foreground">
-                  또는
+                  스태프는 뷰어로 계속하기를 눌러주세요
                 </span>
               </div>
             </div>
