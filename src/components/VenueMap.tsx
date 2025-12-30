@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { CalendarClock, X, UserPlus, Upload, Megaphone } from 'lucide-react';
+import { CalendarClock, X, UserPlus, Upload, Megaphone, Trash2 } from 'lucide-react';
 import type { MapMarker, StaffMember, ScheduleItem, MapInfo } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
@@ -27,7 +27,7 @@ interface VenueMapProps {
 }
 
 export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDraggable = false, selectedSlot, notification }: VenueMapProps) {
-  const { updateMarkerPosition, addMarker, updateMapImage } = useVenueData();
+  const { updateMarkerPosition, addMarker, updateMapImage, deleteMarker } = useVenueData();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isBannerVisible, setIsBannerVisible] = useState(true);
@@ -182,6 +182,15 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
       reader.readAsDataURL(file);
     }
   };
+  
+  const handleRemoveMarker = (markerId: string) => {
+    deleteMarker(markerId);
+    setActiveMarkerId(null);
+    toast({
+        title: '스태프가 지도에서 제거되었습니다.',
+        description: '미배치 스태프 목록에서 다시 추가할 수 있습니다.'
+    })
+  }
 
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
     const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId]);
@@ -244,9 +253,30 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                             <p className="text-sm text-muted-foreground mt-1">{staffMember.role?.name || '직책 없음'}</p>
                         </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 -mt-2" onClick={() => setActiveMarkerId(null)}>
-                        <X className="h-4 w-4" />
-                    </Button>
+                    <div className='flex flex-col items-center gap-1 -mr-2 -my-2'>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActiveMarkerId(null)}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                        {isDraggable && !marker.id.startsWith('default-marker') && (
+                             <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-8 w-8 text-destructive"
+                                            onClick={() => handleRemoveMarker(marker.id)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>지도에서 제거</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
+                    </div>
                 </div>
                 
                 <div className="p-4">
@@ -422,5 +452,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     </div>
   );
 }
+
 
 

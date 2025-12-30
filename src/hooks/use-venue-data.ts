@@ -303,6 +303,12 @@ export const useVenueData = () => {
     setDocumentNonBlocking(markerDocRef, newMarker, { merge: true });
   };
   
+  const deleteMarker = (markerId: string) => {
+    if (!firestore) return;
+    const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
+    deleteDocumentNonBlocking(markerDocRef);
+  }
+
   const updateNotification = (text: string) => {
     if (!venueRef) return;
     updateDocumentNonBlocking(venueRef, { notification: text });
@@ -342,6 +348,7 @@ export const useVenueData = () => {
     isLoading: !venueDoc || !staff || !roles || !schedule || !markers || !maps, 
     updateMarkerPosition,
     addMarker,
+    deleteMarker,
     updateNotification,
   };
 };
@@ -363,5 +370,6 @@ export const timeSlots = (() => {
 
 
     
+
 
 
