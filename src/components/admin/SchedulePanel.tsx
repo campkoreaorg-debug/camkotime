@@ -279,7 +279,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       if (!filteredStaffId) return null;
       return data.staff.find(s => s.id === filteredStaffId);
   }, [filteredStaffId, data.staff]);
-
+  const { ref: formRef, ...restFormProps } = form.register('event');
   return (
     <Card className='lg:col-span-1'>
         <CardHeader>
@@ -403,12 +403,20 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                 <div className='flex-grow'>
                                     <Label htmlFor="event-input" className="sr-only">새 항목</Label>
                                     <Input 
-                                        id="event-input"
-                                        placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
-                                        {...form.register('event')} 
-                                        ref={eventInputRef}
-                                        autoComplete="off"
-                                    />
+                                      id="event-input"
+                                      placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
+                                      
+                                      // 2. 나머지 속성들을 뿌려줍니다 (onChange, onBlur, name 등)
+                                      {...restFormProps} 
+                                      
+                                      // 3. ref를 함수형으로 작성하여 두 곳 모두에 연결합니다.
+                                      ref={(e) => {
+                                          formRef(e); // react-hook-form에 연결
+                                          eventInputRef.current = e; // 포커스용 ref에 연결
+                                      }}
+                                      
+                                      autoComplete="off"
+                                  />
                                     {form.formState.errors.event && (
                                         <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
                                     )}

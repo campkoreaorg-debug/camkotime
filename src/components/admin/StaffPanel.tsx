@@ -37,19 +37,13 @@ interface PendingStaff {
 const MAX_IMAGE_WIDTH = 800; // 픽셀 단위
 
 export function StaffPanel() {
-  const { data, addStaffBatch, deleteStaff, initializeFirestoreData, isLoading } = useVenueData();
+  const { data, addStaffBatch, deleteStaff, isLoading } = useVenueData();
   const { toast } = useToast();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
   const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGridOpen, setIsGridOpen] = useState(true);
-
-  useEffect(() => {
-    if (!isLoading && data.staff.length === 0) {
-      initializeFirestoreData();
-    }
-  }, [isLoading, data.staff, initializeFirestoreData]);
 
   const handleDeleteConfirmation = (staff: StaffMember) => {
     setStaffToDelete(staff);
