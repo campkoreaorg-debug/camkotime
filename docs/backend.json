@@ -59,12 +59,21 @@
           "type": "string",
           "description": "Job title or role of the staff member."
         },
+        "position": {
+          "type": "object",
+          "description": "Assigned position for visual grouping.",
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "color": { "type": "string" }
+          }
+        },
         "venueId": {
           "type": "string",
           "description": "Reference to Venue. (Relationship: Venue 1:N Staff)"
         }
       },
-      "required": ["id", "name", "role", "venueId"]
+      "required": ["id", "name", "venueId"]
     },
     "Schedule": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -189,6 +198,27 @@
         }
       },
       "required": ["id", "day", "time", "staffId", "x", "y"]
+    },
+    "Position": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Position",
+      "type": "object",
+      "description": "Represents a visual grouping for staff members, with a name and a color.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Position."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the position (e.g., 'Stage A Security')."
+        },
+        "color": {
+          "type": "string",
+          "description": "Hex color code for the position (e.g., '#FF5733')."
+        }
+      },
+      "required": ["id", "name", "color"]
     }
   },
   "auth": {
@@ -308,6 +338,26 @@
             {
               "name": "markerId",
               "description": "Unique identifier for the marker."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/venues/{venueId}/positions/{positionId}",
+        "definition": {
+          "entityName": "Position",
+          "schema": {
+            "$ref": "#/backend/entities/Position"
+          },
+          "description": "Stores position information (name, color) for visual grouping of staff.",
+          "params": [
+            {
+              "name": "venueId",
+              "description": "Unique identifier for the venue."
+            },
+            {
+              "name": "positionId",
+              "description": "Unique identifier for the position."
             }
           ]
         }

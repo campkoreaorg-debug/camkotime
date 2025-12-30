@@ -13,11 +13,18 @@ export interface Role {
   scheduleTemplates?: ScheduleTemplate[];
 }
 
+export interface Position {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface StaffMember {
   id: string;
   name: string;
   avatar: string;
   role: { id: string; name: string } | null;
+  position: { id: string; name: string; color: string } | null;
 }
 
 export interface ScheduleItem {
@@ -48,9 +55,9 @@ export interface MapInfo {
 export interface VenueData {
   staff: StaffMember[];
   roles: Role[];
+  positions: Position[];
   schedule: ScheduleItem[];
   markers: MapMarker[];
   maps: MapInfo[];
   notification?: string;
 }
-

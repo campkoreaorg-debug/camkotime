@@ -10,6 +10,10 @@ import { RolePanel } from '@/components/admin/RolePanel';
 import { MapPanel } from '@/components/admin/MapPanel';
 import { LogOut, Loader2, ExternalLink } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
+import { PositionPanel } from '@/components/admin/PositionPanel';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+
 
 export default function AdminPage() {
   const router = useRouter();
@@ -84,39 +88,44 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-        <header className='flex justify-between items-center p-4 border-b bg-card'>
-            <h1 className='font-headline text-2xl font-bold text-primary'>VenueSync 대시보드</h1>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" onClick={openMapWindow}>
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  새 창으로 열기
-              </Button>
-              <Button variant="ghost" onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  로그아웃
-              </Button>
-            </div>
-        </header>
-        <main className="p-4 md:p-8 space-y-8">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-              <StaffPanel />
-              <RolePanel />
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <SchedulePanel 
-                selectedSlot={scheduleSlot} 
-                onSlotChange={handleScheduleSlotChange}
-                isLinked={isLinked}
-                onLinkChange={setIsLinked}
-              />
-              <MapPanel 
-                selectedSlot={mapSlot} 
-                onSlotChange={handleMapSlotChange} 
-                isLinked={isLinked}
-              />
-            </div>
-        </main>
-    </div>
+    <DndProvider backend={HTML5Backend}>
+      <div className="min-h-screen bg-background">
+          <header className='flex justify-between items-center p-4 border-b bg-card'>
+              <h1 className='font-headline text-2xl font-bold text-primary'>VenueSync 대시보드</h1>
+              <div className="flex items-center gap-4">
+                <Button variant="outline" onClick={openMapWindow}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    새 창으로 열기
+                </Button>
+                <Button variant="ghost" onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    로그아웃
+                </Button>
+              </div>
+          </header>
+          <main className="p-4 md:p-8 space-y-8">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <StaffPanel />
+                <div className='flex flex-col gap-8'>
+                  <RolePanel />
+                  <PositionPanel />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <SchedulePanel 
+                  selectedSlot={scheduleSlot} 
+                  onSlotChange={handleScheduleSlotChange}
+                  isLinked={isLinked}
+                  onLinkChange={setIsLinked}
+                />
+                <MapPanel 
+                  selectedSlot={mapSlot} 
+                  onSlotChange={handleMapSlotChange} 
+                  isLinked={isLinked}
+                />
+              </div>
+          </main>
+      </div>
+    </DndProvider>
   );
 }

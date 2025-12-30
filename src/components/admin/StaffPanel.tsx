@@ -26,6 +26,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
   } from "@/components/ui/collapsible"
+import { cn } from '@/lib/utils';
 
 interface PendingStaff {
     key: string;
@@ -257,12 +258,23 @@ export function StaffPanel() {
                             <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
                                 {index + 1}
                             </span>
-                            <Avatar className='h-12 w-12'>
+                             <Avatar className='h-12 w-12'>
                                 <AvatarImage src={s.avatar} alt={s.name} />
                                 <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
                             </Avatar>
                             <div className='flex-1'>
                                 <p className="font-semibold text-sm">{s.name}</p>
+                                {s.position && (
+                                    <Badge 
+                                        className="mt-1 text-xs" 
+                                        style={{ 
+                                            backgroundColor: s.position.color,
+                                            color: '#ffffff'
+                                        }}
+                                    >
+                                        {s.position.name}
+                                    </Badge>
+                                )}
                             </div>
                             <Button
                                 variant="ghost"
@@ -303,5 +315,3 @@ export function StaffPanel() {
     </Card>
   );
 }
-
-    

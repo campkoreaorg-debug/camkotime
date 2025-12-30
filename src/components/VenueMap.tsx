@@ -4,7 +4,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { CalendarClock, X, UserPlus, Upload, Megaphone, Trash2 } from 'lucide-react';
-import type { MapMarker, StaffMember, ScheduleItem, MapInfo } from '@/lib/types';
+import type { MapMarker, StaffMember, ScheduleItem, MapInfo, Position } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -15,6 +15,7 @@ import { useVenueData } from '@/hooks/use-venue-data';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from './ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { useDrop, DropTargetMonitor } from 'react-dnd';
 
 interface VenueMapProps {
   allMarkers: MapMarker[];
@@ -26,14 +27,17 @@ interface VenueMapProps {
   notification?: string;
 }
 
+const ItemTypes = {
+    POSITION: 'position',
+}
+
 export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDraggable = false, selectedSlot, notification }: VenueMapProps) {
-  const { updateMarkerPosition, addMarker, updateMapImage, deleteMarker } = useVenueData();
+  const { updateMarkerPosition, addMarker, updateMapImage, deleteMarker, assignPositionToStaff } = useVenueData();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isBannerVisible, setIsBannerVisible] = useState(true);
 
   useEffect(() => {
-    // When a new notification comes in, show the banner again
     if (notification) {
       setIsBannerVisible(true);
     }
@@ -201,21 +205,41 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
           .sort((a,b) => a.time.localeCompare(b.time));
     }, [staffMember, schedule, selectedSlot]);
     
+    const [{ isOver, canDrop }, drop] = useDrop(() => ({
+        accept: ItemTypes.POSITION,
+        drop: (item: Position) => {
+            if (staffMember) {
+                assignPositionToStaff(staffMember.id, item);
+                toast({
+                    title: '포지션 할당됨',
+                    description: `${staffMember.name}님에게 '${item.name}' 포지션이 할당되었습니다.`,
+                });
+            }
+        },
+        collect: (monitor: DropTargetMonitor) => ({
+            isOver: !!monitor.isOver(),
+            canDrop: !!monitor.canDrop(),
+        }),
+    }), [staffMember]);
+
     if (!staffMember) return null;
     const isOpen = activeMarkerId === marker.id;
 
     const staffIndex = staff.findIndex(s => s.id === staffMember.id);
+    const positionColor = staffMember.position?.color;
 
     return (
         <Popover open={isOpen} onOpenChange={(open) => { if (!open) setActiveMarkerId(null); }}>
             <PopoverTrigger asChild>
                 <div
+                    ref={drop}
                     data-marker-id={marker.id}
                     className={cn(
                         "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-transform hover:scale-110 touch-none select-none", 
                         isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
                         draggingMarkerId === marker.id && "cursor-grabbing z-50 scale-110",
-                        isOpen && "z-40 scale-110"
+                        isOpen && "z-40 scale-110",
+                        isOver && canDrop && 'scale-125'
                     )}
                     style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
                     onPointerDown={(e) => handlePointerDown(e, marker.id)}
@@ -225,12 +249,21 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                          <span className="absolute -top-1 -left-1 z-10 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">
                             {staffIndex + 1}
                         </span>
-                        <Avatar className={cn("h-10 w-10 border-2 border-primary-foreground shadow-lg pointer-events-none", (draggingMarkerId === marker.id || isOpen) && "border-primary")}>
+                        <Avatar className={cn("h-10 w-10 border-4 border-primary-foreground shadow-lg pointer-events-none transition-colors", 
+                            (draggingMarkerId === marker.id || isOpen || isOver) && "border-primary",
+                            isOver && canDrop && 'ring-4 ring-offset-2 ring-primary'
+                        )}
+                        style={{ borderColor: isOver && canDrop ? 'hsl(var(--primary))' : positionColor ? positionColor : 'hsl(var(--primary-foreground))' }}
+                        >
                             <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
                             <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                     </div>
-                    <div className="mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none">
+                    <div className={cn("mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none transition-colors",
+                         staffMember.position && "text-white"
+                    )}
+                    style={{ backgroundColor: staffMember.position ? staffMember.position.color : 'rgba(0,0,0,0.6)'}}
+                    >
                        {staffIndex + 1}. {staffMember.name}
                     </div>
                 </div>
@@ -251,6 +284,11 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                         <div>
                             <h3 className="text-lg font-bold leading-none">{staffMember.name}</h3>
                             <p className="text-sm text-muted-foreground mt-1">{staffMember.role?.name || '직책 없음'}</p>
+                            {staffMember.position && (
+                                 <Badge className="mt-2" style={{ backgroundColor: staffMember.position.color, color: '#fff' }}>
+                                    {staffMember.position.name}
+                                 </Badge>
+                            )}
                         </div>
                     </div>
                     <div className='flex flex-col items-center gap-1 -mr-2 -my-2'>
@@ -452,6 +490,3 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     </div>
   );
 }
-
-
-

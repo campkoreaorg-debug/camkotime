@@ -21,7 +21,7 @@ import {
   getDocs,
   deleteDoc,
 } from 'firebase/firestore';
-import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate } from '@/lib/types';
+import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Position } from '@/lib/types';
 import { initialData } from '@/lib/data';
 import { useCallback, useMemo } from 'react';
 
@@ -45,6 +45,11 @@ export const useVenueData = () => {
   
   const rolesColRef = useMemoFirebase(
     () => (firestore ? collection(firestore, 'venues', VENUE_ID, 'roles') : null),
+    [firestore]
+  );
+
+  const positionsColRef = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'venues', VENUE_ID, 'positions') : null),
     [firestore]
   );
 
@@ -72,6 +77,7 @@ export const useVenueData = () => {
   const { data: venueDoc } = useDoc<any>(venueRef);
   const { data: staff } = useCollection<StaffMember>(staffColRef);
   const { data: roles } = useCollection<Role>(rolesColRef);
+  const { data: positions } = useCollection<Position>(positionsColRef);
   const { data: schedule } = useCollection<ScheduleItem>(scheduleColRef);
   const { data: markers } = useCollection<MapMarker>(markersColRef);
   const { data: maps } = useCollection<MapInfo>(mapsColRef);
@@ -92,6 +98,11 @@ export const useVenueData = () => {
     initialData.roles.forEach((role) => {
       const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', role.id);
       batch.set(roleDocRef, role);
+    });
+
+    initialData.positions.forEach((position) => {
+        const positionDocRef = doc(firestore, 'venues', VENUE_ID, 'positions', position.id);
+        batch.set(positionDocRef, position);
     });
 
     initialData.schedule.forEach((scheduleItem) => {
@@ -116,7 +127,7 @@ export const useVenueData = () => {
   const addStaff = (name: string, avatar: string) => {
     if (!firestore) return;
     const staffId = `staff-${Date.now()}`;
-    const newStaff: StaffMember = { id: staffId, name, avatar, role: null };
+    const newStaff: StaffMember = { id: staffId, name, avatar, role: null, position: null };
     const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
     setDocumentNonBlocking(staffDocRef, newStaff, {});
   };
@@ -134,6 +145,7 @@ export const useVenueData = () => {
             name: member.name,
             avatar: member.avatar,
             role: null,
+            position: null,
         };
 
         const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
@@ -275,6 +287,42 @@ export const useVenueData = () => {
     
     await batch.commit();
   };
+
+  const addPosition = (name: string, color: string) => {
+    if (!firestore) return;
+    const newId = `pos-${Date.now()}`;
+    const newPosition: Position = { id: newId, name, color };
+    const positionDocRef = doc(firestore, 'venues', VENUE_ID, 'positions', newId);
+    setDocumentNonBlocking(positionDocRef, newPosition, {});
+  };
+
+  const updatePosition = (positionId: string, data: Partial<Position>) => {
+    if (!firestore) return;
+    const positionDocRef = doc(firestore, 'venues', VENUE_ID, 'positions', positionId);
+    updateDocumentNonBlocking(positionDocRef, data);
+  };
+  
+  const deletePosition = async (positionId: string) => {
+    if (!firestore || !staffColRef) return;
+    const batch = writeBatch(firestore);
+    const positionDocRef = doc(firestore, 'venues', VENUE_ID, 'positions', positionId);
+    batch.delete(positionDocRef);
+
+    // Unassign this position from all staff members
+    const q = query(staffColRef, where('position.id', '==', positionId));
+    const staffSnapshot = await getDocs(q);
+    staffSnapshot.forEach(doc => {
+      batch.update(doc.ref, { position: null });
+    });
+
+    await batch.commit();
+  };
+  
+  const assignPositionToStaff = (staffId: string, position: Position | null) => {
+    if (!firestore) return;
+    const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
+    updateDocumentNonBlocking(staffDocRef, { position });
+  };
   
   const updateMapImage = (day: number, time: string, newUrl: string) => {
     if (!firestore) return;
@@ -315,20 +363,26 @@ export const useVenueData = () => {
   }
 
   const memoizedData: VenueData = useMemo(() => {
-    const staffWithRoles = staff?.map(s => {
+    const staffWithDetails = staff?.map(s => {
       const assignedRole = roles?.find(r => r.id === s.role?.id);
-      return { ...s, role: assignedRole || s.role || null };
+      const assignedPosition = positions?.find(p => p.id === s.position?.id);
+      return { 
+        ...s, 
+        role: assignedRole || s.role || null,
+        position: assignedPosition || s.position || null,
+      };
     }) || [];
     
     return {
-      staff: staffWithRoles ? [...staffWithRoles].sort((a,b) => a.id.localeCompare(b.id)) : [],
+      staff: staffWithDetails ? [...staffWithDetails].sort((a,b) => a.id.localeCompare(b.id)) : [],
       roles: roles ? [...roles].sort((a, b) => a.name.localeCompare(b.name)) : [],
+      positions: positions ? [...positions].sort((a, b) => a.name.localeCompare(b.name)) : [],
       schedule: schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [],
       markers: markers || [],
       maps: maps || [],
       notification: venueDoc?.notification || '',
     };
-  }, [staff, roles, schedule, markers, maps, venueDoc]);
+  }, [staff, roles, positions, schedule, markers, maps, venueDoc]);
 
   return { 
     data: memoizedData, 
@@ -345,7 +399,11 @@ export const useVenueData = () => {
     initializeFirestoreData, 
     addRole,
     assignRoleToStaff,
-    isLoading: !venueDoc || !staff || !roles || !schedule || !markers || !maps, 
+    addPosition,
+    updatePosition,
+    deletePosition,
+    assignPositionToStaff,
+    isLoading: !venueDoc || !staff || !roles || !positions || !schedule || !markers || !maps, 
     updateMarkerPosition,
     addMarker,
     deleteMarker,
@@ -363,13 +421,3 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
-
-    
-
-    
-
-
-    
-
-
-
