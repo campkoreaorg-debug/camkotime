@@ -114,7 +114,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       ...values,
       day: selectedSlot.day,
       time: selectedSlot.time,
-      staffId: values.staffId,
+      staffId: values.staffId === 'unassigned' ? '' : values.staffId,
     };
 
     if (editingItem) {
@@ -543,6 +543,8 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     </Card>
   );
 }
+
+    
 
     
 
