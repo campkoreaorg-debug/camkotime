@@ -11,6 +11,8 @@ import { Home, Loader2, Database, ChevronLeft, ChevronRight } from 'lucide-react
 import { useUser, useAuth } from '@/firebase';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 
 export default function ViewerPage() {
@@ -84,54 +86,56 @@ export default function ViewerPage() {
 
   // 3. 정상 렌더링 (지도가 보이는 화면)
   return (
-    <div className="min-h-screen flex flex-col">
-       <header className='flex justify-between items-center p-4 border-b bg-card shadow-sm'>
-            <h1 className='font-headline text-2xl font-bold text-primary'>
-                VenueSync 지도 (Day {selectedSlot.day} - {selectedSlot.time})
-            </h1>
-            <Button variant="outline" onClick={handleReturnHome}>
-                <span className="flex items-center gap-2">
-                    <Home className="h-4 w-4" />
-                    <span>홈으로 돌아가기</span>
-                </span>
-            </Button>
-       </header>
-       <main className="flex-grow p-4 md:p-8 space-y-4">
-          <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className='mb-4'>
-                <TabsTrigger value="day-0">Day 0</TabsTrigger>
-                <TabsTrigger value="day-1">Day 1</TabsTrigger>
-                <TabsTrigger value="day-2">Day 2</TabsTrigger>
-                <TabsTrigger value="day-3">Day 3</TabsTrigger>
-            </TabsList>
-             <div className="flex flex-wrap gap-2 pb-4">
-                {timeSlots.map(time => {
-                  const day = parseInt(activeTab.split('-')[1], 10);
-                  const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
-                  return (
-                    <Button 
-                        key={time} 
-                        variant={isSelected ? "default" : "outline"}
-                        className="flex-shrink-0 text-xs h-8"
-                        onClick={() => handleSelectSlot(day, time)}
-                    >
-                       {time}
-                    </Button>
-                  )
-                })}
-              </div>
-          </Tabs>
+    <DndProvider backend={HTML5Backend}>
+      <div className="min-h-screen flex flex-col">
+        <header className='flex justify-between items-center p-4 border-b bg-card shadow-sm'>
+              <h1 className='font-headline text-2xl font-bold text-primary'>
+                  VenueSync 지도 (Day {selectedSlot.day} - {selectedSlot.time})
+              </h1>
+              <Button variant="outline" onClick={handleReturnHome}>
+                  <span className="flex items-center gap-2">
+                      <Home className="h-4 w-4" />
+                      <span>홈으로 돌아가기</span>
+                  </span>
+              </Button>
+        </header>
+        <main className="flex-grow p-4 md:p-8 space-y-4">
+            <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
+              <TabsList className='mb-4'>
+                  <TabsTrigger value="day-0">Day 0</TabsTrigger>
+                  <TabsTrigger value="day-1">Day 1</TabsTrigger>
+                  <TabsTrigger value="day-2">Day 2</TabsTrigger>
+                  <TabsTrigger value="day-3">Day 3</TabsTrigger>
+              </TabsList>
+              <div className="flex flex-wrap gap-2 pb-4">
+                  {timeSlots.map(time => {
+                    const day = parseInt(activeTab.split('-')[1], 10);
+                    const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
+                    return (
+                      <Button 
+                          key={time} 
+                          variant={isSelected ? "default" : "outline"}
+                          className="flex-shrink-0 text-xs h-8"
+                          onClick={() => handleSelectSlot(day, time)}
+                      >
+                        {time}
+                      </Button>
+                    )
+                  })}
+                </div>
+            </Tabs>
 
-           <VenueMap 
-                allMarkers={data.markers} 
-                allMaps={data.maps}
-                staff={data.staff} 
-                schedule={data.schedule}
-                isDraggable={false}
-                selectedSlot={selectedSlot}
-                notification={data.notification}
-           />
-       </main>
-    </div>
+            <VenueMap 
+                  allMarkers={data.markers} 
+                  allMaps={data.maps}
+                  staff={data.staff} 
+                  schedule={data.schedule}
+                  isDraggable={false}
+                  selectedSlot={selectedSlot}
+                  notification={data.notification}
+            />
+        </main>
+      </div>
+    </DndProvider>
   );
 }
