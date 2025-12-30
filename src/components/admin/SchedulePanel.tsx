@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X } from 'lucide-react';
+import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -31,6 +31,7 @@ import { timeSlots } from '@/hooks/use-venue-data';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { ScrollArea } from '../ui/scroll-area';
+import Papa from 'papaparse';
 
 const scheduleSchema = z.object({
   event: z.string().min(1, '이벤트 내용을 입력해주세요.'),
@@ -67,11 +68,12 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   const [activeTab, setActiveTab] = useState(`day-${selectedSlot?.day ?? 0}`);
   const [filteredStaffId, setFilteredStaffId] = useState<string | null>(null);
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
+  const eventInputRef = useRef<HTMLInputElement>(null);
 
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
-    defaultValues: { event: '', location: '', staffId: 'unassigned' },
+    defaultValues: { event: '', location: '', staffId: '' },
   });
 
   useEffect(() => {
@@ -88,20 +90,21 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   const handleSelectSlot = (day: number, time: string) => {
     onSlotChange(day, time);
     setEditingItem(null);
-    form.reset({ event: '', location: '', staffId: 'unassigned' });
+    form.reset({ event: '', location: '', staffId: '' });
     setSelectedScheduleIds([]); // 다른 슬롯 선택 시 선택 해제
   }
 
   const handleEditClick = (e: React.MouseEvent, item: ScheduleItem) => {
     e.stopPropagation(); // Prevent row selection when clicking edit
     setEditingItem(item);
-    form.reset({ event: item.event, location: item.location || '', staffId: item.staffId || 'unassigned' });
+    form.reset({ event: item.event, location: item.location || '', staffId: item.staffId || '' });
     setSelectedScheduleIds([]); // 수정 시작 시 선택 해제
+    eventInputRef.current?.focus();
   };
   
   const handleCancelEdit = () => {
     setEditingItem(null);
-    form.reset({ event: '', location: '', staffId: 'unassigned' });
+    form.reset({ event: '', location: '', staffId: '' });
   }
 
   const onSubmit = (values: ScheduleFormValues) => {
@@ -111,7 +114,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       ...values,
       day: selectedSlot.day,
       time: selectedSlot.time,
-      staffId: values.staffId === 'unassigned' ? "" : values.staffId,
+      staffId: values.staffId,
     };
 
     if (editingItem) {
@@ -122,7 +125,8 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       addSchedule(scheduleData);
       toast({ title: '추가 완료', description: '스케줄이 추가되었습니다.'});
     }
-    form.reset({ event: '', location: '', staffId: 'unassigned' });
+    form.reset({ event: '', location: '', staffId: '' });
+    eventInputRef.current?.focus();
   };
   
   const handleDeleteConfirmation = (e: React.MouseEvent, item: ScheduleItem) => {
@@ -218,6 +222,43 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     });
   };
 
+  const handleDownload = () => {
+    const day = parseInt(activeTab.split('-')[1], 10);
+    const schedulesToDownload = data.schedule.filter(s => s.day === day);
+
+    if (schedulesToDownload.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "데이터 없음",
+        description: "다운로드할 스케줄이 없습니다.",
+      });
+      return;
+    }
+
+    const csvData = schedulesToDownload.map(item => ({
+      '일차': item.day,
+      '시간': item.time,
+      '이벤트': item.event,
+      '위치': item.location || '',
+      '담당자': data.staff.find(s => s.id === item.staffId)?.name || '미지정',
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${day}일차_스케줄.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+        title: '다운로드 완료',
+        description: `${day}일차 스케줄이 다운로드되었습니다.`,
+    })
+  };
+
   const currentDaySchedules = useMemo(() => {
     const day = parseInt(activeTab.split('-')[1], 10);
     return scheduleByDay[day] || {};
@@ -248,6 +289,10 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
               <CardDescription>일차를 선택하고 시간대별로 스케줄을 관리하세요.</CardDescription>
             </div>
             <div className="flex items-center gap-4">
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                  <Download className='mr-2 h-4 w-4' />
+                  엑셀 다운로드
+              </Button>
               <Button variant="destructive" size="sm" onClick={() => setIsDeleteAllAlertOpen(true)}>
                   <ShieldAlert className='mr-2 h-4 w-4' />
                   전체 삭제
@@ -361,6 +406,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                         id="event-input"
                                         placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
                                         {...form.register('event')} 
+                                        ref={eventInputRef}
                                         autoComplete="off"
                                     />
                                     {form.formState.errors.event && (
@@ -369,7 +415,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                 </div>
                                 
                                 <Select
-                                  onValueChange={(value) => form.setValue('staffId', value)}
+                                  onValueChange={(value) => form.setValue('staffId', value === 'unassigned' ? '' : value)}
                                   value={form.watch('staffId') || 'unassigned'}
                                 >
                                   <SelectTrigger className="w-[180px]">

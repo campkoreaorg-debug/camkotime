@@ -26,7 +26,7 @@ export interface ScheduleItem {
   time: string;
   event: string;
   location?: string;
-  staffId?: string | null;
+  staffId?: string;
 }
 
 export interface MapMarker {
