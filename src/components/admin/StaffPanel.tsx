@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X } from 'lucide-react';
+import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { StaffMember } from '@/lib/types';
@@ -21,6 +21,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Input } from '../ui/input';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+  } from "@/components/ui/collapsible"
 
 interface PendingStaff {
     key: string;
@@ -37,6 +42,7 @@ export function StaffPanel() {
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
   const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isGridOpen, setIsGridOpen] = useState(true);
 
   useEffect(() => {
     if (!isLoading && data.staff.length === 0) {
@@ -180,6 +186,7 @@ export function StaffPanel() {
 
   return (
     <Card>
+      <Collapsible open={isGridOpen} onOpenChange={setIsGridOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
             <div className='space-y-1.5'>
                 <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
@@ -187,10 +194,18 @@ export function StaffPanel() {
                     총 <Badge variant="secondary">{data.staff.length}</Badge>명의 스태프가 등록되었습니다.
                 </CardDescription>
             </div>
-             <Button onClick={() => fileInputRef.current?.click()}>
-                <ImageIcon className='mr-2 h-4 w-4' />
-                이미지 추가
-            </Button>
+            <div className='flex items-center gap-2'>
+                <CollapsibleTrigger asChild>
+                    <Button variant="ghost">
+                        <ChevronsUpDown className="h-4 w-4" />
+                        <span className="sr-only">Toggle</span>
+                    </Button>
+                </CollapsibleTrigger>
+                <Button onClick={() => fileInputRef.current?.click()}>
+                    <ImageIcon className='mr-2 h-4 w-4' />
+                    이미지 추가
+                </Button>
+            </div>
             <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -200,74 +215,77 @@ export function StaffPanel() {
                 accept="image/*"
             />
         </CardHeader>
-        <CardContent className='space-y-6'>
-            {pendingStaff.length > 0 && (
-                <div className='space-y-4 p-4 border rounded-lg bg-muted/20'>
-                    <div className='flex justify-between items-center'>
-                        <h4 className='font-semibold'>등록 대기중인 스태프</h4>
-                        <Button 
-                            onClick={handleRegisterAll}
-                            disabled={!canRegister}
-                        >
-                           <Upload className='mr-2 h-4 w-4'/> {pendingStaff.length}명 스태프 등록하기
-                        </Button>
-                    </div>
-                    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                        {pendingStaff.map((p) => (
-                            <div key={p.key} className='flex items-center gap-3 p-2 border rounded-md bg-background'>
-                                <Avatar>
-                                    <AvatarImage src={p.avatarDataUrl} />
-                                    <AvatarFallback><User /></AvatarFallback>
-                                </Avatar>
-                                <Input 
-                                    placeholder='스태프 이름'
-                                    value={p.name}
-                                    onChange={(e) => updatePendingStaffName(p.key, e.target.value)}
-                                    className='flex-grow'
-                                />
-                                <Button variant="ghost" size="icon" className='h-8 w-8 shrink-0' onClick={() => removePendingStaff(p.key)}>
-                                    <X className='h-4 w-4'/>
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {data.staff.length > 0 ? (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.24),1fr))] gap-4 p-1">
-                {data.staff.map((s, index) => (
-                    <div key={s.id} className="relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center">
-                        <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
-                            {index + 1}
-                        </span>
-                        <Avatar className='h-12 w-12'>
-                            <AvatarImage src={s.avatar} alt={s.name} />
-                            <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
-                        </Avatar>
-                        <div className='flex-1'>
-                            <p className="font-semibold text-sm">{s.name}</p>
+        <CollapsibleContent>
+            <CardContent className='space-y-6'>
+                {pendingStaff.length > 0 && (
+                    <div className='space-y-4 p-4 border rounded-lg bg-muted/20'>
+                        <div className='flex justify-between items-center'>
+                            <h4 className='font-semibold'>등록 대기중인 스태프</h4>
+                            <Button 
+                                onClick={handleRegisterAll}
+                                disabled={!canRegister}
+                            >
+                               <Upload className='mr-2 h-4 w-4'/> {pendingStaff.length}명 스태프 등록하기
+                            </Button>
                         </div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-1 right-1 h-7 w-7 text-destructive opacity-0 group-hover:opacity-100"
-                            onClick={() => handleDeleteConfirmation(s)}
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                            {pendingStaff.map((p) => (
+                                <div key={p.key} className='flex items-center gap-3 p-2 border rounded-md bg-background'>
+                                    <Avatar>
+                                        <AvatarImage src={p.avatarDataUrl} />
+                                        <AvatarFallback><User /></AvatarFallback>
+                                    </Avatar>
+                                    <Input 
+                                        placeholder='스태프 이름'
+                                        value={p.name}
+                                        onChange={(e) => updatePendingStaffName(p.key, e.target.value)}
+                                        className='flex-grow'
+                                    />
+                                    <Button variant="ghost" size="icon" className='h-8 w-8 shrink-0' onClick={() => removePendingStaff(p.key)}>
+                                        <X className='h-4 w-4'/>
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                ))}
-                </div>
-            ) : (
-                 pendingStaff.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-lg">
-                        <User className="h-12 w-12 text-muted-foreground" />
-                        <p className="mt-4 text-muted-foreground">등록된 스태프가 없습니다. 이미지를 추가하여 시작하세요.</p>
+                )}
+
+                {data.staff.length > 0 ? (
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.24),1fr))] gap-4 p-1">
+                    {data.staff.map((s, index) => (
+                        <div key={s.id} className="relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center">
+                            <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
+                                {index + 1}
+                            </span>
+                            <Avatar className='h-12 w-12'>
+                                <AvatarImage src={s.avatar} alt={s.name} />
+                                <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
+                            </Avatar>
+                            <div className='flex-1'>
+                                <p className="font-semibold text-sm">{s.name}</p>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-1 right-1 h-7 w-7 text-destructive opacity-0 group-hover:opacity-100"
+                                onClick={() => handleDeleteConfirmation(s)}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
                     </div>
-                )
-            )}
-        </CardContent>
+                ) : (
+                     pendingStaff.length === 0 && (
+                        <div className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-lg">
+                            <User className="h-12 w-12 text-muted-foreground" />
+                            <p className="mt-4 text-muted-foreground">등록된 스태프가 없습니다. 이미지를 추가하여 시작하세요.</p>
+                        </div>
+                    )
+                )}
+            </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader>
