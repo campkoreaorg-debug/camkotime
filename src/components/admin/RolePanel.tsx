@@ -88,11 +88,10 @@ export function RolePanel() {
 
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
         
-        // Reset state after creation
+        // Reset only the fields for the new role, keep uploaded data
         setIsCreateRoleModalOpen(false);
         setNewRoleName('');
         setSelectedTemplates([]);
-        setUploadedData({});
     };
 
     const handleAssignRole = () => {
@@ -237,7 +236,7 @@ export function RolePanel() {
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div>
-                            <Label>스태프 선택</Label>
+                            <Label>스태프로 필터링</Label>
                             <Select onValueChange={setSelectedStaffId}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="배정할 스태프를 선택하세요" />
@@ -250,7 +249,7 @@ export function RolePanel() {
                             </Select>
                         </div>
                         <div>
-                            <Label>직책 선택</Label>
+                            <Label>직책으로 필터링</Label>
                              <Select onValueChange={setSelectedRoleId}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="배정할 직책을 선택하세요" />
@@ -272,3 +271,6 @@ export function RolePanel() {
         </Card>
     );
 }
+
+
+    
