@@ -194,11 +194,9 @@ export function RolePanel() {
                                         </div>
                                         {category && <Badge variant="outline" className='mt-2'>{category.name}</Badge>}
                                     </div>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100" onClick={() => openDeleteRoleDialog(role)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </AlertDialogTrigger>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100" onClick={() => openDeleteRoleDialog(role)}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
                                 </div>
                             )
                         })}
