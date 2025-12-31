@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -20,13 +21,15 @@ import Papa from 'papaparse';
 const days = [0, 1, 2, 3];
 
 export function RolePanel() {
-    const { data, addRole, assignRoleToStaff, addCategory, updateCategory, deleteCategory } = useVenueData();
+    const { data, addRole, assignRoleToStaff, addCategory, updateCategory, deleteCategory, deleteRole } = useVenueData();
     const { toast } = useToast();
 
     // Modals
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
     const [isAssignRoleModalOpen, setIsAssignRoleModalOpen] = useState(false);
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+    const [isDeleteRoleAlertOpen, setIsDeleteRoleAlertOpen] = useState(false);
+    const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
 
     // Create Role State
     const [newRoleName, setNewRoleName] = useState('');
@@ -144,6 +147,24 @@ export function RolePanel() {
         setCategoryName('');
     }
 
+    const openDeleteRoleDialog = (role: Role) => {
+        setRoleToDelete(role);
+        setIsDeleteRoleAlertOpen(true);
+    };
+
+    const handleConfirmDeleteRole = () => {
+        if (roleToDelete) {
+            deleteRole(roleToDelete.id);
+            toast({
+                title: '직책 삭제됨',
+                description: `'${roleToDelete.name}' 직책 및 관련 데이터가 삭제되었습니다.`
+            });
+        }
+        setIsDeleteRoleAlertOpen(false);
+        setRoleToDelete(null);
+    };
+
+
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -165,12 +186,19 @@ export function RolePanel() {
                         {data.roles.map(role => {
                             const category = data.categories.find(c => c.id === role.categoryId);
                             return (
-                                <div key={role.id} className="p-3 rounded-md border bg-muted/30">
-                                    <div className="flex items-center gap-3">
-                                        <Users className="h-5 w-5 text-primary" />
-                                        <p className="font-semibold text-sm flex-1 truncate">{role.name}</p>
+                                <div key={role.id} className="group p-3 rounded-md border bg-muted/30 flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-3">
+                                            <Users className="h-5 w-5 text-primary" />
+                                            <p className="font-semibold text-sm flex-1 truncate">{role.name}</p>
+                                        </div>
+                                        {category && <Badge variant="outline" className='mt-2'>{category.name}</Badge>}
                                     </div>
-                                    {category && <Badge variant="outline" className='mt-2'>{category.name}</Badge>}
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100" onClick={() => openDeleteRoleDialog(role)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </AlertDialogTrigger>
                                 </div>
                             )
                         })}
@@ -394,6 +422,20 @@ export function RolePanel() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <AlertDialog open={isDeleteRoleAlertOpen} onOpenChange={setIsDeleteRoleAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>정말 이 직책을 삭제하시겠습니까?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            '{roleToDelete?.name}' 직책이 영구적으로 삭제됩니다. 이 직책이 할당된 모든 스태프의 직책 정보와 관련 스케줄도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmDeleteRole} variant="destructive">삭제</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }

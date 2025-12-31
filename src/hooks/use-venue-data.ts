@@ -256,6 +256,41 @@ export const useVenueData = () => {
     setDocumentNonBlocking(roleDocRef, newRole, {});
   };
 
+  const deleteRole = async (roleId: string) => {
+    if (!firestore || !staffColRef || !scheduleColRef) return;
+
+    const batch = writeBatch(firestore);
+
+    // 1. Delete the role document
+    const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', roleId);
+    batch.delete(roleDocRef);
+
+    // 2. Find all staff with this role and nullify their role
+    const staffQuery = query(staffColRef, where('role.id', '==', roleId));
+    const staffSnapshot = await getDocs(staffQuery);
+
+    const staffIdsWithRole: string[] = [];
+    staffSnapshot.forEach(staffDoc => {
+        staffIdsWithRole.push(staffDoc.id);
+        batch.update(staffDoc.ref, { role: null });
+    });
+    
+    // 3. Delete all schedules assigned to those staff members
+    if (staffIdsWithRole.length > 0) {
+        // Firestore 'in' query can take up to 30 items. We batch them just in case.
+        for (let i = 0; i < staffIdsWithRole.length; i += 30) {
+            const chunk = staffIdsWithRole.slice(i, i + 30);
+            const scheduleQuery = query(scheduleColRef, where('staffId', 'in', chunk));
+            const scheduleSnapshot = await getDocs(scheduleQuery);
+            scheduleSnapshot.forEach(scheduleDoc => {
+                batch.delete(scheduleDoc.ref);
+            });
+        }
+    }
+
+    await batch.commit();
+  };
+
   const assignRoleToStaff = async (staffId: string, roleId: string) => {
     if (!firestore || !staffColRef || !scheduleColRef) return;
     
@@ -445,6 +480,7 @@ export const useVenueData = () => {
     updateMapImage, 
     initializeFirestoreData, 
     addRole,
+    deleteRole,
     assignRoleToStaff,
     addCategory,
     updateCategory,
