@@ -208,7 +208,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }
 
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
-    const staffMembers = useMemo(() => staff.filter(s => marker.staffIds.includes(s.id)), [marker.staffIds]);
+    const staffMembers = useMemo(() => staff.filter(s => marker.staffIds?.includes(s.id)), [marker.staffIds, staff]);
     
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.POSITION,
