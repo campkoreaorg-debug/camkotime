@@ -238,7 +238,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     }
 
     const csvData = schedulesToDownload.flatMap(item => 
-        item.staffIds.length > 0
+        (item.staffIds?.length || 0) > 0
         ? item.staffIds.map(staffId => ({
             '일차': item.day,
             '시간': item.time,
@@ -282,7 +282,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     }
     const slotSchedules = currentDaySchedules[selectedSlot.time];
     if (filteredStaffId) {
-      return slotSchedules.filter(item => item.staffIds.includes(filteredStaffId));
+      return slotSchedules.filter(item => item.staffIds && item.staffIds.includes(filteredStaffId));
     }
     return slotSchedules;
   }, [selectedSlot, currentDaySchedules, filteredStaffId]);
@@ -340,7 +340,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                       onClick={() => handleSelectSlot(day, time)}
                   >
                       {time}
-                      {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.reduce((sum, item) => sum + (item.staffIds.length || 1), 0)}</span>}
+                      {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.reduce((sum, item) => sum + ((item.staffIds?.length || 0) > 0 ? item.staffIds.length : 1), 0)}</span>}
                   </Button>
                 )
               })}
@@ -445,7 +445,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                     <div className="space-y-2 min-h-[50px]">
                         {displayedSchedules.length > 0 ? (
                             displayedSchedules.map(item => {
-                                const assignedStaff = data.staff.filter(s => item.staffIds.includes(s.id));
+                                const assignedStaff = data.staff.filter(s => item.staffIds && item.staffIds.includes(s.id));
                                 const isSelected = selectedScheduleIds.includes(item.id);
                                 const isEditingThis = editingItem?.id === item.id;
                                 

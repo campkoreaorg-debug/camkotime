@@ -209,7 +209,11 @@ export const useVenueData = () => {
   const addSchedule = (values: Omit<ScheduleItem, 'id'>) => {
     if (!firestore) return;
     const newId = `sch-${Date.now()}`;
-    const newScheduleItem: ScheduleItem = { id: newId, ...values };
+    const newScheduleItem: ScheduleItem = { 
+        id: newId, 
+        ...values,
+        staffIds: values.staffIds || [] 
+    };
     const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', newId);
     setDocumentNonBlocking(scheduleDocRef, newScheduleItem, {});
   };
@@ -217,7 +221,8 @@ export const useVenueData = () => {
   const updateSchedule = (scheduleId: string, data: Partial<ScheduleItem>) => {
     if (!firestore) return;
     const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
-    updateDocumentNonBlocking(scheduleDocRef, data);
+    const updateData = { ...data, staffIds: data.staffIds || [] };
+    updateDocumentNonBlocking(scheduleDocRef, updateData);
   };
   
   const deleteSchedule = (scheduleId: string) => {
@@ -380,19 +385,10 @@ export const useVenueData = () => {
   };
 
   const updateCategory = async (id: string, name: string) => {
-    if (!firestore) return;
+    if (!firestore || !rolesColRef) return;
     const batch = writeBatch(firestore);
     const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', id);
     batch.update(categoryDocRef, { name });
-
-    // Also update role docs that reference this category
-    const q = query(rolesColRef, where('categoryId', '==', id));
-    const rolesSnapshot = await getDocs(q);
-    rolesSnapshot.forEach(roleDoc => {
-      // This part is tricky, as we don't store category name in role.
-      // The update is only for the category document itself.
-      // If we stored name, we would update it here.
-    });
     
     await batch.commit();
   };
@@ -456,7 +452,7 @@ export const useVenueData = () => {
     const mapId = `day${day}-${time.replace(':', '')}`;
     const mapDocRef = doc(firestore, 'venues', VENUE_ID, 'maps', mapId);
     setDocumentNonBlocking(mapDocRef, { day, time, mapImageUrl: newUrl }, { merge: true });
-  }
+  };
 
   const updateMarkerPosition = (markerId: string, x: number, y: number, staffIds?: string[], day?: number, time?: string) => {
     if (!firestore) return;
