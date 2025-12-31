@@ -21,7 +21,7 @@ import {
   getDocs,
   deleteDoc,
 } from 'firebase/firestore';
-import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Position } from '@/lib/types';
+import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Position, Category } from '@/lib/types';
 import { initialData } from '@/lib/data';
 import { useCallback, useMemo } from 'react';
 
@@ -45,6 +45,11 @@ export const useVenueData = () => {
   
   const rolesColRef = useMemoFirebase(
     () => (firestore ? collection(firestore, 'venues', VENUE_ID, 'roles') : null),
+    [firestore]
+  );
+  
+  const categoriesColRef = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'venues', VENUE_ID, 'categories') : null),
     [firestore]
   );
 
@@ -77,6 +82,7 @@ export const useVenueData = () => {
   const { data: venueDoc } = useDoc<any>(venueRef);
   const { data: staff } = useCollection<StaffMember>(staffColRef);
   const { data: roles } = useCollection<Role>(rolesColRef);
+  const { data: categories } = useCollection<Category>(categoriesColRef);
   const { data: positions } = useCollection<Position>(positionsColRef);
   const { data: schedule } = useCollection<ScheduleItem>(scheduleColRef);
   const { data: markers } = useCollection<MapMarker>(markersColRef);
@@ -98,6 +104,11 @@ export const useVenueData = () => {
     initialData.roles.forEach((role) => {
       const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', role.id);
       batch.set(roleDocRef, role);
+    });
+
+    initialData.categories.forEach((category) => {
+        const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', category.id);
+        batch.set(categoryDocRef, category);
     });
 
     initialData.positions.forEach((position) => {
@@ -237,10 +248,10 @@ export const useVenueData = () => {
     batch.commit();
   };
 
-  const addRole = (name: string, scheduleTemplates: ScheduleTemplate[]) => {
+  const addRole = (name: string, categoryId: string, scheduleTemplates: ScheduleTemplate[]) => {
     if (!firestore) return;
     const newId = `role-${Date.now()}`;
-    const newRole: Role = { id: newId, name, scheduleTemplates };
+    const newRole: Role = { id: newId, name, categoryId, scheduleTemplates };
     const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', newId);
     setDocumentNonBlocking(roleDocRef, newRole, {});
   };
@@ -266,10 +277,9 @@ export const useVenueData = () => {
     // 3. Add new schedules based on the role template
     if (roleToAssign.scheduleTemplates) {
       roleToAssign.scheduleTemplates?.forEach(template => {
-          // [방어 코드] template.time이 유효한지 확인합니다.
           if (!template || typeof template.time !== 'string') {
             console.warn('Skipping invalid schedule template:', template);
-            return; // 유효하지 않은 템플릿은 건너뜁니다.
+            return;
           }
           const scheduleId = `sch-${staffId}-${template.day}-${template.time.replace(':', '')}-${Math.random().toString(36).substr(2, 5)}`;
           const newSchedule: ScheduleItem = {
@@ -286,6 +296,27 @@ export const useVenueData = () => {
     }
     
     await batch.commit();
+  };
+
+  const addCategory = (name: string) => {
+    if (!firestore) return;
+    const newId = `cat-${Date.now()}`;
+    const newCategory: Category = { id: newId, name };
+    const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', newId);
+    setDocumentNonBlocking(categoryDocRef, newCategory, {});
+  };
+
+  const updateCategory = (id: string, name: string) => {
+    if (!firestore) return;
+    const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', id);
+    updateDocumentNonBlocking(categoryDocRef, { name });
+  };
+  
+  const deleteCategory = (id: string) => {
+    if (!firestore) return;
+    // TODO: Consider what happens to roles in this category. For now, just deletes the category.
+    const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', id);
+    deleteDocumentNonBlocking(categoryDocRef);
   };
 
   const addPosition = (name: string, color: string) => {
@@ -308,7 +339,6 @@ export const useVenueData = () => {
     const positionDocRef = doc(firestore, 'venues', VENUE_ID, 'positions', positionId);
     batch.delete(positionDocRef);
 
-    // Unassign this position from all staff members
     const q = query(staffColRef, where('position.id', '==', positionId));
     const staffSnapshot = await getDocs(q);
     staffSnapshot.forEach(doc => {
@@ -376,13 +406,14 @@ export const useVenueData = () => {
     return {
       staff: staffWithDetails ? [...staffWithDetails].sort((a,b) => a.id.localeCompare(b.id)) : [],
       roles: roles ? [...roles].sort((a, b) => a.name.localeCompare(b.name)) : [],
+      categories: categories ? [...categories].sort((a,b) => a.name.localeCompare(b.name)) : [],
       positions: positions ? [...positions].sort((a, b) => a.name.localeCompare(b.name)) : [],
       schedule: schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [],
       markers: markers || [],
       maps: maps || [],
       notification: venueDoc?.notification || '',
     };
-  }, [staff, roles, positions, schedule, markers, maps, venueDoc]);
+  }, [staff, roles, categories, positions, schedule, markers, maps, venueDoc]);
 
   return { 
     data: memoizedData, 
@@ -399,11 +430,14 @@ export const useVenueData = () => {
     initializeFirestoreData, 
     addRole,
     assignRoleToStaff,
+    addCategory,
+    updateCategory,
+    deleteCategory,
     addPosition,
     updatePosition,
     deletePosition,
     assignPositionToStaff,
-    isLoading: !venueDoc || !staff || !roles || !positions || !schedule || !markers || !maps, 
+    isLoading: !venueDoc || !staff || !roles || !categories || !positions || !schedule || !markers || !maps, 
     updateMarkerPosition,
     addMarker,
     deleteMarker,
@@ -411,7 +445,6 @@ export const useVenueData = () => {
   };
 };
 
-// This needs to be available to other components, so we export it.
 export const timeSlots = (() => {
   const slots = [];
   for (let h = 7; h < 24; h++) {

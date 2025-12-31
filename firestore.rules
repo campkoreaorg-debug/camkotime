@@ -59,6 +59,12 @@ service cloud.firestore {
         allow get, list: if true;
         allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
       }
+      
+      // Categories can be read by anyone and managed by the venue owner.
+      match /categories/{categoryId} {
+        allow get, list: if true;
+        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+      }
 
       // Positions can be read by anyone.
       // Positions can only be created, updated, or deleted by the user

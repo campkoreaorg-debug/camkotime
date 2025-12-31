@@ -7,9 +7,15 @@ export interface ScheduleTemplate {
   location?: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+}
+
 export interface Role {
   id: string;
   name: string;
+  categoryId: string;
   scheduleTemplates?: ScheduleTemplate[];
 }
 
@@ -55,6 +61,7 @@ export interface MapInfo {
 export interface VenueData {
   staff: StaffMember[];
   roles: Role[];
+  categories: Category[];
   positions: Position[];
   schedule: ScheduleItem[];
   markers: MapMarker[];
