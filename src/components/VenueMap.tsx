@@ -468,7 +468,8 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
               src={finalMapImageUrl}
               alt="Venue Map"
               fill
-              className="object-cover pointer-events-none"
+              sizes="90vw" 
+              className="object-contain pointer-events-none"
               priority
             />
           ) : (

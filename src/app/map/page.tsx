@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useRouter } from 'next/navigation';
@@ -9,6 +8,10 @@ import { Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { Button } from '@/components/ui/button';
+
+// [수정 1] 드래그 앤 드롭 라이브러리 추가
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 export default function MapPage() {
   const router = useRouter();
@@ -29,7 +32,6 @@ export default function MapPage() {
       if (storedSlot) {
         setSelectedSlot(JSON.parse(storedSlot));
       } else {
-        // [수정됨] localStorage에 값이 없으면 기본값 설정
         setSelectedSlot({ day: 0, time: '07:00' });
       }
     };
@@ -53,10 +55,7 @@ export default function MapPage() {
     );
   }
 
-  // Determine if the map should be draggable.
-  // Only non-anonymous (admin) users should be able to drag.
   const isDraggable = user ? !user.isAnonymous : false;
-  
   const currentDay = selectedSlot?.day ?? 0;
   
   const handleSelectSlot = (day: number, time: string) => {
@@ -65,39 +64,40 @@ export default function MapPage() {
     localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(newSlot));
   }
 
-
   return (
-    <div className="h-screen w-screen bg-background p-4 flex flex-col">
-       <h1 className='text-2xl font-bold text-center mb-4 text-primary shrink-0'>
-          VenueSync 실시간 지도 (Day {selectedSlot.day} - {selectedSlot.time})
-       </h1>
-        <div className="flex flex-wrap gap-2 pb-4 mb-4 border-b shrink-0 justify-center">
-            {timeSlots.map(time => {
-                const isSelected = selectedSlot?.day === currentDay && selectedSlot?.time === time;
-                return (
-                <Button 
-                    key={time} 
-                    variant={isSelected ? "default" : "outline"}
-                    className="flex-shrink-0 text-xs h-8"
-                    onClick={() => handleSelectSlot(currentDay, time)}
-                >
-                    {time}
-                </Button>
-                )
-            })}
+    // [수정 2] 전체를 DndProvider로 감싸줍니다.
+    <DndProvider backend={HTML5Backend}>
+      <div className="h-screen w-screen bg-background p-4 flex flex-col">
+         <h1 className='text-2xl font-bold text-center mb-4 text-primary shrink-0'>
+            VenueSync 실시간 지도 (Day {selectedSlot.day} - {selectedSlot.time})
+         </h1>
+          <div className="flex flex-wrap gap-2 pb-4 mb-4 border-b shrink-0 justify-center">
+              {timeSlots.map(time => {
+                  const isSelected = selectedSlot?.day === currentDay && selectedSlot?.time === time;
+                  return (
+                  <Button 
+                      key={time} 
+                      variant={isSelected ? "default" : "outline"}
+                      className="flex-shrink-0 text-xs h-8"
+                      onClick={() => handleSelectSlot(currentDay, time)}
+                  >
+                      {time}
+                  </Button>
+                  )
+              })}
+          </div>
+         <div className='w-full grow'>
+            <VenueMap
+              allMarkers={data.markers}
+              allMaps={data.maps}
+              staff={data.staff}
+              schedule={data.schedule}
+              isDraggable={isDraggable}
+              selectedSlot={selectedSlot}
+              notification={data.notification}
+            />
         </div>
-       <div className='w-full grow'>
-          <VenueMap
-            allMarkers={data.markers}
-            allMaps={data.maps}
-            staff={data.staff}
-            schedule={data.schedule}
-            isDraggable={isDraggable}
-            selectedSlot={selectedSlot}
-            notification={data.notification}
-          />
       </div>
-    </div>
+    </DndProvider>
   );
 }
-

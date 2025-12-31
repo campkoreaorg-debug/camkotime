@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
-import { Calendar, Users, Edit, Plus, UserCheck } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Calendar, Users, Edit, Plus, UserCheck, Upload } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -12,9 +12,10 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
-import { ScheduleItem, StaffMember, Role } from '@/lib/types';
+import { ScheduleItem, StaffMember, Role, ScheduleTemplate } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { timeSlots } from '@/hooks/use-venue-data';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import Papa from 'papaparse';
 
 const days = [0, 1, 2, 3];
 
@@ -26,29 +27,51 @@ export function RolePanel() {
     const [isAssignRoleModalOpen, setIsAssignRoleModalOpen] = useState(false);
 
     const [newRoleName, setNewRoleName] = useState('');
-    const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([]);
+    const [selectedTemplates, setSelectedTemplates] = useState<ScheduleTemplate[]>([]);
     
+    const [uploadedData, setUploadedData] = useState<Record<number, ScheduleTemplate[]>>({});
+    const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+
     const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
     const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 
-    const scheduleByDayTime = useMemo(() => {
-        const grouped: Record<string, ScheduleItem[]> = {};
-        data.schedule.forEach(item => {
-            const key = `${item.day}-${item.time}`;
-            if (!grouped[key]) {
-                grouped[key] = [];
-            }
-            grouped[key].push(item);
+    const handleFileUpload = (day: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse<any>(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                const templates = results.data.map((row, index): ScheduleTemplate | null => {
+                    const time = row['시간'] || row['time'];
+                    const event = row['이벤트'] || row['event'];
+                    const location = row['위치'] || row['location'];
+                    
+                    if (time && event) {
+                        return { day, time, event, location: location || '' };
+                    }
+                    return null;
+                }).filter((t): t is ScheduleTemplate => t !== null);
+
+                setUploadedData(prev => ({ ...prev, [day]: templates }));
+                toast({ title: '업로드 완료', description: `${day}일차 스케줄 ${templates.length}개를 불러왔습니다.` });
+            },
+            error: (error) => {
+                toast({ variant: 'destructive', title: '파싱 오류', description: error.message });
+            },
         });
-        return grouped;
-    }, [data.schedule]);
+    };
     
-    const handleToggleSchedule = (scheduleId: string) => {
-        setSelectedScheduleIds(prev =>
-            prev.includes(scheduleId)
-                ? prev.filter(id => id !== scheduleId)
-                : [...prev, scheduleId]
-        );
+    const handleToggleTemplate = (template: ScheduleTemplate) => {
+        setSelectedTemplates(prev => {
+            const exists = prev.some(t => t.day === template.day && t.time === template.time && t.event === template.event);
+            if (exists) {
+                return prev.filter(t => !(t.day === template.day && t.time === template.time && t.event === template.event));
+            } else {
+                return [...prev, template];
+            }
+        });
     };
 
     const handleCreateRole = () => {
@@ -56,29 +79,20 @@ export function RolePanel() {
             toast({ variant: 'destructive', title: '직책 이름을 입력해주세요.' });
             return;
         }
-        if (selectedScheduleIds.length === 0) {
+        if (selectedTemplates.length === 0) {
             toast({ variant: 'destructive', title: '하나 이상의 스케줄을 선택해주세요.' });
             return;
         }
         
-        const scheduleTemplates = selectedScheduleIds.map(id => {
-            const schedule = data.schedule.find(s => s.id === id);
-            if (!schedule) return null;
-            // id, staffId는 템플릿에 포함시키지 않습니다.
-            return {
-                day: schedule.day,
-                time: schedule.time,
-                event: schedule.event,
-                location: schedule.location,
-            };
-        }).filter(Boolean) as Omit<ScheduleItem, 'id' | 'staffId'>[];
-        
-        addRole(newRoleName, scheduleTemplates);
+        addRole(newRoleName, selectedTemplates);
 
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
+        
+        // Reset state after creation
         setIsCreateRoleModalOpen(false);
         setNewRoleName('');
-        setSelectedScheduleIds([]);
+        setSelectedTemplates([]);
+        setUploadedData({});
     };
 
     const handleAssignRole = () => {
@@ -130,7 +144,7 @@ export function RolePanel() {
                     <DialogHeader>
                         <DialogTitle>새 직책 생성</DialogTitle>
                         <DialogDescription>
-                            새로운 직책의 이름을 입력하고, 해당 직책에 할당할 기본 스케줄을 선택하세요.
+                            CSV 업로드를 통해 직책에 할당할 스케줄 템플릿을 선택하세요. CSV 파일은 '시간', '이벤트', '위치' 헤더를 포함해야 합니다.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
@@ -143,46 +157,66 @@ export function RolePanel() {
                                 placeholder="예: 무대 감독"
                             />
                             <div className='p-4 border rounded-lg bg-muted/20'>
-                                <h4 className='font-semibold mb-2'>선택된 스케줄: {selectedScheduleIds.length}개</h4>
+                                <h4 className='font-semibold mb-2'>선택된 스케줄 템플릿: {selectedTemplates.length}개</h4>
                                 <ScrollArea className='h-60'>
                                     <div className='space-y-1 pr-2'>
-                                    {selectedScheduleIds.map(id => {
-                                        const item = data.schedule.find(s => s.id === id);
-                                        return item ? <div key={id} className='text-xs p-1 bg-primary/10 rounded-sm'>{item.day}일차 {item.time} - {item.event}</div> : null;
-                                    })}
+                                    {selectedTemplates.sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)).map((template, index) => (
+                                         <div key={index} className='text-xs p-1 bg-primary/10 rounded-sm'>
+                                            {template.day}일차 {template.time} - {template.event}
+                                         </div>
+                                    ))}
                                     </div>
                                 </ScrollArea>
                             </div>
                         </div>
                         <div className="space-y-4">
-                             <Label>전체 스케줄에서 선택</Label>
-                             <ScrollArea className="h-[400px] border rounded-lg p-2">
+                             <Label>스케줄 템플릿 선택</Label>
+                             <Tabs defaultValue="day-0">
+                                <TabsList className="grid w-full grid-cols-4">
+                                    {days.map(day => (
+                                        <TabsTrigger key={`day-tab-${day}`} value={`day-${day}`}>Day {day}</TabsTrigger>
+                                    ))}
+                                </TabsList>
                                 {days.map(day => (
-                                    <div key={day} className='mb-4'>
-                                        <h4 className="font-bold text-sm mb-2 p-1 bg-muted rounded-md">Day {day}</h4>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {timeSlots.map(time => {
-                                                const key = `${day}-${time}`;
-                                                const schedules = scheduleByDayTime[key] || [];
-                                                return schedules.length > 0 ? (
-                                                    <div key={key}>
-                                                        <p className='font-medium text-xs text-muted-foreground mb-1'>{time}</p>
-                                                        {schedules.map(schedule => (
-                                                            <div 
-                                                                key={schedule.id} 
-                                                                className={`p-1.5 border rounded-md text-xs cursor-pointer mb-1 ${selectedScheduleIds.includes(schedule.id) ? 'bg-primary/20 border-primary' : 'bg-background'}`}
-                                                                onClick={() => handleToggleSchedule(schedule.id)}
-                                                            >
-                                                                {schedule.event}
-                                                            </div>
-                                                        ))}
+                                    <TabsContent key={`day-content-${day}`} value={`day-${day}`}>
+                                        <div className="space-y-2">
+                                            <Button variant="outline" size="sm" onClick={() => fileInputRefs.current[day]?.click()}>
+                                                <Upload className="mr-2 h-4 w-4" />
+                                                Day {day} CSV 업로드
+                                            </Button>
+                                            <input 
+                                                type="file" 
+                                                ref={el => fileInputRefs.current[day] = el}
+                                                className="hidden"
+                                                accept=".csv"
+                                                onChange={(e) => handleFileUpload(day, e)}
+                                            />
+                                            <ScrollArea className="h-[320px] border rounded-lg p-2">
+                                                {uploadedData[day] ? (
+                                                    <div className="space-y-1">
+                                                        {uploadedData[day].map((template, index) => {
+                                                            const isSelected = selectedTemplates.some(t => t.day === template.day && t.time === template.time && t.event === template.event);
+                                                            return (
+                                                                <div 
+                                                                    key={index}
+                                                                    className={`p-1.5 border rounded-md text-xs cursor-pointer ${isSelected ? 'bg-primary/20 border-primary' : 'bg-background'}`}
+                                                                    onClick={() => handleToggleTemplate(template)}
+                                                                >
+                                                                    <span className="font-bold">{template.time}</span> - {template.event} ({template.location || '위치 없음'})
+                                                                </div>
+                                                            )
+                                                        })}
                                                     </div>
-                                                ) : null;
-                                            })}
+                                                ) : (
+                                                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                                                        CSV 파일을 업로드하세요.
+                                                    </div>
+                                                )}
+                                            </ScrollArea>
                                         </div>
-                                    </div>
+                                    </TabsContent>
                                 ))}
-                            </ScrollArea>
+                             </Tabs>
                         </div>
                     </div>
                     <DialogFooter>
