@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import {
@@ -171,19 +172,36 @@ export const useVenueData = () => {
     
     const batch = writeBatch(firestore);
 
+    // Delete staff member
     const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
     batch.delete(staffDocRef);
 
-    const scheduleQuery = query(scheduleColRef, where('staffId', '==', staffId));
-    const markerQuery = query(markersColRef, where('staffId', '==', staffId));
+    // Remove staff from all schedules
+    const scheduleQuery = query(scheduleColRef, where('staffIds', 'array-contains', staffId));
+    const scheduleSnapshot = await getDocs(scheduleQuery);
+    scheduleSnapshot.forEach(doc => {
+      const currentStaffIds = doc.data().staffIds || [];
+      const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
+      if (newStaffIds.length > 0) {
+        batch.update(doc.ref, { staffIds: newStaffIds });
+      } else {
+        // Optionally delete schedule if no staff left, or leave it unassigned
+        batch.update(doc.ref, { staffIds: [] });
+      }
+    });
 
-    const [scheduleSnapshot, markerSnapshot] = await Promise.all([
-      getDocs(scheduleQuery),
-      getDocs(markerQuery)
-    ]);
-    
-    scheduleSnapshot.forEach(doc => batch.delete(doc.ref));
-    markerSnapshot.forEach(doc => batch.delete(doc.ref));
+    // Remove staff from all markers
+    const markerQuery = query(markersColRef, where('staffIds', 'array-contains', staffId));
+    const markerSnapshot = await getDocs(markerQuery);
+    markerSnapshot.forEach(doc => {
+      const currentStaffIds = doc.data().staffIds || [];
+      const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
+      if (newStaffIds.length > 0) {
+        batch.update(doc.ref, { staffIds: newStaffIds });
+      } else {
+        batch.delete(doc.ref); // Delete marker if no staff left
+      }
+    });
     
     await batch.commit();
   };
@@ -240,7 +258,7 @@ export const useVenueData = () => {
             time,
             event: item.event,
             location: item.location,
-            staffId: item.staffId || "",
+            staffIds: item.staffIds || [],
         };
         const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', newId);
         batch.set(scheduleDocRef, newScheduleItem);
@@ -261,11 +279,9 @@ export const useVenueData = () => {
 
     const batch = writeBatch(firestore);
 
-    // 1. Delete the role document
     const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', roleId);
     batch.delete(roleDocRef);
 
-    // 2. Find all staff with this role and nullify their role
     const staffQuery = query(staffColRef, where('role.id', '==', roleId));
     const staffSnapshot = await getDocs(staffQuery);
 
@@ -275,15 +291,19 @@ export const useVenueData = () => {
         batch.update(staffDoc.ref, { role: null });
     });
     
-    // 3. Delete all schedules assigned to those staff members
     if (staffIdsWithRole.length > 0) {
-        // Firestore 'in' query can take up to 30 items. We batch them just in case.
         for (let i = 0; i < staffIdsWithRole.length; i += 30) {
             const chunk = staffIdsWithRole.slice(i, i + 30);
-            const scheduleQuery = query(scheduleColRef, where('staffId', 'in', chunk));
+            const scheduleQuery = query(scheduleColRef, where('staffIds', 'array-contains-any', chunk));
             const scheduleSnapshot = await getDocs(scheduleQuery);
             scheduleSnapshot.forEach(scheduleDoc => {
-                batch.delete(scheduleDoc.ref);
+                const currentStaffIds = scheduleDoc.data().staffIds || [];
+                const newStaffIds = currentStaffIds.filter((id: string) => !chunk.includes(id));
+                if(newStaffIds.length > 0) {
+                    batch.update(scheduleDoc.ref, { staffIds: newStaffIds });
+                } else {
+                    batch.delete(scheduleDoc.ref);
+                }
             });
         }
     }
@@ -291,43 +311,61 @@ export const useVenueData = () => {
     await batch.commit();
   };
 
-  const assignRoleToStaff = async (staffId: string, roleId: string) => {
-    if (!firestore || !staffColRef || !scheduleColRef) return;
+  const assignRoleToStaff = async (staffIds: string[], roleId: string) => {
+    if (!firestore || !staffColRef || !scheduleColRef || staffIds.length === 0) return;
     
     const roleToAssign = roles?.find(r => r.id === roleId);
-    const staffToAssign = staff?.find(s => s.id === staffId);
-    if (!roleToAssign || !staffToAssign) return;
+    if (!roleToAssign) return;
 
     const batch = writeBatch(firestore);
 
-    // 1. Update staff document with role information
-    const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
-    batch.update(staffDocRef, { role: { id: roleToAssign.id, name: roleToAssign.name } });
+    // 1. Update role for all selected staff
+    staffIds.forEach(staffId => {
+      const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
+      batch.update(staffDocRef, { role: { id: roleToAssign.id, name: roleToAssign.name } });
+    });
 
-    // 2. Delete old schedules for this staff member
-    const q = query(scheduleColRef, where('staffId', '==', staffId));
-    const oldSchedulesSnapshot = await getDocs(q);
-    oldSchedulesSnapshot.forEach(doc => batch.delete(doc.ref));
-
+    // 2. Delete all old schedules for these staff members
+    for (let i = 0; i < staffIds.length; i += 30) {
+      const chunk = staffIds.slice(i, i + 30);
+      const q = query(scheduleColRef, where('staffIds', 'array-contains-any', chunk));
+      const oldSchedulesSnapshot = await getDocs(q);
+      oldSchedulesSnapshot.forEach(doc => {
+        const currentStaffIds = doc.data().staffIds || [];
+        const newStaffIds = currentStaffIds.filter((id: string) => !chunk.includes(id));
+        if (newStaffIds.length > 0) {
+          batch.update(doc.ref, { staffIds: newStaffIds });
+        } else {
+          batch.delete(doc.ref);
+        }
+      });
+    }
+    
     // 3. Add new schedules based on the role template
     if (roleToAssign.scheduleTemplates) {
-      roleToAssign.scheduleTemplates?.forEach(template => {
-          if (!template || typeof template.time !== 'string') {
-            console.warn('Skipping invalid schedule template:', template);
-            return;
-          }
-          const scheduleId = `sch-${staffId}-${template.day}-${template.time.replace(':', '')}-${Math.random().toString(36).substr(2, 5)}`;
-          const newSchedule: ScheduleItem = {
-            id: scheduleId,
-            day: template.day,
-            time: template.time,
-            event: template.event,
-            location: template.location,
-            staffId: staffId,
-          };
-          const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
-          batch.set(scheduleDocRef, newSchedule);
-      })
+      // Group templates by day and time to create single schedule items
+      const groupedTemplates = roleToAssign.scheduleTemplates.reduce((acc, tpl) => {
+        const key = `${tpl.day}-${tpl.time}-${tpl.event}-${tpl.location}`;
+        if (!acc[key]) {
+          acc[key] = { ...tpl, staffIds: [] }; // staffIds will be populated later
+        }
+        return acc;
+      }, {} as Record<string, ScheduleTemplate & { staffIds: string[] }>);
+      
+      for (const key in groupedTemplates) {
+        const template = groupedTemplates[key];
+        const scheduleId = `sch-${template.day}-${template.time.replace(':', '')}-${template.event.slice(0,5).replace(/\s/g, '')}-${Math.random().toString(36).substr(2, 5)}`;
+        const newSchedule: ScheduleItem = {
+          id: scheduleId,
+          day: template.day,
+          time: template.time,
+          event: template.event,
+          location: template.location,
+          staffIds: staffIds, // Assign all staff to this single schedule item
+        };
+        const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
+        batch.set(scheduleDocRef, newSchedule);
+      }
     }
     
     await batch.commit();
@@ -341,17 +379,41 @@ export const useVenueData = () => {
     setDocumentNonBlocking(categoryDocRef, newCategory, {});
   };
 
-  const updateCategory = (id: string, name: string) => {
+  const updateCategory = async (id: string, name: string) => {
     if (!firestore) return;
+    const batch = writeBatch(firestore);
     const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', id);
-    updateDocumentNonBlocking(categoryDocRef, { name });
+    batch.update(categoryDocRef, { name });
+
+    // Also update role docs that reference this category
+    const q = query(rolesColRef, where('categoryId', '==', id));
+    const rolesSnapshot = await getDocs(q);
+    rolesSnapshot.forEach(roleDoc => {
+      // This part is tricky, as we don't store category name in role.
+      // The update is only for the category document itself.
+      // If we stored name, we would update it here.
+    });
+    
+    await batch.commit();
   };
   
-  const deleteCategory = (id: string) => {
-    if (!firestore) return;
-    // TODO: Consider what happens to roles in this category. For now, just deletes the category.
+  const deleteCategory = async (id: string) => {
+    if (!firestore || !rolesColRef) return;
+
+    const batch = writeBatch(firestore);
+
+    // Delete category doc
     const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', id);
-    deleteDocumentNonBlocking(categoryDocRef);
+    batch.delete(categoryDocRef);
+    
+    // Find roles in this category and update them
+    const q = query(rolesColRef, where('categoryId', '==', id));
+    const rolesSnapshot = await getDocs(q);
+    rolesSnapshot.forEach(doc => {
+      batch.update(doc.ref, { categoryId: '' }); // or a default categoryId
+    });
+
+    await batch.commit();
   };
 
   const addPosition = (name: string, color: string) => {
@@ -396,15 +458,14 @@ export const useVenueData = () => {
     setDocumentNonBlocking(mapDocRef, { day, time, mapImageUrl: newUrl }, { merge: true });
   }
 
-  const updateMarkerPosition = (markerId: string, x: number, y: number, staffId?: string, day?: number, time?: string) => {
+  const updateMarkerPosition = (markerId: string, x: number, y: number, staffIds?: string[], day?: number, time?: string) => {
     if (!firestore) return;
     
-    // If it's a default marker, we need to create it first.
-    if (markerId.startsWith('default-marker-') && staffId && day !== undefined && time) {
-        const newMarkerId = `marker-${staffId}-${day}-${time.replace(':', '')}`;
+    if (markerId.startsWith('default-marker-') && staffIds && day !== undefined && time) {
+        const newMarkerId = `marker-${staffIds[0]}-${day}-${time.replace(':', '')}`;
         const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', newMarkerId);
         const newMarkerData: Omit<MapMarker, 'id'> = {
-            staffId,
+            staffIds,
             day,
             time,
             x,
@@ -412,7 +473,6 @@ export const useVenueData = () => {
         };
         setDocumentNonBlocking(markerDocRef, newMarkerData, { merge: true });
     } else {
-        // Otherwise, it's a regular update.
         const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
         updateDocumentNonBlocking(markerDocRef, { x, y });
     }
@@ -420,9 +480,10 @@ export const useVenueData = () => {
   
   const addMarker = (staffId: string, day: number, time: string) => {
     if (!firestore) return;
+    // Check if a marker for this combo already exists
     const markerId = `marker-${staffId}-${day}-${time.replace(':', '')}`;
     const newMarker: Omit<MapMarker, 'id'> = {
-        staffId,
+        staffIds: [staffId],
         day,
         time,
         x: Math.round(Math.random() * 80) + 10,

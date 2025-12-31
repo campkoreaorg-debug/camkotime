@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRouter } from 'next/navigation';
@@ -9,7 +10,6 @@ import { useUser } from '@/firebase';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { Button } from '@/components/ui/button';
 
-// [수정 1] 드래그 앤 드롭 라이브러리 추가
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
@@ -65,7 +65,6 @@ export default function MapPage() {
   }
 
   return (
-    // [수정 2] 전체를 DndProvider로 감싸줍니다.
     <DndProvider backend={HTML5Backend}>
       <div className="h-screen w-screen bg-background p-4 flex flex-col">
          <h1 className='text-2xl font-bold text-center mb-4 text-primary shrink-0'>

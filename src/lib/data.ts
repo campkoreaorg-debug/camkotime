@@ -1,4 +1,5 @@
 
+
 import type { VenueData } from './types';
 import { PlaceHolderImages } from './placeholder-images';
 
@@ -30,14 +31,14 @@ export const initialData: VenueData = {
       { id: 'pos-3', name: 'Backstage', color: '#f97316' },
   ],
   schedule: [
-    { id: 'sch-1', day: 0, time: '09:00', event: '오프닝 게이트 보안 점검', location: '메인 게이트', staffId: 'staff-1' },
-    { id: 'sch-2', day: 0, time: '10:00', event: '의료 부스 준비', location: '의료 센터', staffId: 'staff-2' },
-    { id: 'sch-3', day: 0, time: '10:30', event: '관객 안내 및 동선 확인', location: '전체 구역', staffId: 'staff-3' },
+    { id: 'sch-1', day: 0, time: '09:00', event: '오프닝 게이트 보안 점검', location: '메인 게이트', staffIds: ['staff-1'] },
+    { id: 'sch-2', day: 0, time: '10:00', event: '의료 부스 준비', location: '의료 센터', staffIds: ['staff-2'] },
+    { id: 'sch-3', day: 0, time: '10:30', event: '관객 안내 및 동선 확인', location: '전체 구역', staffIds: ['staff-3'] },
   ],
   markers: [
-    { id: 'marker-1-0-0900', staffId: 'staff-1', day: 0, time: '09:00', x: 20, y: 30 },
-    { id: 'marker-2-0-1000', staffId: 'staff-2', day: 0, time: '10:00', x: 50, y: 50 },
-    { id: 'marker-3-0-1030', staffId: 'staff-3', day: 0, time: '10:30', x: 80, y: 70 },
+    { id: 'marker-1-0-0900', staffIds: ['staff-1'], day: 0, time: '09:00', x: 20, y: 30 },
+    { id: 'marker-2-0-1000', staffIds: ['staff-2'], day: 0, time: '10:00', x: 50, y: 50 },
+    { id: 'marker-3-0-1030', staffIds: ['staff-3'], day: 0, time: '10:30', x: 80, y: 70 },
   ],
   maps: [
     { id: 'day0-0900', day: 0, time: '09:00', mapImageUrl: mapBg },

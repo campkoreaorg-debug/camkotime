@@ -32,11 +32,13 @@ import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { ScrollArea } from '../ui/scroll-area';
 import Papa from 'papaparse';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+
 
 const scheduleSchema = z.object({
   event: z.string().min(1, '이벤트 내용을 입력해주세요.'),
   location: z.string().optional(),
-  staffId: z.string().optional(),
+  staffIds: z.array(z.string()).optional(),
 });
 
 type ScheduleFormValues = z.infer<typeof scheduleSchema>;
@@ -73,7 +75,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
-    defaultValues: { event: '', location: '', staffId: '' },
+    defaultValues: { event: '', location: '', staffIds: [] },
   });
 
   useEffect(() => {
@@ -90,21 +92,21 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   const handleSelectSlot = (day: number, time: string) => {
     onSlotChange(day, time);
     setEditingItem(null);
-    form.reset({ event: '', location: '', staffId: '' });
+    form.reset({ event: '', location: '', staffIds: [] });
     setSelectedScheduleIds([]); // 다른 슬롯 선택 시 선택 해제
   }
 
   const handleEditClick = (e: React.MouseEvent, item: ScheduleItem) => {
     e.stopPropagation(); // Prevent row selection when clicking edit
     setEditingItem(item);
-    form.reset({ event: item.event, location: item.location || '', staffId: item.staffId || '' });
+    form.reset({ event: item.event, location: item.location || '', staffIds: item.staffIds || [] });
     setSelectedScheduleIds([]); // 수정 시작 시 선택 해제
     eventInputRef.current?.focus();
   };
   
   const handleCancelEdit = () => {
     setEditingItem(null);
-    form.reset({ event: '', location: '', staffId: '' });
+    form.reset({ event: '', location: '', staffIds: [] });
   }
 
   const onSubmit = (values: ScheduleFormValues) => {
@@ -114,7 +116,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       ...values,
       day: selectedSlot.day,
       time: selectedSlot.time,
-      staffId: values.staffId === 'unassigned' ? '' : values.staffId,
+      staffIds: values.staffIds || [],
     };
 
     if (editingItem) {
@@ -125,7 +127,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       addSchedule(scheduleData);
       toast({ title: '추가 완료', description: '스케줄이 추가되었습니다.'});
     }
-    form.reset({ event: '', location: '', staffId: '' });
+    form.reset({ event: '', location: '', staffIds: [] });
     eventInputRef.current?.focus();
   };
   
@@ -235,13 +237,23 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       return;
     }
 
-    const csvData = schedulesToDownload.map(item => ({
-      '일차': item.day,
-      '시간': item.time,
-      '이벤트': item.event,
-      '위치': item.location || '',
-      '담당자': data.staff.find(s => s.id === item.staffId)?.name || '미지정',
-    }));
+    const csvData = schedulesToDownload.flatMap(item => 
+        item.staffIds.length > 0
+        ? item.staffIds.map(staffId => ({
+            '일차': item.day,
+            '시간': item.time,
+            '이벤트': item.event,
+            '위치': item.location || '',
+            '담당자': data.staff.find(s => s.id === staffId)?.name || '미지정',
+          }))
+        : [{
+            '일차': item.day,
+            '시간': item.time,
+            '이벤트': item.event,
+            '위치': item.location || '',
+            '담당자': '미지정',
+          }]
+      );
 
     const csv = Papa.unparse(csvData);
     const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
@@ -270,7 +282,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     }
     const slotSchedules = currentDaySchedules[selectedSlot.time];
     if (filteredStaffId) {
-      return slotSchedules.filter(item => item.staffId === filteredStaffId);
+      return slotSchedules.filter(item => item.staffIds.includes(filteredStaffId));
     }
     return slotSchedules;
   }, [selectedSlot, currentDaySchedules, filteredStaffId]);
@@ -328,7 +340,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                       onClick={() => handleSelectSlot(day, time)}
                   >
                       {time}
-                      {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.length}</span>}
+                      {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.reduce((sum, item) => sum + (item.staffIds.length || 1), 0)}</span>}
                   </Button>
                 )
               })}
@@ -406,13 +418,11 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                       id="event-input"
                                       placeholder={editingItem ? "항목 수정..." : "새 항목 추가 (Enter)"}
                                       
-                                      // 2. 나머지 속성들을 뿌려줍니다 (onChange, onBlur, name 등)
                                       {...restFormProps} 
                                       
-                                      // 3. ref를 함수형으로 작성하여 두 곳 모두에 연결합니다.
                                       ref={(e) => {
-                                          formRef(e); // react-hook-form에 연결
-                                          eventInputRef.current = e; // 포커스용 ref에 연결
+                                          formRef(e);
+                                          eventInputRef.current = e;
                                       }}
                                       
                                       autoComplete="off"
@@ -421,29 +431,6 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                         <p className="text-sm text-destructive mt-1">{form.formState.errors.event.message}</p>
                                     )}
                                 </div>
-                                
-                                <Select
-                                  onValueChange={(value) => form.setValue('staffId', value === 'unassigned' ? '' : value)}
-                                  value={form.watch('staffId') || 'unassigned'}
-                                >
-                                  <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="담당자 선택" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      <SelectItem value="unassigned">담당자 없음</SelectItem>
-                                      {data.staff.map(s => (
-                                          <SelectItem key={s.id} value={s.id}>
-                                            <div className="flex items-center gap-2">
-                                              <Avatar className="h-5 w-5">
-                                                <AvatarImage src={s.avatar} alt={s.name} />
-                                                <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
-                                              </Avatar>
-                                              <span>{s.name}</span>
-                                            </div>
-                                          </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                </Select>
                                 
                                 <Button type="submit">
                                     <Plus className="h-4 w-4" />
@@ -458,7 +445,7 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                     <div className="space-y-2 min-h-[50px]">
                         {displayedSchedules.length > 0 ? (
                             displayedSchedules.map(item => {
-                                const assignedStaff = data.staff.find(s => s.id === item.staffId);
+                                const assignedStaff = data.staff.filter(s => item.staffIds.includes(s.id));
                                 const isSelected = selectedScheduleIds.includes(item.id);
                                 const isEditingThis = editingItem?.id === item.id;
                                 
@@ -477,14 +464,29 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                                         <div>
                                             <p className="font-medium text-sm">{item.event}</p>
                                             <div className='flex items-center gap-2 mt-1'>
-                                                {assignedStaff ? (
-                                                    <>
-                                                        <Avatar className="h-5 w-5">
-                                                            <AvatarImage src={assignedStaff.avatar} alt={assignedStaff.name} />
-                                                            <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
-                                                        </Avatar>
-                                                        <p className="text-xs text-muted-foreground">{assignedStaff.name}</p>
-                                                    </>
+                                                {assignedStaff.length > 0 ? (
+                                                    <div className="flex items-center -space-x-2">
+                                                        {assignedStaff.slice(0, 3).map(staff => (
+                                                            <TooltipProvider key={staff.id}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger>
+                                                                        <Avatar className="h-5 w-5 border-2 border-background">
+                                                                            <AvatarImage src={staff.avatar} alt={staff.name} />
+                                                                            <AvatarFallback>{staff.name.charAt(0)}</AvatarFallback>
+                                                                        </Avatar>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>{staff.name}</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
+                                                        ))}
+                                                        {assignedStaff.length > 3 && (
+                                                            <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground border-2 border-background">
+                                                                +{assignedStaff.length - 3}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <>
                                                         <User className='h-4 w-4 text-muted-foreground' />
@@ -551,9 +553,3 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     </Card>
   );
 }
-
-    
-
-    
-
-    

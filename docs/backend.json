@@ -110,9 +110,10 @@
           "type": "string",
           "description": "Location of the event."
         },
-        "staffId": {
-          "type": "string",
-          "description": "ID of the assigned staff member."
+        "staffIds": {
+          "type": "array",
+          "description": "IDs of the assigned staff members.",
+          "items": { "type": "string" }
         }
       },
       "required": ["id", "venueId", "day", "time", "event"]
@@ -189,9 +190,10 @@
           "type": "string",
           "description": "The time slot this marker position is for."
         },
-        "staffId": {
-          "type": "string",
-          "description": "ID of the staff member this marker represents."
+        "staffIds": {
+          "type": "array",
+          "description": "IDs of the staff members this marker represents.",
+          "items": { "type": "string" }
         },
         "x": {
           "type": "number",
@@ -202,7 +204,7 @@
           "description": "The y-coordinate percentage."
         }
       },
-      "required": ["id", "day", "time", "staffId", "x", "y"]
+      "required": ["id", "day", "time", "staffIds", "x", "y"]
     },
     "Position": {
       "$schema": "http://json-schema.org/draft-07/schema#",

@@ -2,13 +2,13 @@
 "use client";
 
 import { useState, useMemo, useRef } from 'react';
-import { Calendar, Users, Edit, Plus, UserCheck, Upload, Settings, Trash2, GripVertical } from 'lucide-react';
+import { Calendar, Users, Edit, Plus, UserCheck, Upload, Settings, Trash2, GripVertical, Search } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,9 @@ import { ScheduleItem, StaffMember, Role, ScheduleTemplate, Category } from '@/l
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Papa from 'papaparse';
+import { Checkbox } from '../ui/checkbox';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+
 
 const days = [0, 1, 2, 3];
 
@@ -41,8 +44,9 @@ export function RolePanel() {
     const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
     // Assign Role State
-    const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+    const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
     const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+    const [staffSearchTerm, setStaffSearchTerm] = useState('');
     
     // Category Manager State
     const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -115,15 +119,16 @@ export function RolePanel() {
     };
 
     const handleAssignRole = () => {
-        if (!selectedStaffId || !selectedRoleId) {
-            toast({ variant: 'destructive', title: '스태프와 직책을 모두 선택해주세요.' });
+        if (!selectedRoleId || selectedStaffIds.length === 0) {
+            toast({ variant: 'destructive', title: '직책과 한 명 이상의 스태프를 선택해주세요.' });
             return;
         }
-        assignRoleToStaff(selectedStaffId, selectedRoleId);
-        toast({ title: '성공', description: '직책이 배정되었습니다. 해당 스태프의 스케줄이 업데이트됩니다.' });
+        assignRoleToStaff(selectedStaffIds, selectedRoleId);
+        toast({ title: '성공', description: `${selectedStaffIds.length}명의 스태프에게 직책이 배정되었습니다.` });
         setIsAssignRoleModalOpen(false);
-        setSelectedStaffId(null);
         setSelectedRoleId(null);
+        setSelectedStaffIds([]);
+        setStaffSearchTerm('');
     }
     
     const handleSaveCategory = () => {
@@ -163,6 +168,10 @@ export function RolePanel() {
         setIsDeleteRoleAlertOpen(false);
         setRoleToDelete(null);
     };
+    
+    const filteredStaff = useMemo(() => {
+        return data.staff.filter(s => s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()));
+    }, [data.staff, staffSearchTerm]);
 
 
     return (
@@ -177,7 +186,7 @@ export function RolePanel() {
                 <div className="flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setIsCategoryManagerOpen(true)}><Settings className="mr-2 h-4 w-4"/>카테고리 관리</Button>
                     <Button variant="outline" onClick={() => setIsCreateRoleModalOpen(true)}><Plus className="mr-2 h-4 w-4"/>직책 생성</Button>
-                    <Button onClick={() => setIsAssignRoleModalOpen(true)}><UserCheck className="mr-2 h-4 w-4"/>직책 배정</Button>
+                    <Button onClick={() => { setIsAssignRoleModalOpen(true); setSelectedRoleId(null); setSelectedStaffIds([]); setStaffSearchTerm(''); }}><UserCheck className="mr-2 h-4 w-4"/>직책 배정</Button>
                 </div>
             </CardHeader>
             <CardContent>
@@ -194,9 +203,25 @@ export function RolePanel() {
                                         </div>
                                         {category && <Badge variant="outline" className='mt-2'>{category.name}</Badge>}
                                     </div>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100" onClick={() => openDeleteRoleDialog(role)}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>정말 이 직책을 삭제하시겠습니까?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                '{role.name}' 직책이 영구적으로 삭제됩니다. 이 직책이 할당된 모든 스태프의 직책 정보와 관련 스케줄도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>취소</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => deleteRole(role.id)} variant="destructive">삭제</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </div>
                             )
                         })}
@@ -332,7 +357,7 @@ export function RolePanel() {
 
             {/* 직책 배정 모달 */}
             <Dialog open={isAssignRoleModalOpen} onOpenChange={setIsAssignRoleModalOpen}>
-                <DialogContent>
+                <DialogContent className="max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>직책 배정</DialogTitle>
                         <DialogDescription>
@@ -340,22 +365,9 @@ export function RolePanel() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                        <div>
-                            <Label>스태프로 필터링</Label>
-                            <Select onValueChange={setSelectedStaffId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="배정할 스태프를 선택하세요" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {data.staff.map(s => (
-                                        <SelectItem key={s.id} value={s.id}>{s.name} ({s.role?.name || '직책 없음'})</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div>
-                            <Label>직책으로 필터링</Label>
-                             <Select onValueChange={setSelectedRoleId}>
+                        <div className='space-y-2'>
+                            <Label>1. 배정할 직책 선택</Label>
+                             <Select onValueChange={setSelectedRoleId} value={selectedRoleId || ''}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="배정할 직책을 선택하세요" />
                                 </SelectTrigger>
@@ -366,10 +378,54 @@ export function RolePanel() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <div className='space-y-2'>
+                            <Label>2. 배정할 스태프 선택 (다중 선택 가능)</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    placeholder="스태프 이름으로 검색..."
+                                    value={staffSearchTerm}
+                                    onChange={(e) => setStaffSearchTerm(e.target.value)}
+                                    className="pl-10"
+                                />
+                            </div>
+                            <ScrollArea className="h-64 rounded-md border">
+                                <div className="p-2 space-y-1">
+                                    {filteredStaff.map(staff => (
+                                        <div key={staff.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-muted">
+                                            <Checkbox
+                                                id={`staff-${staff.id}`}
+                                                checked={selectedStaffIds.includes(staff.id)}
+                                                onCheckedChange={(checked) => {
+                                                    return checked
+                                                        ? setSelectedStaffIds([...selectedStaffIds, staff.id])
+                                                        : setSelectedStaffIds(selectedStaffIds.filter(id => id !== staff.id))
+                                                }}
+                                            />
+                                            <Label 
+                                                htmlFor={`staff-${staff.id}`}
+                                                className="flex-1 flex items-center gap-3 cursor-pointer"
+                                            >
+                                                <Avatar className="h-8 w-8">
+                                                    <AvatarImage src={staff.avatar} alt={staff.name} />
+                                                    <AvatarFallback>{staff.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex-1">
+                                                    <p className="font-medium">{staff.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{staff.role?.name || '직책 없음'}</p>
+                                                </div>
+                                            </Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </div>
                     </div>
                      <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAssignRoleModalOpen(false)}>취소</Button>
-                        <Button onClick={handleAssignRole}>배정하기</Button>
+                        <Button onClick={handleAssignRole} disabled={!selectedRoleId || selectedStaffIds.length === 0}>
+                            {selectedStaffIds.length}명에게 직책 배정
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -404,9 +460,25 @@ export function RolePanel() {
                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditingCategory(cat)}>
                                                 <Edit className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteCategory(cat.id)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>정말 이 카테고리를 삭제하시겠습니까?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            '{cat.name}' 카테고리가 영구적으로 삭제됩니다. 이 카테고리에 속한 모든 직책의 카테고리 정보가 초기화됩니다. 이 작업은 되돌릴 수 없습니다.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>취소</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => deleteCategory(cat.id)} variant="destructive">삭제</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                        </div>
                                    </div>
                                ))}
@@ -420,20 +492,7 @@ export function RolePanel() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <AlertDialog open={isDeleteRoleAlertOpen} onOpenChange={setIsDeleteRoleAlertOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>정말 이 직책을 삭제하시겠습니까?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            '{roleToDelete?.name}' 직책이 영구적으로 삭제됩니다. 이 직책이 할당된 모든 스태프의 직책 정보와 관련 스케줄도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmDeleteRole} variant="destructive">삭제</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+
         </Card>
     );
 }

@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { CalendarClock, X, UserPlus, Upload, Megaphone, Trash2 } from 'lucide-react';
+import { CalendarClock, X, UserPlus, Upload, Megaphone, Trash2, Users } from 'lucide-react';
 import type { MapMarker, StaffMember, ScheduleItem, MapInfo, Position } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
@@ -53,32 +54,41 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const finalMapImageUrl = currentMap?.mapImageUrl || defaultMapImage?.imageUrl;
 
   const currentMarkers = useMemo(() => {
-      if (!selectedSlot) return [];
-      const scheduledStaffIdsForSlot = new Set(
-          schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time && s.staffId).map(s => s.staffId)
-      );
+    if (!selectedSlot) return [];
+    
+    // 1. Get all staff IDs who have a schedule at this time slot
+    const scheduledStaffIds = new Set(
+        schedule
+            .filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time)
+            .flatMap(s => s.staffIds)
+    );
 
-      const timeSpecificMarkers = allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
-      const timeSpecificMarkerStaffIds = new Set(timeSpecificMarkers.map(m => m.staffId));
-      
-      const markersToShow = [...timeSpecificMarkers];
+    // 2. Get all markers that are specifically for this time slot
+    const timeSpecificMarkers = allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
+    
+    // 3. Create a set of staff IDs that already have a marker
+    const staffWithMarkers = new Set(timeSpecificMarkers.flatMap(m => m.staffIds));
+    
+    const markersToShow = [...timeSpecificMarkers];
 
-      scheduledStaffIdsForSlot.forEach(staffId => {
-          if (staffId && !timeSpecificMarkerStaffIds.has(staffId)) {
-              const defaultMarker: MapMarker = {
-                  id: `default-marker-${staffId}-${selectedSlot.day}-${selectedSlot.time}`,
-                  staffId: staffId,
-                  day: selectedSlot.day,
-                  time: selectedSlot.time,
-                  x: 50,
-                  y: 50,
-              };
-              markersToShow.push(defaultMarker);
-          }
-      });
+    // 4. For scheduled staff who DON'T have a marker, create a default one
+    scheduledStaffIds.forEach(staffId => {
+        if (staffId && !staffWithMarkers.has(staffId)) {
+            const defaultMarker: MapMarker = {
+                id: `default-marker-${staffId}-${selectedSlot.day}-${selectedSlot.time}`,
+                staffIds: [staffId],
+                day: selectedSlot.day,
+                time: selectedSlot.time,
+                x: 50,
+                y: 50,
+            };
+            markersToShow.push(defaultMarker);
+        }
+    });
       
-      return markersToShow;
+    return markersToShow;
   }, [allMarkers, schedule, selectedSlot]);
+
 
   const mapRef = useRef<HTMLDivElement>(null);
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
@@ -139,8 +149,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
             x = Math.max(0, Math.min(100, x));
             y = Math.max(0, Math.min(100, y));
             
-            // Pass all necessary info for potential creation
-            updateMarkerPosition(marker.id, x, y, marker.staffId, marker.day, marker.time);
+            updateMarkerPosition(marker.id, x, y, marker.staffIds, marker.day, marker.time);
         } else {
             setActiveMarkerId(prev => prev === marker.id ? null : marker.id);
         }
@@ -199,22 +208,18 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }
 
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
-    const staffMember = useMemo(() => marker.staffId ? staff.find(s => s.id === marker.staffId) : undefined, [marker.staffId]);
-    const staffSchedule = useMemo(() => {
-        if (!staffMember || !selectedSlot) return [];
-        return schedule
-          .filter(task => task.staffId === staffMember.id && task.day === selectedSlot.day)
-          .sort((a,b) => a.time.localeCompare(b.time));
-    }, [staffMember, schedule, selectedSlot]);
+    const staffMembers = useMemo(() => staff.filter(s => marker.staffIds.includes(s.id)), [marker.staffIds]);
     
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.POSITION,
         drop: (item: Position) => {
-            if (staffMember) {
-                assignPositionToStaff(staffMember.id, item);
+            if (staffMembers.length > 0) {
+                staffMembers.forEach(staffMember => {
+                    assignPositionToStaff(staffMember.id, item);
+                })
                 toast({
                     title: '포지션 할당됨',
-                    description: `${staffMember.name}님에게 '${item.name}' 포지션이 할당되었습니다.`,
+                    description: `${staffMembers.map(s=>s.name).join(', ')}님에게 '${item.name}' 포지션이 할당되었습니다.`,
                 });
             }
         },
@@ -222,14 +227,14 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
             isOver: !!monitor.isOver(),
             canDrop: !!monitor.canDrop(),
         }),
-    }), [staffMember]);
+    }), [staffMembers]);
 
-    if (!staffMember) return null;
+    if (staffMembers.length === 0) return null;
     const isOpen = activeMarkerId === marker.id;
     const isDraggingThis = draggingMarker?.id === marker.id;
 
-    const staffIndex = staff.findIndex(s => s.id === staffMember.id);
-    const positionColor = staffMember.position?.color;
+    const mainStaff = staffMembers[0];
+    const positionColor = mainStaff.position?.color;
 
     return (
         <Popover open={isOpen} onOpenChange={(open) => { if (!open) setActiveMarkerId(null); }}>
@@ -248,52 +253,72 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                     onPointerDown={(e) => handlePointerDown(e, marker)}
                     onClick={(e) => e.preventDefault()}
                 >
-                    <div className="relative">
-                         <span className="absolute -top-1 -left-1 z-10 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">
-                            {staffIndex + 1}
-                        </span>
-                        <Avatar className={cn("h-10 w-10 border-4 border-primary-foreground shadow-lg pointer-events-none transition-colors", 
-                            (isDraggingThis || isOpen || isOver) && "border-primary",
-                            isOver && canDrop && 'ring-4 ring-offset-2 ring-primary'
+                    <div className="relative flex items-center">
+                        {staffMembers.slice(0, 3).map((staffMember, index) => (
+                            <Avatar 
+                                key={staffMember.id}
+                                className={cn("h-10 w-10 border-4 shadow-lg pointer-events-none transition-colors", 
+                                    (isDraggingThis || isOpen || isOver) && "border-primary",
+                                    isOver && canDrop && 'ring-4 ring-offset-2 ring-primary',
+                                    index > 0 && "-ml-4"
+                                )}
+                                style={{
+                                    zIndex: staffMembers.length - index,
+                                    borderColor: isOver && canDrop ? 'hsl(var(--primary))' : staffMember.position?.color ? staffMember.position?.color : 'hsl(var(--primary-foreground))'
+                                }}
+                            >
+                                <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
+                                <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                        ))}
+                         {staffMembers.length > 3 && (
+                            <div style={{ zIndex: 0 }} className="-ml-4 h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm text-muted-foreground border-4 border-primary-foreground shadow-lg">
+                                +{staffMembers.length - 3}
+                            </div>
                         )}
-                        style={{ borderColor: isOver && canDrop ? 'hsl(var(--primary))' : positionColor ? positionColor : 'hsl(var(--primary-foreground))' }}
+                    </div>
+                    {staffMembers.length === 1 && (
+                        <div className={cn("mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none transition-colors",
+                            mainStaff.position && "text-white"
+                        )}
+                        style={{ backgroundColor: mainStaff.position ? mainStaff.position.color : 'rgba(0,0,0,0.6)'}}
                         >
-                            <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
-                            <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                    </div>
-                    <div className={cn("mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none transition-colors",
-                         staffMember.position && "text-white"
+                        {mainStaff.name}
+                        </div>
                     )}
-                    style={{ backgroundColor: staffMember.position ? staffMember.position.color : 'rgba(0,0,0,0.6)'}}
-                    >
-                       {staffIndex + 1}. {staffMember.name}
-                    </div>
                 </div>
             </PopoverTrigger>
             
             <PopoverContent 
-                className="w-80 p-0 overflow-hidden notranslate" 
+                className="w-96 p-0 overflow-hidden notranslate" 
                 sideOffset={10}
                 {...{ "translate": "no" } as any}
                 onPointerDown={(e) => e.stopPropagation()}
             >
-                <div className="bg-primary/5 p-4 border-b flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                         <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
-                            <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
-                            <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <h3 className="text-lg font-bold leading-none">{staffMember.name}</h3>
-                            <p className="text-sm text-muted-foreground mt-1">{staffMember.role?.name || '직책 없음'}</p>
-                            {staffMember.position && (
-                                 <Badge className="mt-2" style={{ backgroundColor: staffMember.position.color, color: '#fff' }}>
-                                    {staffMember.position.name}
-                                 </Badge>
-                            )}
+                <div className="p-4 border-b flex justify-between items-start">
+                    <div>
+                        <h3 className="text-lg font-bold leading-tight flex items-center gap-2 mb-2">
+                           <Users className="h-5 w-5 text-primary"/> {staffMembers.length}명의 스태프
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                            {staffMembers.map(s => (
+                                <TooltipProvider key={s.id}>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <Avatar className="h-9 w-9">
+                                                <AvatarImage src={s.avatar} alt={s.name} />
+                                                <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>{s.name}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            ))}
                         </div>
                     </div>
+
                     <div className='flex flex-col items-center gap-1 -mr-2 -my-2'>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActiveMarkerId(null)}>
                             <X className="h-4 w-4" />
@@ -322,32 +347,41 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                 
                 <div className="p-4">
                     <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-primary">
-                       <CalendarClock className='h-4 w-4'/> 오늘의 담당 스케줄 (Day {selectedSlot?.day})
+                       <CalendarClock className='h-4 w-4'/> 현재 시간대 담당 스케줄
                     </h4>
                     <ScrollArea className="h-[200px] pr-2">
-                    {staffSchedule.length > 0 ? (
-                        <div className='space-y-3'>
-                            {staffSchedule.map(task => (
-                                 <div key={task.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
-                                     <div className="bg-muted px-3 py-1.5 border-b flex justify-between items-center">
-                                        <p className="font-medium text-xs text-muted-foreground">{task.location || 'N/A'}</p>
-                                        <p className="font-bold text-xs text-primary">{task.time}</p>
-                                     </div>
-                                     <div className="p-2">
-                                         <div className="text-sm flex items-start gap-2">
-                                             <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                                             <span className="leading-tight">{task.event}</span>
+                    {(() => {
+                        if (!selectedSlot) return null;
+                        const staffIds = new Set(staffMembers.map(s => s.id));
+                        const relevantSchedules = schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time && s.staffIds.some(id => staffIds.has(id)));
+                        
+                        if (relevantSchedules.length > 0) {
+                            return (
+                                <div className='space-y-3'>
+                                    {relevantSchedules.map(task => (
+                                         <div key={task.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                                             <div className="bg-muted px-3 py-1.5 border-b flex justify-between items-center">
+                                                <p className="font-medium text-xs text-muted-foreground">{task.location || 'N/A'}</p>
+                                                <p className="font-bold text-xs text-primary">{task.time}</p>
+                                             </div>
+                                             <div className="p-2">
+                                                 <div className="text-sm flex items-start gap-2">
+                                                     <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                                                     <span className="leading-tight">{task.event}</span>
+                                                 </div>
+                                             </div>
                                          </div>
-                                     </div>
-                                 </div>
-                             ))}
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-[150px] text-muted-foreground gap-2">
-                            <CalendarClock className="h-8 w-8 opacity-20" />
-                            <p className="text-sm">배정된 업무가 없습니다.</p>
-                        </div>
-                    )}
+                                     ))}
+                                </div>
+                            )
+                        }
+                        return (
+                            <div className="flex flex-col items-center justify-center h-[150px] text-muted-foreground gap-2">
+                                <CalendarClock className="h-8 w-8 opacity-20" />
+                                <p className="text-sm">배정된 업무가 없습니다.</p>
+                            </div>
+                        )
+                    })()}
                     </ScrollArea>
                 </div>
             </PopoverContent>
@@ -356,7 +390,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }
 
   const UnassignedStaff = () => {
-    const assignedStaffIds = useMemo(() => new Set(currentMarkers.map(m => m.staffId)), [currentMarkers]);
+    const assignedStaffIds = useMemo(() => new Set(currentMarkers.flatMap(m => m.staffIds)), [currentMarkers]);
     const unassignedStaff = useMemo(() => staff.filter(s => !assignedStaffIds.has(s.id)), [staff, assignedStaffIds]);
     
     if (unassignedStaff.length === 0 || !isDraggable) return null;

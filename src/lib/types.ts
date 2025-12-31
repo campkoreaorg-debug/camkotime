@@ -39,12 +39,12 @@ export interface ScheduleItem {
   time: string;
   event: string;
   location?: string;
-  staffId?: string;
+  staffIds: string[];
 }
 
 export interface MapMarker {
   id: string;
-  staffId: string;
+  staffIds: string[];
   day: number;
   time: string;
   x: number;
