@@ -56,22 +56,18 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const currentMarkers = useMemo(() => {
     if (!selectedSlot) return [];
     
-    // 1. Get all staff IDs who have a schedule at this time slot
     const scheduledStaffIds = new Set(
         schedule
             .filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time)
-            .flatMap(s => s.staffIds)
+            .flatMap(s => s.staffIds || [])
     );
 
-    // 2. Get all markers that are specifically for this time slot
     const timeSpecificMarkers = allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
     
-    // 3. Create a set of staff IDs that already have a marker
-    const staffWithMarkers = new Set(timeSpecificMarkers.flatMap(m => m.staffIds));
+    const staffWithMarkers = new Set(timeSpecificMarkers.flatMap(m => m.staffIds || []));
     
     const markersToShow = [...timeSpecificMarkers];
 
-    // 4. For scheduled staff who DON'T have a marker, create a default one
     scheduledStaffIds.forEach(staffId => {
         if (staffId && !staffWithMarkers.has(staffId)) {
             const defaultMarker: MapMarker = {
@@ -353,7 +349,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                     {(() => {
                         if (!selectedSlot) return null;
                         const staffIds = new Set(staffMembers.map(s => s.id));
-                        const relevantSchedules = schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time && s.staffIds.some(id => staffIds.has(id)));
+                        const relevantSchedules = schedule.filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time && s.staffIds?.some(id => staffIds.has(id)));
                         
                         if (relevantSchedules.length > 0) {
                             return (
@@ -390,7 +386,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }
 
   const UnassignedStaff = () => {
-    const assignedStaffIds = useMemo(() => new Set(currentMarkers.flatMap(m => m.staffIds)), [currentMarkers]);
+    const assignedStaffIds = useMemo(() => new Set(currentMarkers.flatMap(m => m.staffIds || [])), [currentMarkers]);
     const unassignedStaff = useMemo(() => staff.filter(s => !assignedStaffIds.has(s.id)), [staff, assignedStaffIds]);
     
     if (unassignedStaff.length === 0 || !isDraggable) return null;
@@ -423,7 +419,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                                             <div className="relative group flex flex-col items-center gap-1 cursor-pointer" onClick={() => handleAddMarkerClick(s.id)}>
                                                  <span className="absolute -top-1 -left-1 z-10 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">
                                                     {staffIndex + 1}
-                                                </span>
+                                                 </span>
                                                 <Avatar className='h-12 w-12 border-2 border-transparent group-hover:border-primary transition-all'>
                                                     <AvatarImage src={s.avatar} alt={s.name} />
                                                     <AvatarFallback><UserPlus className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
