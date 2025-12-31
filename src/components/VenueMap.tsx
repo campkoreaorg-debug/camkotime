@@ -82,26 +82,26 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
 
   const mapRef = useRef<HTMLDivElement>(null);
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
-  const [draggingMarkerId, setDraggingMarkerId] = useState<string | null>(null);
+  const [draggingMarker, setDraggingMarker] = useState<MapMarker | null>(null);
   const isDraggingRef = useRef(false);
   const startPosRef = useRef({ x: 0, y: 0 });
-  const currentInteractIdRef = useRef<string | null>(null);
+  const currentInteractMarkerRef = useRef<MapMarker | null>(null);
   const [isUnassignedPopoverOpen, setIsUnassignedPopoverOpen] = useState(false);
 
-  const handlePointerDown = (e: React.PointerEvent, markerId: string) => {
+  const handlePointerDown = (e: React.PointerEvent, marker: MapMarker) => {
     e.stopPropagation();
-    if (activeMarkerId && activeMarkerId !== markerId) {
+    if (activeMarkerId && activeMarkerId !== marker.id) {
         setActiveMarkerId(null);
     }
     startPosRef.current = { x: e.clientX, y: e.clientY };
     isDraggingRef.current = false;
-    currentInteractIdRef.current = markerId;
+    currentInteractMarkerRef.current = marker;
     window.addEventListener('pointermove', handleGlobalMove);
     window.addEventListener('pointerup', handleGlobalUp);
   };
 
   const handleGlobalMove = (e: PointerEvent) => {
-    if (!currentInteractIdRef.current || !mapRef.current) return;
+    if (!currentInteractMarkerRef.current || !mapRef.current) return;
 
     const moveX = Math.abs(e.clientX - startPosRef.current.x);
     const moveY = Math.abs(e.clientY - startPosRef.current.y);
@@ -109,7 +109,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     if (!isDraggingRef.current && (moveX > 5 || moveY > 5)) {
         if (!isDraggable) return;
         isDraggingRef.current = true;
-        setDraggingMarkerId(currentInteractIdRef.current);
+        setDraggingMarker(currentInteractMarkerRef.current);
         setActiveMarkerId(null);
     }
 
@@ -121,7 +121,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
         x = Math.max(0, Math.min(100, x));
         y = Math.max(0, Math.min(100, y));
 
-        const markerElement = mapRef.current.querySelector(`[data-marker-id="${currentInteractIdRef.current}"]`) as HTMLElement;
+        const markerElement = mapRef.current.querySelector(`[data-marker-id="${currentInteractMarkerRef.current.id}"]`) as HTMLElement;
         if (markerElement) {
             markerElement.style.left = `${x}%`;
             markerElement.style.top = `${y}%`;
@@ -130,21 +130,23 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   };
 
   const handleGlobalUp = (e: PointerEvent) => {
-    const markerId = currentInteractIdRef.current;
-    if (markerId && mapRef.current) {
+    const marker = currentInteractMarkerRef.current;
+    if (marker && mapRef.current) {
         if (isDraggingRef.current) {
             const mapBounds = mapRef.current.getBoundingClientRect();
             let x = ((e.clientX - mapBounds.left) / mapBounds.width) * 100;
             let y = ((e.clientY - mapBounds.top) / mapBounds.height) * 100;
             x = Math.max(0, Math.min(100, x));
             y = Math.max(0, Math.min(100, y));
-            updateMarkerPosition(markerId, x, y);
+            
+            // Pass all necessary info for potential creation
+            updateMarkerPosition(marker.id, x, y, marker.staffId, marker.day, marker.time);
         } else {
-            setActiveMarkerId(prev => prev === markerId ? null : markerId);
+            setActiveMarkerId(prev => prev === marker.id ? null : marker.id);
         }
     }
-    setDraggingMarkerId(null);
-    currentInteractIdRef.current = null;
+    setDraggingMarker(null);
+    currentInteractMarkerRef.current = null;
     isDraggingRef.current = false;
     window.removeEventListener('pointermove', handleGlobalMove);
     window.removeEventListener('pointerup', handleGlobalUp);
@@ -224,6 +226,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
 
     if (!staffMember) return null;
     const isOpen = activeMarkerId === marker.id;
+    const isDraggingThis = draggingMarker?.id === marker.id;
 
     const staffIndex = staff.findIndex(s => s.id === staffMember.id);
     const positionColor = staffMember.position?.color;
@@ -237,12 +240,12 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                     className={cn(
                         "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-transform hover:scale-110 touch-none select-none", 
                         isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-                        draggingMarkerId === marker.id && "cursor-grabbing z-50 scale-110",
+                        isDraggingThis && "cursor-grabbing z-50 scale-110",
                         isOpen && "z-40 scale-110",
                         isOver && canDrop && 'scale-125'
                     )}
                     style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                    onPointerDown={(e) => handlePointerDown(e, marker.id)}
+                    onPointerDown={(e) => handlePointerDown(e, marker)}
                     onClick={(e) => e.preventDefault()}
                 >
                     <div className="relative">
@@ -250,7 +253,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                             {staffIndex + 1}
                         </span>
                         <Avatar className={cn("h-10 w-10 border-4 border-primary-foreground shadow-lg pointer-events-none transition-colors", 
-                            (draggingMarkerId === marker.id || isOpen || isOver) && "border-primary",
+                            (isDraggingThis || isOpen || isOver) && "border-primary",
                             isOver && canDrop && 'ring-4 ring-offset-2 ring-primary'
                         )}
                         style={{ borderColor: isOver && canDrop ? 'hsl(var(--primary))' : positionColor ? positionColor : 'hsl(var(--primary-foreground))' }}

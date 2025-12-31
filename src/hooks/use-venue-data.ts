@@ -361,10 +361,26 @@ export const useVenueData = () => {
     setDocumentNonBlocking(mapDocRef, { day, time, mapImageUrl: newUrl }, { merge: true });
   }
 
-  const updateMarkerPosition = (markerId: string, x: number, y: number) => {
+  const updateMarkerPosition = (markerId: string, x: number, y: number, staffId?: string, day?: number, time?: string) => {
     if (!firestore) return;
-    const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
-    updateDocumentNonBlocking(markerDocRef, { x, y });
+    
+    // If it's a default marker, we need to create it first.
+    if (markerId.startsWith('default-marker-') && staffId && day !== undefined && time) {
+        const newMarkerId = `marker-${staffId}-${day}-${time.replace(':', '')}`;
+        const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', newMarkerId);
+        const newMarkerData: Omit<MapMarker, 'id'> = {
+            staffId,
+            day,
+            time,
+            x,
+            y,
+        };
+        setDocumentNonBlocking(markerDocRef, newMarkerData, { merge: true });
+    } else {
+        // Otherwise, it's a regular update.
+        const markerDocRef = doc(firestore, 'venues', VENUE_ID, 'markers', markerId);
+        updateDocumentNonBlocking(markerDocRef, { x, y });
+    }
   };
   
   const addMarker = (staffId: string, day: number, time: string) => {
