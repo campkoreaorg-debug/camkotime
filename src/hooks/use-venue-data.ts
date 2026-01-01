@@ -535,7 +535,7 @@ export const useVenueData = () => {
     deleteSchedulesBatch, 
     deleteAllSchedules,
     pasteSchedules, 
-    updateMapImage, _
+    updateMapImage,
     initializeFirestoreData, 
     addRole,
     deleteRole,
@@ -564,3 +564,4 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
