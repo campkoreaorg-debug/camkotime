@@ -359,7 +359,7 @@ export const useVenueData = () => {
       
       for (const key in groupedTemplates) {
         const template = groupedTemplates[key];
-        const scheduleId = `sch-${template.day}-${template.time.replace(':', '')}-${template.event.slice(0,5).replace(/\s/g, '')}-${Math.random().toString(36).substr(2, 5)}`;
+        const scheduleId = `sch-${template.day}-${(template.time || '').replace(':', '')}-${(template.event || '').slice(0,5).replace(/\s/g, '')}-${Math.random().toString(36).substr(2, 5)}`;
         const newSchedule: ScheduleItem = {
           id: scheduleId,
           day: template.day,
@@ -563,3 +563,5 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    

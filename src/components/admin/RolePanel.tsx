@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from 'react';
-import { Calendar, Users, Edit, Plus, UserCheck, Upload, Settings, Trash2, GripVertical, Search } from 'lucide-react';
+import { Calendar, Users, Edit, Plus, UserCheck, Upload, Settings, Trash2, GripVertical, Search, X } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -73,7 +73,7 @@ export function RolePanel() {
                         return { day, time, event, location: location || '' };
                     }
                     return null;
-                }).filter((t): t is ScheduleTemplate => t !== null);
+                }).filter((t): t is ScheduleTemplate => t !== null && !!t.time);
 
                 setUploadedData(prev => ({ ...prev, [key]: templates }));
                 toast({ title: '업로드 완료', description: `${day}일차 '${data.categories.find(c=>c.id === categoryId)?.name}' 카테고리 스케줄 ${templates.length}개를 불러왔습니다.` });
@@ -205,7 +205,7 @@ export function RolePanel() {
                                     </div>
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100">
+                                             <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100">
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </AlertDialogTrigger>
@@ -493,6 +493,23 @@ export function RolePanel() {
                 </DialogContent>
             </Dialog>
 
+             <AlertDialog open={isDeleteRoleAlertOpen} onOpenChange={setIsDeleteRoleAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            이 작업은 되돌릴 수 없습니다. 이 직책 및 관련 스케줄이 영구적으로 삭제됩니다.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <Button variant="outline" onClick={() => setIsDeleteRoleAlertOpen(false)}>취소</Button>
+                        <Button variant="destructive" onClick={handleConfirmDeleteRole}>삭제</Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
         </Card>
     );
 }
+
+    
