@@ -22,12 +22,8 @@ import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { ScheduleItem } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
-import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Switch } from '../ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { timeSlots } from '@/hooks/use-venue-data';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { ScrollArea } from '../ui/scroll-area';
@@ -45,16 +41,11 @@ type ScheduleFormValues = z.infer<typeof scheduleSchema>;
 
 type ClipboardItem = Omit<ScheduleItem, 'id' | 'day' | 'time'>;
 
-const days = [0, 1, 2, 3];
-
 interface SchedulePanelProps {
     selectedSlot: { day: number, time: string } | null;
-    onSlotChange: (day: number, time: string) => void;
-    isLinked: boolean;
-    onLinkChange: (isLinked: boolean) => void;
 }
 
-export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChange }: SchedulePanelProps) {
+export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
   const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, deleteAllSchedules } = useVenueData();
   const { toast } = useToast();
   
@@ -67,7 +58,6 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
 
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardItem[]>([]);
-  const [activeTab, setActiveTab] = useState(`day-${selectedSlot?.day ?? 0}`);
   const [filteredStaffId, setFilteredStaffId] = useState<string | null>(null);
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
   const eventInputRef = useRef<HTMLInputElement>(null);
@@ -79,22 +69,12 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   });
 
   useEffect(() => {
-    // When selectedSlot changes (e.g. from linking), update the active tab
-    if (selectedSlot) {
-        const newTab = `day-${selectedSlot.day}`;
-        if (newTab !== activeTab) {
-            setActiveTab(newTab);
-        }
-    }
-  }, [selectedSlot, activeTab]);
-
-
-  const handleSelectSlot = (day: number, time: string) => {
-    onSlotChange(day, time);
+    // When selectedSlot changes, clear editing state and selections
     setEditingItem(null);
     form.reset({ event: '', location: '', staffIds: [] });
-    setSelectedScheduleIds([]); // 다른 슬롯 선택 시 선택 해제
-  }
+    setSelectedScheduleIds([]);
+  }, [selectedSlot, form]);
+
 
   const handleEditClick = (e: React.MouseEvent, item: ScheduleItem) => {
     e.stopPropagation(); // Prevent row selection when clicking edit
@@ -167,20 +147,8 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
     setIsDeleteAllAlertOpen(false);
   }
 
-  const handleTabChange = (newTab: string) => {
-    const newDay = parseInt(newTab.split('-')[1], 10);
-    setActiveTab(newTab);
-    if(timeSlots.length > 0){
-        onSlotChange(newDay, selectedSlot?.time || timeSlots[0]);
-    }
-    setEditingItem(null);
-    form.reset();
-    setSelectedScheduleIds([]);
-    setClipboard([]);
-  }
-
   const scheduleByDay = useMemo(() => {
-    return days.map(day => {
+    return [0, 1, 2, 3].map(day => {
         return data.schedule.filter(s => s.day === day).reduce((acc, item) => {
             if (!acc[item.time]) {
                 acc[item.time] = [];
@@ -225,7 +193,8 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   };
 
   const handleDownload = () => {
-    const day = parseInt(activeTab.split('-')[1], 10);
+    if (!selectedSlot) return;
+    const day = selectedSlot.day;
     const schedulesToDownload = data.schedule.filter(s => s.day === day);
 
     if (schedulesToDownload.length === 0) {
@@ -272,9 +241,10 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
   };
 
   const currentDaySchedules = useMemo(() => {
-    const day = parseInt(activeTab.split('-')[1], 10);
+    if (!selectedSlot) return {};
+    const day = selectedSlot.day;
     return scheduleByDay[day] || {};
-  }, [scheduleByDay, activeTab]);
+  }, [scheduleByDay, selectedSlot]);
 
   const displayedSchedules = useMemo(() => {
     if (!selectedSlot || !currentDaySchedules[selectedSlot.time]) {
@@ -292,13 +262,14 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
       return data.staff.find(s => s.id === filteredStaffId);
   }, [filteredStaffId, data.staff]);
   const { ref: formRef, ...restFormProps } = form.register('event');
+
   return (
     <Card className='lg:col-span-1'>
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
-              <CardDescription>일차를 선택하고 시간대별로 스케줄을 관리하세요.</CardDescription>
+              <CardDescription>전역 시간대 설정에 따라 스케줄을 관리하세요.</CardDescription>
             </div>
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" onClick={handleDownload}>
@@ -309,44 +280,11 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                   <ShieldAlert className='mr-2 h-4 w-4' />
                   전체 삭제
               </Button>
-              <div className="flex items-center space-x-2">
-                <Switch id="link-panels" checked={isLinked} onCheckedChange={onLinkChange} />
-                <Label htmlFor="link-panels" className='flex items-center gap-2'>
-                  <LinkIcon className='h-4 w-4'/>
-                  지도 연동
-                </Label>
-              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className='mb-4'>
-              {days.map(day => (
-                <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
-              ))}
-            </TabsList>
-            
-            <div className="flex flex-wrap gap-2 pb-4 border-b">
-              {timeSlots.map(time => {
-                const day = parseInt(activeTab.split('-')[1], 10);
-                const items = currentDaySchedules[time] || [];
-                const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
-                return (
-                  <Button 
-                      key={time} 
-                      variant={isSelected ? "default" : (items.length > 0 ? "secondary" : "outline")}
-                      className="flex-shrink-0 text-xs h-8"
-                      onClick={() => handleSelectSlot(day, time)}
-                  >
-                      {time}
-                      {items.length > 0 && <span className="ml-2 h-4 w-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px]">{items.reduce((sum, item) => sum + ((item.staffIds?.length || 0) > 0 ? item.staffIds.length : 1), 0)}</span>}
-                  </Button>
-                )
-              })}
-            </div>
-
-            {selectedSlot && (
+            {selectedSlot ? (
                 <div className="pt-4 space-y-6">
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
@@ -515,8 +453,11 @@ export function SchedulePanel({ selectedSlot, onSlotChange, isLinked, onLinkChan
                         )}
                     </div>
                 </div>
+            ) : (
+                <div className="text-center text-muted-foreground py-10">
+                    <p>상단에서 날짜와 시간대를 선택하여 스케줄을 확인하세요.</p>
+                </div>
             )}
-          </Tabs>
         </CardContent>
 
         <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>

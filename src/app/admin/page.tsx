@@ -8,12 +8,17 @@ import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import { RolePanel } from '@/components/admin/RolePanel';
 import { MapPanel } from '@/components/admin/MapPanel';
-import { LogOut, Loader2, ExternalLink } from 'lucide-react';
+import { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { PositionPanel } from '@/components/admin/PositionPanel';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { timeSlots } from '@/hooks/use-venue-data';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
+const days = [0, 1, 2, 3];
 
 export default function AdminPage() {
   const router = useRouter();
@@ -21,8 +26,12 @@ export default function AdminPage() {
   const { user, isUserLoading } = useUser();
 
   const [isLinked, setIsLinked] = useState(true);
-  const [scheduleSlot, setScheduleSlot] = useState<{ day: number; time: string } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
+  const [activeTab, setActiveTab] = useState('day-0');
+  
+  // This state is just for the map panel when unlinked
   const [mapSlot, setMapSlot] = useState<{ day: number; time: string } | null>(null);
+
 
   useEffect(() => {
     if (!isUserLoading && (!user || user.isAnonymous)) {
@@ -32,40 +41,50 @@ export default function AdminPage() {
 
   useEffect(() => {
     // Save the selected slot to localStorage whenever it changes
-    // If linked, save schedule slot, otherwise, map panel can have its own state
-    const slotToSave = isLinked ? scheduleSlot : mapSlot;
+    const slotToSave = selectedSlot;
     if (slotToSave) {
       localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(slotToSave));
     }
-  }, [scheduleSlot, mapSlot, isLinked]);
+  }, [selectedSlot]);
 
   useEffect(() => {
     const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
     if (storedSlot) {
       const parsedSlot = JSON.parse(storedSlot);
-      setScheduleSlot(parsedSlot);
+      setSelectedSlot(parsedSlot);
       setMapSlot(parsedSlot);
+      setActiveTab(`day-${parsedSlot.day}`);
     } else {
       // Default to the first time slot
       const defaultSlot = { day: 0, time: '07:00' };
-      setScheduleSlot(defaultSlot);
+      setSelectedSlot(defaultSlot);
       setMapSlot(defaultSlot);
+      setActiveTab('day-0');
     }
   }, []);
   
-  const handleScheduleSlotChange = (day: number, time: string) => {
+  const handleSlotChange = (day: number, time: string) => {
     const newSlot = { day, time };
-    setScheduleSlot(newSlot);
+    setSelectedSlot(newSlot);
     if (isLinked) {
       setMapSlot(newSlot);
     }
   };
+
+  const handleTabChange = (newTab: string) => {
+    const newDay = parseInt(newTab.split('-')[1], 10);
+    setActiveTab(newTab);
+    if (timeSlots.length > 0) {
+        handleSlotChange(newDay, selectedSlot?.time || timeSlots[0]);
+    }
+  }
   
   const handleMapSlotChange = (day: number, time: string) => {
       const newSlot = { day, time };
       setMapSlot(newSlot);
       if (isLinked) {
-        setScheduleSlot(newSlot);
+        setSelectedSlot(newSlot);
+        setActiveTab(`day-${day}`);
       }
   };
 
@@ -79,7 +98,7 @@ export default function AdminPage() {
     window.open('/map', '_blank', 'width=1200,height=800');
   };
 
-  if (isUserLoading || !user || !scheduleSlot || !mapSlot) {
+  if (isUserLoading || !user || !selectedSlot || !mapSlot) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -103,6 +122,43 @@ export default function AdminPage() {
                 </Button>
               </div>
           </header>
+
+          <section className="p-4 md:p-8 space-y-4 border-b">
+              <div className='flex justify-between items-center mb-4'>
+                <h2 className="font-headline text-xl font-semibold">전역 시간대 설정</h2>
+                <div className="flex items-center space-x-2">
+                  <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
+                  <Label htmlFor="link-panels" className='flex items-center gap-2'>
+                    <LinkIcon className='h-4 w-4'/>
+                    지도 연동
+                  </Label>
+                </div>
+              </div>
+              <Tabs value={activeTab} onValueChange={handleTabChange}>
+                <TabsList className='mb-4'>
+                  {days.map(day => (
+                    <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+               <div className="flex flex-wrap gap-2 pb-2">
+                  {timeSlots.map(time => {
+                    const day = parseInt(activeTab.split('-')[1], 10);
+                    const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
+                    return (
+                      <Button 
+                          key={time} 
+                          variant={isSelected ? "default" : "outline"}
+                          className="flex-shrink-0 text-xs h-8"
+                          onClick={() => handleSlotChange(day, time)}
+                      >
+                          {time}
+                      </Button>
+                    )
+                  })}
+                </div>
+          </section>
+
           <main className="p-4 md:p-8 space-y-8">
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 <StaffPanel />
@@ -113,13 +169,10 @@ export default function AdminPage() {
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <SchedulePanel 
-                  selectedSlot={scheduleSlot} 
-                  onSlotChange={handleScheduleSlotChange}
-                  isLinked={isLinked}
-                  onLinkChange={setIsLinked}
+                  selectedSlot={selectedSlot} 
                 />
                 <MapPanel 
-                  selectedSlot={mapSlot} 
+                  selectedSlot={isLinked ? selectedSlot : mapSlot} 
                   onSlotChange={handleMapSlotChange} 
                   isLinked={isLinked}
                 />
