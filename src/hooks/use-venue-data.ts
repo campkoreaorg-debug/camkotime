@@ -211,8 +211,8 @@ export const useVenueData = () => {
             staff: prev.staff.filter(s => s.id !== staffId),
             schedule: prev.schedule.map(s => ({
                 ...s,
-                staffIds: s.staffIds.filter(id => id !== staffId)
-            })).filter(s => s.staffIds.length > 0),
+                staffIds: s.staffIds?.filter(id => id !== staffId)
+            })).filter(s => s.staffIds?.length > 0),
             markers: prev.markers.map(m => ({
                 ...m,
                 staffIds: m.staffIds.filter(id => id !== staffId)
@@ -337,7 +337,7 @@ export const useVenueData = () => {
             ...prev,
             roles: prev.roles.filter(r => r.id !== roleId),
             staff: prev.staff.map(s => s.role?.id === roleId ? { ...s, role: null } : s),
-            schedule: prev.schedule.filter(s => !s.staffIds.some(id => staffIdsWithRole.includes(id))),
+            schedule: prev.schedule.filter(s => !s.staffIds?.some(id => staffIdsWithRole.includes(id))),
         }
     });
 
@@ -394,7 +394,11 @@ export const useVenueData = () => {
         });
 
         // Optimistically remove old schedules and add new ones
-        const remainingSchedules = prev.schedule.filter(s => !(staffIds.includes(s.staffIds[0]) && s.day === roleToAssign.day));
+        const remainingSchedules = prev.schedule.filter(s => {
+          // Keep schedules that are NOT for the affected staff on the affected day
+          const isAffected = staffIds.includes(s.staffIds?.[0]) && s.day === roleToAssign.day;
+          return !isAffected;
+        });
         
         const newSchedules: ScheduleItem[] = [];
         if (roleToAssign.scheduleTemplates) {
