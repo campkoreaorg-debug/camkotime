@@ -68,7 +68,7 @@ const DraggableRole = ({ role, category, assignedStaff, onDelete }: { role: Role
                         <span>담당</span>
                     </div>
                 ) : (
-                    <p className='text-xs text-muted-foreground/70'>스태프에게 드래그하여 배정</p>
+                    <p className='text-xs text-muted-foreground/70'>현재 이 직책이 배정된 스태프 이름이 나오게 해줘</p>
                 )}
             </div>
         </div>
@@ -547,3 +547,5 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
         </Card>
     );
 }
+
+    
