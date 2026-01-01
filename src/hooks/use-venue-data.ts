@@ -392,7 +392,7 @@ export const useVenueData = () => {
             s.id === staffId ? { ...s, role: { id: roleId, name: roleToAssign.name, day, time } } : s
         );
         
-        const remainingSchedules = prev.schedule.filter(s => !(s.staffIds.includes(staffId) && s.day === day && s.time === time));
+        const remainingSchedules = prev.schedule.filter(s => !(s.staffIds?.includes(staffId) && s.day === day && s.time === time));
         
         const newSchedules: ScheduleItem[] = (roleToAssign.scheduleTemplates || []).map(template => ({
             id: `sch-${staffId}-${template.day}-${template.time.replace(':', '')}-${Math.random().toString(36).substr(2, 5)}`,
@@ -519,7 +519,6 @@ export const useVenueData = () => {
     setDocumentNonBlocking(mapDocRef, { day, time, mapImageUrl: newUrl }, { merge: true });
   };
 
-d
   const updateMarkerPosition = (markerId: string, x: number, y: number, staffIds?: string[], day?: number, time?: string) => {
     if (!firestore) return;
     
@@ -603,3 +602,5 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    
