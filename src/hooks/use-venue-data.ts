@@ -271,10 +271,10 @@ export const useVenueData = () => {
     batch.commit();
   };
 
-  const addRole = (name: string, categoryId: string, scheduleTemplates: ScheduleTemplate[]) => {
+  const addRole = (name: string, categoryId: string, day: number, scheduleTemplates: ScheduleTemplate[]) => {
     if (!firestore) return;
     const newId = `role-${Date.now()}`;
-    const newRole: Role = { id: newId, name, categoryId, scheduleTemplates };
+    const newRole: Role = { id: newId, name, categoryId, day, scheduleTemplates };
     const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', newId);
     setDocumentNonBlocking(roleDocRef, newRole, {});
   };
@@ -330,10 +330,10 @@ export const useVenueData = () => {
       batch.update(staffDocRef, { role: { id: roleToAssign.id, name: roleToAssign.name } });
     });
 
-    // 2. Delete all old schedules for these staff members
+    // 2. Delete all old schedules for these staff members for the specific day of the role
     for (let i = 0; i < staffIds.length; i += 30) {
       const chunk = staffIds.slice(i, i + 30);
-      const q = query(scheduleColRef, where('staffIds', 'array-contains-any', chunk));
+      const q = query(scheduleColRef, where('staffIds', 'array-contains-any', chunk), where('day', '==', roleToAssign.day));
       const oldSchedulesSnapshot = await getDocs(q);
       oldSchedulesSnapshot.forEach(doc => {
         const currentStaffIds = doc.data().staffIds || [];
@@ -348,11 +348,12 @@ export const useVenueData = () => {
     
     // 3. Add new schedules based on the role template
     if (roleToAssign.scheduleTemplates) {
-      // Group templates by day and time to create single schedule items
-      const groupedTemplates = roleToAssign.scheduleTemplates.reduce((acc, tpl) => {
+      const relevantTemplates = roleToAssign.scheduleTemplates.filter(t => t.day === roleToAssign.day);
+      
+      const groupedTemplates = relevantTemplates.reduce((acc, tpl) => {
         const key = `${tpl.day}-${tpl.time}-${tpl.event}-${tpl.location}`;
         if (!acc[key]) {
-          acc[key] = { ...tpl, staffIds: [] }; // staffIds will be populated later
+          acc[key] = { ...tpl, staffIds: [] };
         }
         return acc;
       }, {} as Record<string, ScheduleTemplate & { staffIds: string[] }>);
@@ -366,7 +367,7 @@ export const useVenueData = () => {
           time: template.time,
           event: template.event,
           location: template.location,
-          staffIds: staffIds, // Assign all staff to this single schedule item
+          staffIds: staffIds, 
         };
         const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
         batch.set(scheduleDocRef, newSchedule);
@@ -534,7 +535,7 @@ export const useVenueData = () => {
     deleteSchedulesBatch, 
     deleteAllSchedules,
     pasteSchedules, 
-    updateMapImage, 
+    updateMapImage, _
     initializeFirestoreData, 
     addRole,
     deleteRole,
@@ -563,5 +564,3 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
-
-    

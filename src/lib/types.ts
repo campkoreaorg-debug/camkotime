@@ -15,6 +15,7 @@ export interface Category {
 export interface Role {
   id: string;
   name: string;
+  day: number; // ADDED: The day this role is for
   categoryId: string;
   scheduleTemplates?: ScheduleTemplate[];
 }

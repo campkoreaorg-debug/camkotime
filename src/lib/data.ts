@@ -14,10 +14,10 @@ export const initialData: VenueData = {
     { id: 'staff-5', name: '정다은', avatar: PlaceHolderImages.find(p => p.id === 'avatar-5')?.imageUrl || '', role: null, position: null },
   ],
   roles: [
-    { id: 'role-1', name: '보안팀', categoryId: 'cat-1', scheduleTemplates: [{ day: 0, event: '구역 순찰', location: '전체 구역', time: '09:00' }] },
-    { id: 'role-2', name: '의료팀', categoryId: 'cat-2', scheduleTemplates: [{ day: 0, event: '의료 부스 대기', location: '의료 센터', time: '09:00' }] },
-    { id: 'role-3', name: '안내팀', categoryId: 'cat-3', scheduleTemplates: [{ day: 0, event: '관객 안내', location: '메인 게이트', time: '09:00' }] },
-    { id: 'role-4', name: '운영팀', categoryId: 'cat-4', scheduleTemplates: [{ day: 0, event: '상황실 대기', location: '운영 본부', time: '09:00' }] }
+    { id: 'role-1', name: '보안팀', day: 0, categoryId: 'cat-1', scheduleTemplates: [{ day: 0, event: '구역 순찰', location: '전체 구역', time: '09:00' }] },
+    { id: 'role-2', name: '의료팀', day: 0, categoryId: 'cat-2', scheduleTemplates: [{ day: 0, event: '의료 부스 대기', location: '의료 센터', time: '09:00' }] },
+    { id: 'role-3', name: '안내팀', day: 1, categoryId: 'cat-3', scheduleTemplates: [{ day: 1, event: '관객 안내', location: '메인 게이트', time: '09:00' }] },
+    { id: 'role-4', name: '운영팀', day: 1, categoryId: 'cat-4', scheduleTemplates: [{ day: 1, event: '상황실 대기', location: '운영 본부', time: '09:00' }] }
   ],
   categories: [
       { id: 'cat-1', name: '보안' },
@@ -33,16 +33,16 @@ export const initialData: VenueData = {
   schedule: [
     { id: 'sch-1', day: 0, time: '09:00', event: '오프닝 게이트 보안 점검', location: '메인 게이트', staffIds: ['staff-1'] },
     { id: 'sch-2', day: 0, time: '10:00', event: '의료 부스 준비', location: '의료 센터', staffIds: ['staff-2'] },
-    { id: 'sch-3', day: 0, time: '10:30', event: '관객 안내 및 동선 확인', location: '전체 구역', staffIds: ['staff-3'] },
+    { id: 'sch-3', day: 1, time: '10:30', event: '관객 안내 및 동선 확인', location: '전체 구역', staffIds: ['staff-3'] },
   ],
   markers: [
     { id: 'marker-1-0-0900', staffIds: ['staff-1'], day: 0, time: '09:00', x: 20, y: 30 },
     { id: 'marker-2-0-1000', staffIds: ['staff-2'], day: 0, time: '10:00', x: 50, y: 50 },
-    { id: 'marker-3-0-1030', staffIds: ['staff-3'], day: 0, time: '10:30', x: 80, y: 70 },
+    { id: 'marker-3-1-1030', staffIds: ['staff-3'], day: 1, time: '10:30', x: 80, y: 70 },
   ],
   maps: [
     { id: 'day0-0900', day: 0, time: '09:00', mapImageUrl: mapBg },
     { id: 'day0-1000', day: 0, time: '10:00', mapImageUrl: mapBg },
-    { id: 'day0-1030', day: 0, time: '10:30', mapImageUrl: mapBg },
+    { id: 'day1-1030', day: 1, time: '10:30', mapImageUrl: mapBg },
   ],
 };

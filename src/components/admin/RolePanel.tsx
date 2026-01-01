@@ -25,7 +25,7 @@ const ItemTypes = {
     ROLE: 'role',
 }
 
-const DraggableRole = ({ role, category }: { role: Role, category: Category | undefined }) => {
+const DraggableRole = ({ role, category, onDelete }: { role: Role, category: Category | undefined, onDelete: (role: Role) => void }) => {
     const [{ isDragging }, drag] = useDrag(() => ({
         type: ItemTypes.ROLE,
         item: role,
@@ -47,25 +47,9 @@ const DraggableRole = ({ role, category }: { role: Role, category: Category | un
                 </div>
                 {category && <Badge variant="outline" className='mt-2'>{category.name}</Badge>}
             </div>
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                     <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer">
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>정말 이 직책을 삭제하시겠습니까?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                        '{role.name}' 직책이 영구적으로 삭제됩니다. 이 직책이 할당된 모든 스태프의 직책 정보와 관련 스케줄도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => useVenueData().deleteRole(role.id)} variant="destructive">삭제</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+             <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer" onClick={() => onDelete(role)}>
+                <Trash2 className="h-4 w-4" />
+            </Button>
         </div>
     )
 };
@@ -81,6 +65,7 @@ export function RolePanel() {
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
     const [isAssignRoleModalOpen, setIsAssignRoleModalOpen] = useState(false);
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+    const [isDeleteRoleAlertOpen, setIsDeleteRoleAlertOpen] = useState(false);
     
     // Create Role State
     const [newRoleName, setNewRoleName] = useState('');
@@ -100,7 +85,17 @@ export function RolePanel() {
     const [editingCategory, setEditingCategory] = useState<Category | null>(null);
     const [categoryName, setCategoryName] = useState('');
     
+    // Role Deletion State
+    const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
+    
+    const [activeDayTab, setActiveDayTab] = useState('day-0');
+
     const categoriesWithAll: Category[] = useMemo(() => [{ id: 'all', name: '전체' }, ...data.categories], [data.categories]);
+    
+    const rolesForCurrentDay = useMemo(() => {
+        const currentDay = parseInt(activeDayTab.split('-')[1], 10);
+        return data.roles.filter(r => r.day === currentDay);
+    }, [data.roles, activeDayTab]);
 
     const handleFileUpload = (day: number, categoryId: string, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -115,13 +110,13 @@ export function RolePanel() {
                 const templates = results.data.map((row, index): ScheduleTemplate | null => {
                     const time = row['시간'] || row['time'];
                     const event = row['이벤트'] || row['event'];
-                    const location = row['위치'] || row['location'];
                     
                     if (time && event) {
+                        const location = row['위치'] || row['location'];
                         return { day, time, event, location: location || '' };
                     }
                     return null;
-                }).filter((t): t is ScheduleTemplate => t !== null && !!t.time);
+                }).filter((t): t is ScheduleTemplate => t !== null);
 
                 setUploadedData(prev => ({ ...prev, [key]: templates }));
                 toast({ title: '업로드 완료', description: `${day}일차 '${data.categories.find(c=>c.id === categoryId)?.name}' 카테고리 스케줄 ${templates.length}개를 불러왔습니다.` });
@@ -157,7 +152,8 @@ export function RolePanel() {
             return;
         }
         
-        addRole(newRoleName, newRoleCategoryId, selectedTemplates);
+        const currentDay = parseInt(activeDayTab.split('-')[1], 10);
+        addRole(newRoleName, newRoleCategoryId, currentDay, selectedTemplates);
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
         
         setIsCreateRoleModalOpen(false);
@@ -200,10 +196,28 @@ export function RolePanel() {
         setCategoryName('');
     }
     
+    const openDeleteRoleDialog = (role: Role) => {
+        setRoleToDelete(role);
+        setIsDeleteRoleAlertOpen(true);
+    };
+
+    const handleDeleteRole = () => {
+        if (roleToDelete) {
+            deleteRole(roleToDelete.id);
+            toast({ title: '삭제 완료', description: `'${roleToDelete.name}' 직책이 삭제되었습니다.` });
+        }
+        setIsDeleteRoleAlertOpen(false);
+        setRoleToDelete(null);
+    };
+
     const filteredStaff = useMemo(() => {
         return data.staff.filter(s => s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()));
     }, [data.staff, staffSearchTerm]);
 
+    const filteredRolesForAssign = useMemo(() => {
+        const currentDay = parseInt(activeDayTab.split('-')[1], 10);
+        return data.roles.filter(r => r.day === currentDay);
+    }, [data.roles, activeDayTab]);
 
     return (
         <Card>
@@ -211,7 +225,7 @@ export function RolePanel() {
                 <div>
                     <CardTitle className="font-headline text-2xl font-semibold">직책 관리</CardTitle>
                     <CardDescription>
-                        총 <Badge variant="secondary">{data.roles.length}</Badge>개의 직책. 스태프에게 드래그하세요.
+                        총 <Badge variant="secondary">{rolesForCurrentDay.length}</Badge>개의 직책. 스태프에게 드래그하세요.
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -221,25 +235,33 @@ export function RolePanel() {
                 </div>
             </CardHeader>
             <CardContent>
-                {data.roles.length > 0 ? (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-                        {data.roles.map(role => {
-                            const category = data.categories.find(c => c.id === role.categoryId);
-                            return <DraggableRole key={role.id} role={role} category={category} />
-                        })}
-                    </div>
-                ) : (
-                    <div className="text-center text-muted-foreground py-10">
-                        <p>생성된 직책이 없습니다.</p>
-                    </div>
-                )}
+                <Tabs value={activeDayTab} onValueChange={setActiveDayTab} className="w-full">
+                    <TabsList className='mb-4'>
+                        {days.map(day => (
+                            <TabsTrigger key={`day-tab-role-${day}`} value={`day-${day}`}>Day {day}</TabsTrigger>
+                        ))}
+                    </TabsList>
+
+                    {rolesForCurrentDay.length > 0 ? (
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+                            {rolesForCurrentDay.map(role => {
+                                const category = data.categories.find(c => c.id === role.categoryId);
+                                return <DraggableRole key={role.id} role={role} category={category} onDelete={openDeleteRoleDialog} />
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center text-muted-foreground py-10">
+                            <p>생성된 직책이 없습니다.</p>
+                        </div>
+                    )}
+                </Tabs>
             </CardContent>
 
             {/* 직책 생성 모달 */}
             <Dialog open={isCreateRoleModalOpen} onOpenChange={setIsCreateRoleModalOpen}>
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle>새 직책 생성</DialogTitle>
+                        <DialogTitle>새 직책 생성 ({activeDayTab.replace('-', ' ')}일차)</DialogTitle>
                         <DialogDescription>
                             CSV 업로드를 통해 직책에 할당할 스케줄 템플릿을 선택하세요. CSV 파일은 '시간', '이벤트', '위치' 헤더를 포함해야 합니다.
                         </DialogDescription>
@@ -278,22 +300,22 @@ export function RolePanel() {
                         </div>
                         <div className="space-y-4">
                              <Label>스케줄 템플릿 선택</Label>
-                             <Tabs defaultValue="day-0">
+                             <Tabs defaultValue={`day-${parseInt(activeDayTab.split('-')[1])}`}>
                                 <TabsList className="grid w-full grid-cols-4">
                                     {days.map(day => (
-                                        <TabsTrigger key={`day-tab-${day}`} value={`day-${day}`}>Day {day}</TabsTrigger>
+                                        <TabsTrigger key={`day-tab-create-${day}`} value={`day-${day}`}>Day {day}</TabsTrigger>
                                     ))}
                                 </TabsList>
                                 {days.map(day => (
-                                    <TabsContent key={`day-content-${day}`} value={`day-${day}`}>
+                                    <TabsContent key={`day-content-create-${day}`} value={`day-${day}`}>
                                         <Tabs defaultValue='all' className="w-full">
                                             <TabsList>
                                                 {categoriesWithAll.map(cat => (
-                                                    <TabsTrigger key={`cat-tab-${day}-${cat.id}`} value={cat.id}>{cat.name}</TabsTrigger>
+                                                    <TabsTrigger key={`cat-tab-create-${day}-${cat.id}`} value={cat.id}>{cat.name}</TabsTrigger>
                                                 ))}
                                             </TabsList>
                                             {categoriesWithAll.map(cat => (
-                                                <TabsContent key={`cat-content-${day}-${cat.id}`} value={cat.id}>
+                                                <TabsContent key={`cat-content-create-${day}-${cat.id}`} value={cat.id}>
                                                     <div className="space-y-2">
                                                         {cat.id !== 'all' && (
                                                             <Button variant="outline" size="sm" onClick={() => fileInputRefs.current[`${day}-${cat.id}`]?.click()}>
@@ -326,7 +348,7 @@ export function RolePanel() {
                                                                                             className={`p-1.5 border rounded-md text-xs cursor-pointer ${isSelected ? 'bg-primary/20 border-primary' : 'bg-background'}`}
                                                                                             onClick={() => handleToggleTemplate(template)}
                                                                                         >
-                                                                                            <span className="font-bold">{template.time}</span> - {template.event} ({template.location || '위치 없음'})
+                                                                                            <span className="font-bold">{template.time || '시간없음'}</span> - {template.event} ({template.location || '위치 없음'})
                                                                                         </div>
                                                                                     )
                                                                                 })}
@@ -361,7 +383,7 @@ export function RolePanel() {
             <Dialog open={isAssignRoleModalOpen} onOpenChange={setIsAssignRoleModalOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle>직책 배정</DialogTitle>
+                        <DialogTitle>직책 배정 ({activeDayTab.replace('-', ' ')}일차)</DialogTitle>
                         <DialogDescription>
                             스태프에게 직책을 배정합니다. 배정 시 해당 직책의 스케줄이 스태프에게 자동으로 할당됩니다.
                         </DialogDescription>
@@ -374,7 +396,7 @@ export function RolePanel() {
                                     <SelectValue placeholder="배정할 직책을 선택하세요" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {data.roles.map(r => (
+                                    {filteredRolesForAssign.map(r => (
                                         <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -494,8 +516,21 @@ export function RolePanel() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={isDeleteRoleAlertOpen} onOpenChange={setIsDeleteRoleAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>정말 이 직책을 삭제하시겠습니까?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                        '{roleToDelete?.name}' 직책이 영구적으로 삭제됩니다. 이 직책이 할당된 모든 스태프의 직책 정보와 관련 스케줄도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteRole} variant="destructive">삭제</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }
-
-    
