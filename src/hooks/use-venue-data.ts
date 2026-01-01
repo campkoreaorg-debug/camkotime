@@ -20,7 +20,7 @@ import {
   where,
   getDocs,
 } from 'firebase/firestore';
-import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Category } from '@/lib/types';
+import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate } from '@/lib/types';
 import { initialData } from '@/lib/data';
 import { useCallback, useMemo, useState, useEffect } from 'react';
 
@@ -45,11 +45,6 @@ export const useVenueData = () => {
   
   const rolesColRef = useMemoFirebase(
     () => (firestore ? collection(firestore, 'venues', VENUE_ID, 'roles') : null),
-    [firestore]
-  );
-  
-  const categoriesColRef = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'venues', VENUE_ID, 'categories') : null),
     [firestore]
   );
 
@@ -77,7 +72,6 @@ export const useVenueData = () => {
   const { data: venueDoc } = useDoc<any>(venueRef);
   const { data: staff } = useCollection<StaffMember>(staffColRef);
   const { data: roles } = useCollection<Role>(rolesColRef);
-  const { data: categories } = useCollection<Category>(categoriesColRef);
   const { data: schedule } = useCollection<ScheduleItem>(scheduleColRef);
   const { data: markers } = useCollection<MapMarker>(markersColRef);
   const { data: maps } = useCollection<MapInfo>(mapsColRef);
@@ -85,7 +79,6 @@ export const useVenueData = () => {
   useEffect(() => {
     const safeStaff = staff || EMPTY_ARRAY;
     const safeRoles = roles || EMPTY_ARRAY;
-    const safeCategories = categories || EMPTY_ARRAY;
     const safeSchedule = schedule || EMPTY_ARRAY;
     const safeMarkers = markers || EMPTY_ARRAY;
     const safeMaps = maps || EMPTY_ARRAY;
@@ -106,14 +99,13 @@ export const useVenueData = () => {
     setLocalData({
       staff: staffWithDetails.sort((a: any,b: any) => a.id.localeCompare(b.id)),
       roles: safeRoles.sort((a: any, b: any) => a.name.localeCompare(b.name)),
-      categories: safeCategories.sort((a: any,b: any) => a.name.localeCompare(b.name)),
       schedule: safeSchedule.sort((a: any,b: any) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
       markers: safeMarkers,
       maps: safeMaps,
       notification: safeNotification,
     });
   // NOTE: stringify is used to ensure deep comparison of the objects in the dependency array
-  }, [JSON.stringify(staff), JSON.stringify(roles), JSON.stringify(categories), JSON.stringify(schedule), JSON.stringify(markers), JSON.stringify(maps), venueDoc]);
+  }, [JSON.stringify(staff), JSON.stringify(roles), JSON.stringify(schedule), JSON.stringify(markers), JSON.stringify(maps), venueDoc]);
 
 
   const initializeFirestoreData = useCallback(async () => {
@@ -133,11 +125,6 @@ export const useVenueData = () => {
     initialData.roles.forEach((role) => {
       const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', role.id);
       batch.set(roleDocRef, role);
-    });
-
-    initialData.categories.forEach((category) => {
-        const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', category.id);
-        batch.set(categoryDocRef, category);
     });
 
     initialData.schedule.forEach((scheduleItem) => {
@@ -321,10 +308,10 @@ export const useVenueData = () => {
     batch.commit();
   };
 
-  const addRole = (name: string, categoryId: string, day: number, time: string, scheduleTemplates: ScheduleTemplate[]) => {
+  const addRole = (name: string, day: number, time: string, scheduleTemplates: ScheduleTemplate[]) => {
     if (!firestore) return;
     const newId = `role-${Date.now()}`;
-    const newRole: Role = { id: newId, name, categoryId, day, time, scheduleTemplates };
+    const newRole: Role = { id: newId, name, day, time, scheduleTemplates };
     const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', newId);
     setDocumentNonBlocking(roleDocRef, newRole, {});
   };
@@ -339,7 +326,7 @@ export const useVenueData = () => {
             ...prev,
             roles: prev.roles.filter(r => r.id !== roleId),
             staff: prev.staff.map(s => s.role?.id === roleId ? { ...s, role: null } : s),
-            schedule: prev.schedule.filter(s => !(s.staffIds && staffIdsWithRole.some(id => s.staffIds.includes(id)))),
+            schedule: prev.schedule.filter(s => !(s.staffIds && staffIdsWithRole.some(id => s.staffIds?.includes(id)))),
         }
     });
 
@@ -471,47 +458,6 @@ export const useVenueData = () => {
     processScheduleDeletion();
   };
 
-  const addCategory = (name: string) => {
-    if (!firestore) return;
-    const newId = `cat-${Date.now()}`;
-    const newCategory: Category = { id: newId, name };
-    const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', newId);
-    setDocumentNonBlocking(categoryDocRef, newCategory, {});
-  };
-
-  const updateCategory = (id: string, name: string) => {
-    if (!firestore || !rolesColRef) return;
-    const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', id);
-    updateDocumentNonBlocking(categoryDocRef, { name });
-  };
-  
-  const deleteCategory = (id: string) => {
-    if (!firestore || !rolesColRef) return;
-
-    setLocalData(prev => {
-        if (!prev) return null;
-        return {
-            ...prev,
-            categories: prev.categories.filter(c => c.id !== id),
-            roles: prev.roles.map(r => r.categoryId === id ? { ...r, categoryId: '' } : r),
-        }
-    });
-
-    const categoryDocRef = doc(firestore, 'venues', VENUE_ID, 'categories', id);
-    deleteDocumentNonBlocking(categoryDocRef);
-
-    const processRoleUpdates = async () => {
-        const batch = writeBatch(firestore);
-        const q = query(rolesColRef, where('categoryId', '==', id));
-        const rolesSnapshot = await getDocs(q);
-        rolesSnapshot.forEach(d => {
-          batch.update(d.ref, { categoryId: '' });
-        });
-        await batch.commit();
-    }
-    processRoleUpdates();
-  };
-
   const updateMapImage = (day: number, time: string, newUrl: string) => {
     if (!firestore) return;
     const mapId = `day${day}-${time.replace(':', '')}`;
@@ -566,7 +512,7 @@ export const useVenueData = () => {
 
 
   return { 
-    data: localData || { staff: [], roles: [], categories: [], schedule: [], markers: [], maps: [], notification: '' }, 
+    data: localData || { staff: [], roles: [], schedule: [], markers: [], maps: [], notification: '' }, 
     addStaff,
     addStaffBatch,
     deleteStaff,
@@ -582,9 +528,6 @@ export const useVenueData = () => {
     deleteRole,
     assignRoleToStaff,
     unassignRoleFromStaff,
-    addCategory,
-    updateCategory,
-    deleteCategory,
     isLoading: !localData, 
     updateMarkerPosition,
     addMarker,
@@ -602,7 +545,3 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
-
-    
-
-    
