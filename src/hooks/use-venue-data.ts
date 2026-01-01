@@ -217,7 +217,7 @@ export const useVenueData = () => {
             })).filter(s => s.staffIds && s.staffIds.length > 0),
             markers: prev.markers.map(m => ({
                 ...m,
-                staffIds: m.staffIds.filter(id => id !== staffId)
+                staffIds: m.staffIds?.filter(id => id !== staffId)
             })).filter(m => m.staffIds && m.staffIds.length > 0),
         }
     });
@@ -602,5 +602,7 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    
 
     
