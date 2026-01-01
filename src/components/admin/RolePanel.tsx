@@ -280,9 +280,15 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                             </div>
                                              <div className="flex gap-2 items-center p-2 border rounded-md">
                                                 <Input 
-                                                    placeholder="이벤트 내용" 
+                                                    placeholder="이벤트 내용 (Enter로 추가)" 
                                                     value={manualTemplate.event}
                                                     onChange={(e) => setManualTemplate(prev => ({ ...prev, event: e.target.value }))}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            handleAddManualTemplate(day, selectedSlot?.time || '00:00');
+                                                        }
+                                                    }}
                                                 />
                                                 <Button 
                                                     size="icon" 
@@ -298,7 +304,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                                         const allTemplatesForDay = uploadedData[`${day}`] || [];
                                                         const templatesToDisplay = selectedSlot 
                                                             ? allTemplatesForDay.filter(t => t.time === selectedSlot.time)
-                                                            : allTemplatesForDay;
+                                                            : [];
 
                                                         if (templatesToDisplay.length > 0) {
                                                             return (
@@ -326,7 +332,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                                         }
                                                         return (
                                                             <div className="flex items-center justify-center h-full text-muted-foreground">
-                                                                {allTemplatesForDay.length > 0 ? `현재 시간대(${selectedSlot?.time})에 맞는 스케줄이 없습니다.` : 'CSV를 업로드하거나 직접 입력하세요.'}
+                                                                {selectedSlot ? `현재 시간대(${selectedSlot.time})에 맞는 스케줄이 없습니다.` : '시간대를 선택하세요.'}
                                                             </div>
                                                         )
                                                     })()
