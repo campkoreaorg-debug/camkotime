@@ -41,7 +41,7 @@ const ItemTypes = {
     ROLE: 'role',
 }
 
-const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }) => {
+const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, index: number, selectedSlot: { day: number, time: string } | null }) => {
     const { deleteStaff, assignRoleToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -71,6 +71,8 @@ const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }
       setIsAlertOpen(false);
     };
 
+    const showRole = staff.role && selectedSlot && staff.role.day === selectedSlot.day;
+
     return (
         <div 
             ref={drop}
@@ -87,7 +89,7 @@ const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }
             </Avatar>
             <div className='flex-1'>
                 <p className="font-semibold text-sm">{staff.name}</p>
-                {staff.role && (
+                {showRole && (
                      <Badge 
                         variant="outline"
                         className="mt-1 text-xs" 
@@ -133,7 +135,11 @@ const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }
     )
 }
 
-export function StaffPanel() {
+interface StaffPanelProps {
+    selectedSlot: { day: number, time: string } | null;
+}
+
+export function StaffPanel({ selectedSlot }: StaffPanelProps) {
   const { data, addStaffBatch, isLoading } = useVenueData();
   const { toast } = useToast();
   const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
@@ -326,7 +332,7 @@ export function StaffPanel() {
                 {data.staff.length > 0 ? (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.28),1fr))] gap-4 p-1">
                     {data.staff.map((s, index) => (
-                        <StaffMemberCard key={s.id} staff={s} index={index} />
+                        <StaffMemberCard key={s.id} staff={s} index={index} selectedSlot={selectedSlot} />
                     ))}
                     </div>
                 ) : (

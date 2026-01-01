@@ -327,7 +327,7 @@ export const useVenueData = () => {
     // 1. Update role for all selected staff
     staffIds.forEach(staffId => {
       const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
-      batch.update(staffDocRef, { role: { id: roleToAssign.id, name: roleToAssign.name } });
+      batch.update(staffDocRef, { role: { id: roleToAssign.id, name: roleToAssign.name, day: roleToAssign.day } });
     });
 
     // 2. Delete all old schedules for these staff members for the specific day of the role
@@ -507,7 +507,7 @@ export const useVenueData = () => {
       const assignedPosition = positions?.find(p => p.id === s.position?.id);
       return { 
         ...s, 
-        role: assignedRole || s.role || null,
+        role: assignedRole ? { ...assignedRole, ...s.role } : s.role || null,
         position: assignedPosition || s.position || null,
       };
     }) || [];
@@ -564,4 +564,3 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
-

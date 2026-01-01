@@ -15,7 +15,7 @@ export interface Category {
 export interface Role {
   id: string;
   name: string;
-  day: number; // ADDED: The day this role is for
+  day: number;
   categoryId: string;
   scheduleTemplates?: ScheduleTemplate[];
 }
@@ -30,7 +30,7 @@ export interface StaffMember {
   id: string;
   name: string;
   avatar: string;
-  role: { id: string; name: string } | null;
+  role: { id: string; name: string; day: number; } | null;
   position: { id: string; name: string; color: string } | null;
 }
 
