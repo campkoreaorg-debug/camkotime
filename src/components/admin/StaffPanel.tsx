@@ -94,7 +94,7 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
             <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
                 {index + 1}
             </span>
-             <Avatar className='h-12 w-12'>
+             <Avatar className={cn('h-12 w-12', showRole && 'border-4 border-destructive')}>
                 <AvatarImage src={staff.avatar} alt={staff.name} />
                 <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
             </Avatar>

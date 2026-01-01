@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from 'react';
-import { Calendar, Users, Edit, Plus, UserCheck, Upload, Settings, Trash2, GripVertical, Search, X } from 'lucide-react';
+import { Calendar, Users, Edit, Plus, UserCheck, Upload, Settings, Trash2, GripVertical, Search, X, User as UserIcon } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -20,6 +20,7 @@ import Papa from 'papaparse';
 import { Checkbox } from '../ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useDrag } from 'react-dnd';
+import { cn } from '@/lib/utils';
 
 const ItemTypes = {
     ROLE: 'role',
@@ -29,7 +30,7 @@ interface RolePanelProps {
     selectedSlot: { day: number, time: string } | null;
 }
 
-const DraggableRole = ({ role, category, onDelete }: { role: Role, category: Category | undefined, onDelete: (role: Role) => void }) => {
+const DraggableRole = ({ role, category, assignedStaff, onDelete }: { role: Role, category: Category | undefined, assignedStaff: StaffMember | undefined, onDelete: (role: Role) => void }) => {
     const [{ isDragging }, drag] = useDrag(() => ({
         type: ItemTypes.ROLE,
         item: role,
@@ -41,19 +42,35 @@ const DraggableRole = ({ role, category, onDelete }: { role: Role, category: Cat
     return (
         <div 
             ref={drag}
-            className="group p-3 rounded-md border bg-muted/30 flex justify-between items-start cursor-grab active:cursor-grabbing"
+            className="group p-3 rounded-md border bg-muted/30 flex flex-col justify-between cursor-grab active:cursor-grabbing min-h-[100px]"
             style={{ opacity: isDragging ? 0.5 : 1 }}
         >
-            <div>
-                <div className="flex items-center gap-3">
-                    <GripVertical className="h-5 w-5 text-muted-foreground" />
-                    <p className="font-semibold text-sm flex-1 truncate">{role.name}</p>
+            <div className="flex justify-between items-start">
+                <div className="flex items-start gap-3 flex-1">
+                    <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                        <p className="font-semibold text-sm truncate">{role.name}</p>
+                        {category && <Badge variant="outline" className='mt-1 text-xs'>{category.name}</Badge>}
+                    </div>
                 </div>
-                {category && <Badge variant="outline" className='mt-2'>{category.name}</Badge>}
+                 <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer shrink-0" onClick={() => onDelete(role)}>
+                    <Trash2 className="h-4 w-4" />
+                </Button>
             </div>
-             <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer" onClick={() => onDelete(role)}>
-                <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="mt-2 text-right">
+                {assignedStaff ? (
+                     <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
+                        <Avatar className="h-5 w-5">
+                            <AvatarImage src={assignedStaff.avatar} />
+                            <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span className='font-semibold'>{assignedStaff.name}</span>
+                        <span>담당</span>
+                    </div>
+                ) : (
+                    <p className='text-xs text-muted-foreground/70'>스태프에게 드래그하여 배정</p>
+                )}
+            </div>
         </div>
     )
 };
@@ -242,7 +259,8 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
                         {rolesForCurrentDay.map(role => {
                             const category = data.categories.find(c => c.id === role.categoryId);
-                            return <DraggableRole key={role.id} role={role} category={category} onDelete={openDeleteRoleDialog} />
+                            const assignedStaff = data.staff.find(s => s.role?.id === role.id && s.role?.day === selectedSlot?.day);
+                            return <DraggableRole key={role.id} role={role} category={category} assignedStaff={assignedStaff} onDelete={openDeleteRoleDialog} />
                         })}
                     </div>
                 ) : (
