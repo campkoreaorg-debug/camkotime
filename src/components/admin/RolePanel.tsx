@@ -95,7 +95,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
     // Uploaded Data & Manual Input State
     const [uploadedData, setUploadedData] = useState<Record<string, ScheduleTemplate[]>>({});
     const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-    const [manualTemplate, setManualTemplate] = useState({ event: '', location: '' });
+    const [manualTemplate, setManualTemplate] = useState({ event: '' });
 
     // Role Deletion State
     const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
@@ -156,12 +156,12 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
             day,
             time,
             event: manualTemplate.event,
-            location: manualTemplate.location || '',
+            location: '',
         };
 
         const key = `${day}`;
         setUploadedData(prev => ({ ...prev, [key]: [...(prev[key] || []), newTemplate] }));
-        setManualTemplate({ event: '', location: '' });
+        setManualTemplate({ event: '' });
     };
 
     const handleCreateRole = () => {
@@ -178,7 +178,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
         setNewRoleName('');
         setSelectedTemplates([]);
         setUploadedData({});
-        setManualTemplate({ event: '', location: '' });
+        setManualTemplate({ event: '' });
     };
     
     const openDeleteRoleDialog = (role: Role) => {
@@ -283,11 +283,6 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                                     placeholder="이벤트 내용" 
                                                     value={manualTemplate.event}
                                                     onChange={(e) => setManualTemplate(prev => ({ ...prev, event: e.target.value }))}
-                                                />
-                                                <Input 
-                                                    placeholder="위치 (선택)" 
-                                                    value={manualTemplate.location}
-                                                    onChange={(e) => setManualTemplate(prev => ({ ...prev, location: e.target.value }))}
                                                 />
                                                 <Button 
                                                     size="icon" 
