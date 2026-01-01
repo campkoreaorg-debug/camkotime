@@ -19,6 +19,56 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Papa from 'papaparse';
 import { Checkbox } from '../ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { useDrag } from 'react-dnd';
+
+const ItemTypes = {
+    ROLE: 'role',
+}
+
+const DraggableRole = ({ role, category }: { role: Role, category: Category | undefined }) => {
+    const [{ isDragging }, drag] = useDrag(() => ({
+        type: ItemTypes.ROLE,
+        item: role,
+        collect: (monitor) => ({
+            isDragging: !!monitor.isDragging(),
+        }),
+    }));
+
+    return (
+        <div 
+            ref={drag}
+            className="group p-3 rounded-md border bg-muted/30 flex justify-between items-start cursor-grab active:cursor-grabbing"
+            style={{ opacity: isDragging ? 0.5 : 1 }}
+        >
+            <div>
+                <div className="flex items-center gap-3">
+                    <GripVertical className="h-5 w-5 text-muted-foreground" />
+                    <p className="font-semibold text-sm flex-1 truncate">{role.name}</p>
+                </div>
+                {category && <Badge variant="outline" className='mt-2'>{category.name}</Badge>}
+            </div>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                     <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer">
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>정말 이 직책을 삭제하시겠습니까?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                        '{role.name}' 직책이 영구적으로 삭제됩니다. 이 직책이 할당된 모든 스태프의 직책 정보와 관련 스케줄도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => useVenueData().deleteRole(role.id)} variant="destructive">삭제</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    )
+};
 
 
 const days = [0, 1, 2, 3];
@@ -31,9 +81,7 @@ export function RolePanel() {
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
     const [isAssignRoleModalOpen, setIsAssignRoleModalOpen] = useState(false);
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
-    const [isDeleteRoleAlertOpen, setIsDeleteRoleAlertOpen] = useState(false);
-    const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
-
+    
     // Create Role State
     const [newRoleName, setNewRoleName] = useState('');
     const [newRoleCategoryId, setNewRoleCategoryId] = useState<string>('');
@@ -151,23 +199,6 @@ export function RolePanel() {
         setEditingCategory(null);
         setCategoryName('');
     }
-
-    const openDeleteRoleDialog = (role: Role) => {
-        setRoleToDelete(role);
-        setIsDeleteRoleAlertOpen(true);
-    };
-
-    const handleConfirmDeleteRole = () => {
-        if (roleToDelete) {
-            deleteRole(roleToDelete.id);
-            toast({
-                title: '직책 삭제됨',
-                description: `'${roleToDelete.name}' 직책 및 관련 데이터가 삭제되었습니다.`
-            });
-        }
-        setIsDeleteRoleAlertOpen(false);
-        setRoleToDelete(null);
-    };
     
     const filteredStaff = useMemo(() => {
         return data.staff.filter(s => s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()));
@@ -180,7 +211,7 @@ export function RolePanel() {
                 <div>
                     <CardTitle className="font-headline text-2xl font-semibold">직책 관리</CardTitle>
                     <CardDescription>
-                        총 <Badge variant="secondary">{data.roles.length}</Badge>개의 직책이 있습니다.
+                        총 <Badge variant="secondary">{data.roles.length}</Badge>개의 직책. 스태프에게 드래그하세요.
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -191,39 +222,10 @@ export function RolePanel() {
             </CardHeader>
             <CardContent>
                 {data.roles.length > 0 ? (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
                         {data.roles.map(role => {
                             const category = data.categories.find(c => c.id === role.categoryId);
-                            return (
-                                <div key={role.id} className="group p-3 rounded-md border bg-muted/30 flex justify-between items-start">
-                                    <div>
-                                        <div className="flex items-center gap-3">
-                                            <Users className="h-5 w-5 text-primary" />
-                                            <p className="font-semibold text-sm flex-1 truncate">{role.name}</p>
-                                        </div>
-                                        {category && <Badge variant="outline" className='mt-2'>{category.name}</Badge>}
-                                    </div>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                             <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100">
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>정말 이 직책을 삭제하시겠습니까?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                '{role.name}' 직책이 영구적으로 삭제됩니다. 이 직책이 할당된 모든 스태프의 직책 정보와 관련 스케줄도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>취소</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => deleteRole(role.id)} variant="destructive">삭제</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
-                            )
+                            return <DraggableRole key={role.id} role={role} category={category} />
                         })}
                     </div>
                 ) : (
@@ -492,22 +494,6 @@ export function RolePanel() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-             <AlertDialog open={isDeleteRoleAlertOpen} onOpenChange={setIsDeleteRoleAlertOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            이 작업은 되돌릴 수 없습니다. 이 직책 및 관련 스케줄이 영구적으로 삭제됩니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <Button variant="outline" onClick={() => setIsDeleteRoleAlertOpen(false)}>취소</Button>
-                        <Button variant="destructive" onClick={handleConfirmDeleteRole}>삭제</Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
         </Card>
     );
 }

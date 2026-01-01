@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { StaffMember } from '@/lib/types';
+import type { StaffMember, Role } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -27,6 +27,7 @@ import {
     CollapsibleTrigger,
   } from "@/components/ui/collapsible"
 import { cn } from '@/lib/utils';
+import { useDrop, DropTargetMonitor } from 'react-dnd';
 
 interface PendingStaff {
     key: string;
@@ -36,31 +37,108 @@ interface PendingStaff {
 
 const MAX_IMAGE_WIDTH = 800; // 픽셀 단위
 
+const ItemTypes = {
+    ROLE: 'role',
+}
+
+const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }) => {
+    const { deleteStaff, assignRoleToStaff } = useVenueData();
+    const { toast } = useToast();
+    const [isAlertOpen, setIsAlertOpen] = useState(false);
+
+    const [{ isOver, canDrop }, drop] = useDrop(() => ({
+        accept: ItemTypes.ROLE,
+        drop: (item: Role) => {
+            assignRoleToStaff([staff.id], item.id);
+            toast({
+                title: '직책 할당됨',
+                description: `${staff.name}님에게 '${item.name}' 직책이 할당되었습니다.`,
+            });
+        },
+        collect: (monitor: DropTargetMonitor) => ({
+            isOver: !!monitor.isOver(),
+            canDrop: !!monitor.canDrop(),
+        }),
+    }), [staff.id]);
+
+
+    const handleDelete = () => {
+        deleteStaff(staff.id);
+        toast({
+          title: "삭제 완료",
+          description: `${staff.name} 스태프와 모든 관련 데이터가 삭제되었습니다.`
+        })
+      setIsAlertOpen(false);
+    };
+
+    return (
+        <div 
+            ref={drop}
+            className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all",
+                isOver && canDrop && "ring-2 ring-primary bg-primary/10"
+            )}
+        >
+            <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
+                {index + 1}
+            </span>
+             <Avatar className='h-12 w-12'>
+                <AvatarImage src={staff.avatar} alt={staff.name} />
+                <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
+            </Avatar>
+            <div className='flex-1'>
+                <p className="font-semibold text-sm">{staff.name}</p>
+                {staff.role && (
+                     <Badge 
+                        variant="outline"
+                        className="mt-1 text-xs" 
+                    >
+                        {staff.role.name}
+                    </Badge>
+                )}
+                 {staff.position && (
+                    <Badge 
+                        className="mt-1 text-xs ml-1" 
+                        style={{ 
+                            backgroundColor: staff.position.color,
+                            color: '#ffffff'
+                        }}
+                    >
+                        {staff.position.name}
+                    </Badge>
+                )}
+            </div>
+            <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-1 right-1 h-7 w-7 text-destructive opacity-0 group-hover:opacity-100"
+                onClick={() => setIsAlertOpen(true)}
+            >
+                <Trash2 className="h-4 w-4" />
+            </Button>
+             <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        이 작업은 되돌릴 수 없습니다. <span className="font-bold">{staff.name}</span> 스태프와 모든 관련 데이터가 영구적으로 삭제됩니다.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>삭제</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    )
+}
+
 export function StaffPanel() {
-  const { data, addStaffBatch, deleteStaff, isLoading } = useVenueData();
+  const { data, addStaffBatch, isLoading } = useVenueData();
   const { toast } = useToast();
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
   const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGridOpen, setIsGridOpen] = useState(true);
-
-  const handleDeleteConfirmation = (staff: StaffMember) => {
-    setStaffToDelete(staff);
-    setIsAlertOpen(true);
-  };
-
-  const handleDelete = () => {
-    if (staffToDelete) {
-      deleteStaff(staffToDelete.id);
-      toast({
-        title: "삭제 완료",
-        description: `${staffToDelete.name} 스태프와 모든 관련 데이터가 삭제되었습니다.`
-      })
-    }
-    setIsAlertOpen(false);
-    setStaffToDelete(null);
-  };
 
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -246,39 +324,9 @@ export function StaffPanel() {
                 )}
 
                 {data.staff.length > 0 ? (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.24),1fr))] gap-4 p-1">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.28),1fr))] gap-4 p-1">
                     {data.staff.map((s, index) => (
-                        <div key={s.id} className="relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center">
-                            <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
-                                {index + 1}
-                            </span>
-                             <Avatar className='h-12 w-12'>
-                                <AvatarImage src={s.avatar} alt={s.name} />
-                                <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
-                            </Avatar>
-                            <div className='flex-1'>
-                                <p className="font-semibold text-sm">{s.name}</p>
-                                {s.position && (
-                                    <Badge 
-                                        className="mt-1 text-xs" 
-                                        style={{ 
-                                            backgroundColor: s.position.color,
-                                            color: '#ffffff'
-                                        }}
-                                    >
-                                        {s.position.name}
-                                    </Badge>
-                                )}
-                            </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="absolute top-1 right-1 h-7 w-7 text-destructive opacity-0 group-hover:opacity-100"
-                                onClick={() => handleDeleteConfirmation(s)}
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
+                        <StaffMemberCard key={s.id} staff={s} index={index} />
                     ))}
                     </div>
                 ) : (
@@ -292,20 +340,8 @@ export function StaffPanel() {
             </CardContent>
         </CollapsibleContent>
       </Collapsible>
-      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    이 작업은 되돌릴 수 없습니다. <span className="font-bold">{staffToDelete?.name}</span> 스태프와 모든 관련 데이터가 영구적으로 삭제됩니다.
-                </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                <AlertDialogCancel>취소</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>삭제</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
     </Card>
   );
 }
+
+    
