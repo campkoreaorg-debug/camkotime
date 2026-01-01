@@ -25,6 +25,10 @@ const ItemTypes = {
     ROLE: 'role',
 }
 
+interface RolePanelProps {
+    selectedSlot: { day: number, time: string } | null;
+}
+
 const DraggableRole = ({ role, category, onDelete }: { role: Role, category: Category | undefined, onDelete: (role: Role) => void }) => {
     const [{ isDragging }, drag] = useDrag(() => ({
         type: ItemTypes.ROLE,
@@ -57,7 +61,7 @@ const DraggableRole = ({ role, category, onDelete }: { role: Role, category: Cat
 
 const days = [0, 1, 2, 3];
 
-export function RolePanel() {
+export function RolePanel({ selectedSlot }: RolePanelProps) {
     const { data, addRole, assignRoleToStaff, addCategory, updateCategory, deleteCategory, deleteRole } = useVenueData();
     const { toast } = useToast();
 
@@ -88,14 +92,12 @@ export function RolePanel() {
     // Role Deletion State
     const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
     
-    const [activeDayTab, setActiveDayTab] = useState('day-0');
-
     const categoriesWithAll: Category[] = useMemo(() => [{ id: 'all', name: '전체' }, ...data.categories], [data.categories]);
     
     const rolesForCurrentDay = useMemo(() => {
-        const currentDay = parseInt(activeDayTab.split('-')[1], 10);
-        return data.roles.filter(r => r.day === currentDay);
-    }, [data.roles, activeDayTab]);
+        if (!selectedSlot) return [];
+        return data.roles.filter(r => r.day === selectedSlot.day);
+    }, [data.roles, selectedSlot]);
 
     const handleFileUpload = (day: number, categoryId: string, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -151,9 +153,9 @@ export function RolePanel() {
             toast({ variant: 'destructive', title: '하나 이상의 스케줄을 선택해주세요.' });
             return;
         }
+        if (!selectedSlot) return;
         
-        const currentDay = parseInt(activeDayTab.split('-')[1], 10);
-        addRole(newRoleName, newRoleCategoryId, currentDay, selectedTemplates);
+        addRole(newRoleName, newRoleCategoryId, selectedSlot.day, selectedTemplates);
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
         
         setIsCreateRoleModalOpen(false);
@@ -215,16 +217,17 @@ export function RolePanel() {
     }, [data.staff, staffSearchTerm]);
 
     const filteredRolesForAssign = useMemo(() => {
-        const currentDay = parseInt(activeDayTab.split('-')[1], 10);
-        return data.roles.filter(r => r.day === currentDay);
-    }, [data.roles, activeDayTab]);
+        if (!selectedSlot) return [];
+        return data.roles.filter(r => r.day === selectedSlot.day);
+    }, [data.roles, selectedSlot]);
 
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                    <CardTitle className="font-headline text-2xl font-semibold">직책 관리</CardTitle>
+                    <CardTitle className="font-headline text-xl font-semibold">직책 관리</CardTitle>
                     <CardDescription>
+                        {selectedSlot ? `Day ${selectedSlot.day} | ` : ''}
                         총 <Badge variant="secondary">{rolesForCurrentDay.length}</Badge>개의 직책. 스태프에게 드래그하세요.
                     </CardDescription>
                 </div>
@@ -235,33 +238,25 @@ export function RolePanel() {
                 </div>
             </CardHeader>
             <CardContent>
-                <Tabs value={activeDayTab} onValueChange={setActiveDayTab} className="w-full">
-                    <TabsList className='mb-4'>
-                        {days.map(day => (
-                            <TabsTrigger key={`day-tab-role-${day}`} value={`day-${day}`}>Day {day}</TabsTrigger>
-                        ))}
-                    </TabsList>
-
-                    {rolesForCurrentDay.length > 0 ? (
-                        <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-                            {rolesForCurrentDay.map(role => {
-                                const category = data.categories.find(c => c.id === role.categoryId);
-                                return <DraggableRole key={role.id} role={role} category={category} onDelete={openDeleteRoleDialog} />
-                            })}
-                        </div>
-                    ) : (
-                        <div className="text-center text-muted-foreground py-10">
-                            <p>생성된 직책이 없습니다.</p>
-                        </div>
-                    )}
-                </Tabs>
+                {rolesForCurrentDay.length > 0 ? (
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+                        {rolesForCurrentDay.map(role => {
+                            const category = data.categories.find(c => c.id === role.categoryId);
+                            return <DraggableRole key={role.id} role={role} category={category} onDelete={openDeleteRoleDialog} />
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center text-muted-foreground py-10">
+                        <p>{selectedSlot ? `Day ${selectedSlot.day}에 생성된 직책이 없습니다.` : '시간대를 선택하세요.'}</p>
+                    </div>
+                )}
             </CardContent>
 
             {/* 직책 생성 모달 */}
             <Dialog open={isCreateRoleModalOpen} onOpenChange={setIsCreateRoleModalOpen}>
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle>새 직책 생성 ({activeDayTab.replace('-', ' ')}일차)</DialogTitle>
+                        <DialogTitle>새 직책 생성 ({selectedSlot ? `Day ${selectedSlot.day}` : ''})</DialogTitle>
                         <DialogDescription>
                             CSV 업로드를 통해 직책에 할당할 스케줄 템플릿을 선택하세요. CSV 파일은 '시간', '이벤트', '위치' 헤더를 포함해야 합니다.
                         </DialogDescription>
@@ -300,7 +295,7 @@ export function RolePanel() {
                         </div>
                         <div className="space-y-4">
                              <Label>스케줄 템플릿 선택</Label>
-                             <Tabs defaultValue={`day-${parseInt(activeDayTab.split('-')[1])}`}>
+                             <Tabs defaultValue={selectedSlot ? `day-${selectedSlot.day}` : 'day-0'}>
                                 <TabsList className="grid w-full grid-cols-4">
                                     {days.map(day => (
                                         <TabsTrigger key={`day-tab-create-${day}`} value={`day-${day}`}>Day {day}</TabsTrigger>
@@ -383,7 +378,7 @@ export function RolePanel() {
             <Dialog open={isAssignRoleModalOpen} onOpenChange={setIsAssignRoleModalOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle>직책 배정 ({activeDayTab.replace('-', ' ')}일차)</DialogTitle>
+                        <DialogTitle>직책 배정 ({selectedSlot ? `Day ${selectedSlot.day}` : ''})</DialogTitle>
                         <DialogDescription>
                             스태프에게 직책을 배정합니다. 배정 시 해당 직책의 스케줄이 스태프에게 자동으로 할당됩니다.
                         </DialogDescription>

@@ -163,7 +163,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 <StaffPanel />
                 <div className='flex flex-col gap-8'>
-                  <RolePanel />
+                  <RolePanel selectedSlot={selectedSlot} />
                   <PositionPanel />
                 </div>
               </div>
