@@ -7,9 +7,9 @@ const mapBg = PlaceHolderImages.find(p => p.id === 'map-background')?.imageUrl |
 
 export const initialData: Omit<VenueData, 'notification'> = {
   staff: [
-    { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '', role: { id: 'role-1', name: '보안', day: 0 } },
-    { id: 'staff-2', name: '박서준', avatar: PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '', role: { id: 'role-2', name: '의료', day: 0 } },
-    { id: 'staff-3', name: '김민지', avatar: PlaceHolderImages.find(p => p.id === 'avatar-3')?.imageUrl || '', role: { id: 'role-3', name: '안내', day: 1 } },
+    { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '', role: { id: 'role-1', name: '보안팀', day: 0 } },
+    { id: 'staff-2', name: '박서준', avatar: PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '', role: { id: 'role-2', name: '의료팀', day: 0 } },
+    { id: 'staff-3', name: '김민지', avatar: PlaceHolderImages.find(p => p.id === 'avatar-3')?.imageUrl || '', role: { id: 'role-3', name: '안내팀', day: 1 } },
     { id: 'staff-4', name: '최현우', avatar: PlaceHolderImages.find(p => p.id === 'avatar-4')?.imageUrl || '', role: null },
     { id: 'staff-5', name: '정다은', avatar: PlaceHolderImages.find(p => p.id === 'avatar-5')?.imageUrl || '', role: null },
   ],
@@ -41,3 +41,5 @@ export const initialData: Omit<VenueData, 'notification'> = {
     { id: 'day1-1030', day: 1, time: '10:30', mapImageUrl: mapBg },
   ],
 };
+
+    

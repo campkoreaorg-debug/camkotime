@@ -49,17 +49,28 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.ROLE,
         drop: (item: Role) => {
-            assignRoleToStaff([staff.id], item.id);
+            if (item.day !== selectedSlot?.day) {
+                toast({
+                    variant: 'destructive',
+                    title: '날짜 불일치',
+                    description: `이 직책은 Day ${item.day} 전용입니다. Day ${selectedSlot?.day}의 스태프에게 할당할 수 없습니다.`,
+                });
+                return;
+            }
+            assignRoleToStaff(staff.id, item.id);
             toast({
                 title: '직책 할당됨',
                 description: `${staff.name}님에게 '${item.name}' 직책이 할당되었습니다.`,
             });
         },
+        canDrop: (item: Role) => {
+            return item.day === selectedSlot?.day;
+        },
         collect: (monitor: DropTargetMonitor) => ({
             isOver: !!monitor.isOver(),
-            canDrop: !!monitor.canDrop(),
+            canDrop: !!monitor.canDrop() && monitor.getItem().day === selectedSlot?.day,
         }),
-    }), [staff.id]);
+    }), [staff.id, selectedSlot]);
 
 
     const handleDelete = () => {
@@ -88,7 +99,8 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
         <div 
             ref={drop}
             className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all",
-                isOver && canDrop && "ring-2 ring-primary bg-primary/10"
+                isOver && canDrop && "ring-2 ring-primary bg-primary/10",
+                isOver && !canDrop && "ring-2 ring-destructive bg-destructive/10"
             )}
         >
             <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
@@ -354,3 +366,5 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
     </Card>
   );
 }
+
+    

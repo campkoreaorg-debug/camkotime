@@ -123,7 +123,7 @@ export const useVenueData = () => {
     batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid, notification: '' });
     
     initialData.staff.forEach((staffMember) => {
-        const { position, ...rest } = staffMember;
+        const { ...rest } = staffMember;
         const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', rest.id);
         batch.set(staffDocRef, rest);
     });
@@ -212,11 +212,11 @@ export const useVenueData = () => {
             schedule: prev.schedule.map(s => ({
                 ...s,
                 staffIds: s.staffIds?.filter(id => id !== staffId)
-            })).filter(s => s.staffIds?.length > 0),
+            })).filter(s => s.staffIds && s.staffIds.length > 0),
             markers: prev.markers.map(m => ({
                 ...m,
                 staffIds: m.staffIds.filter(id => id !== staffId)
-            })).filter(m => m.staffIds.length > 0),
+            })).filter(m => m.staffIds && m.staffIds.length > 0),
         }
     });
     
@@ -337,7 +337,7 @@ export const useVenueData = () => {
             ...prev,
             roles: prev.roles.filter(r => r.id !== roleId),
             staff: prev.staff.map(s => s.role?.id === roleId ? { ...s, role: null } : s),
-            schedule: prev.schedule.filter(s => !s.staffIds?.some(id => staffIdsWithRole.includes(id))),
+            schedule: prev.schedule.filter(s => !(s.staffIds && s.staffIds.some(id => staffIdsWithRole.includes(id)))),
         }
     });
 
@@ -355,7 +355,7 @@ export const useVenueData = () => {
             batch.update(staffDoc.ref, { role: null });
         });
         
-        if (staffIdsWithRole.length > 0) {
+        if (staffIdsWithRole.length > 0 && scheduleColRef) {
             for (let i = 0; i < staffIdsWithRole.length; i += 30) {
                 const chunk = staffIdsWithRole.slice(i, i + 30);
                 const scheduleQuery = query(scheduleColRef, where('staffIds', 'array-contains-any', chunk));
@@ -376,30 +376,30 @@ export const useVenueData = () => {
     processDeletion();
   };
 
-  const assignRoleToStaff = (staffIds: string[], roleId: string) => {
-    if (!firestore || !roles || staffIds.length === 0) return;
+  const assignRoleToStaff = (staffId: string, roleId: string) => {
+    if (!firestore || !localData) return;
     
-    const roleToAssign = roles.find(r => r.id === roleId);
+    const roleToAssign = localData.roles.find(r => r.id === roleId);
     if (!roleToAssign) return;
 
     setLocalData(prev => {
         if (!prev) return null;
         
-        // Optimistically update staff
+        // 1. Optimistically update staff
         const updatedStaff = prev.staff.map(s => {
-            if (staffIds.includes(s.id)) {
+            if (s.id === staffId) {
                 return { ...s, role: { id: roleToAssign.id, name: roleToAssign.name, day: roleToAssign.day } };
             }
             return s;
         });
 
-        // Optimistically remove old schedules and add new ones
+        // 2. Optimistically remove old schedules for the affected staff on the affected day
         const remainingSchedules = prev.schedule.filter(s => {
-          // Keep schedules that are NOT for the affected staff on the affected day
-          const isAffected = staffIds.includes(s.staffIds?.[0]) && s.day === roleToAssign.day;
-          return !isAffected;
+            const isAffected = s.staffIds?.includes(staffId) && s.day === roleToAssign.day;
+            return !isAffected;
         });
         
+        // 3. Optimistically add new schedules based on template
         const newSchedules: ScheduleItem[] = [];
         if (roleToAssign.scheduleTemplates) {
             const relevantTemplates = roleToAssign.scheduleTemplates.filter(t => t.day === roleToAssign.day);
@@ -411,7 +411,7 @@ export const useVenueData = () => {
                     time: template.time,
                     event: template.event,
                     location: template.location,
-                    staffIds: staffIds,
+                    staffIds: [staffId], // Assign only to the new staff
                 });
             });
         }
@@ -423,46 +423,40 @@ export const useVenueData = () => {
         };
     });
 
+    // --- Background DB Operations ---
     const batch = writeBatch(firestore);
 
-    // DB update for staff
-    staffIds.forEach(staffId => {
-      const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
-      batch.update(staffDocRef, { role: { id: roleToAssign.id, name: roleToAssign.name, day: roleToAssign.day } });
-    });
+    // Update staff role in DB
+    const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
+    batch.update(staffDocRef, { role: { id: roleToAssign.id, name: roleToAssign.name, day: roleToAssign.day } });
 
-    // DB update for schedules (delete old, add new)
     const processSchedules = async () => {
         if (!scheduleColRef) return;
         
-        // Delete old schedules
-        for (let i = 0; i < staffIds.length; i += 30) {
-          const chunk = staffIds.slice(i, i + 30);
-          const q = query(scheduleColRef, where('staffIds', 'array-contains-any', chunk), where('day', '==', roleToAssign.day));
-          const oldSchedulesSnapshot = await getDocs(q);
-          oldSchedulesSnapshot.forEach(d => {
+        // Delete old schedules from DB
+        const q = query(scheduleColRef, where('staffIds', 'array-contains', staffId), where('day', '==', roleToAssign.day));
+        const oldSchedulesSnapshot = await getDocs(q);
+        oldSchedulesSnapshot.forEach(d => {
             const currentStaffIds = d.data().staffIds || [];
-            const newStaffIds = currentStaffIds.filter((id: string) => !chunk.includes(id));
+            const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
             if (newStaffIds.length > 0) {
               batch.update(d.ref, { staffIds: newStaffIds });
             } else {
               batch.delete(d.ref);
             }
-          });
-        }
+        });
         
-        // Add new schedules
+        // Add new schedules to DB
         if (roleToAssign.scheduleTemplates) {
           const relevantTemplates = roleToAssign.scheduleTemplates.filter(t => t.day === roleToAssign.day);
           relevantTemplates.forEach(template => {
             const scheduleId = `sch-tpl-${template.day}-${template.time.replace(':','')}-${Math.random().toString(36).substr(2, 5)}`;
-            const newSchedule: ScheduleItem = {
-              id: scheduleId,
+            const newSchedule: Omit<ScheduleItem, 'id'> = {
               day: template.day,
               time: template.time,
               event: template.event,
               location: template.location,
-              staffIds: staffIds,
+              staffIds: [staffId],
             };
             const scheduleDocRef = doc(firestore, 'venues', VENUE_ID, 'schedules', scheduleId);
             batch.set(scheduleDocRef, newSchedule, { merge: true });
@@ -493,13 +487,13 @@ export const useVenueData = () => {
         const batch = writeBatch(firestore);
         const q = query(scheduleColRef, where('staffIds', 'array-contains', staffId), where('day', '==', roleDay));
         const snapshot = await getDocs(q);
-        snapshot.forEach(doc => {
-            const currentStaffIds = doc.data().staffIds || [];
+        snapshot.forEach(d => {
+            const currentStaffIds = d.data().staffIds || [];
             const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
             if(newStaffIds.length > 0) {
-                batch.update(doc.ref, { staffIds: newStaffIds });
+                batch.update(d.ref, { staffIds: newStaffIds });
             } else {
-                batch.delete(doc.ref);
+                batch.delete(d.ref);
             }
         });
         await batch.commit();
@@ -540,8 +534,8 @@ export const useVenueData = () => {
         const batch = writeBatch(firestore);
         const q = query(rolesColRef, where('categoryId', '==', id));
         const rolesSnapshot = await getDocs(q);
-        rolesSnapshot.forEach(doc => {
-          batch.update(doc.ref, { categoryId: '' });
+        rolesSnapshot.forEach(d => {
+          batch.update(d.ref, { categoryId: '' });
         });
         await batch.commit();
     }
@@ -638,3 +632,6 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+
+    

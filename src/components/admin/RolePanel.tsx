@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useRef } from 'react';
@@ -31,9 +32,9 @@ interface RolePanelProps {
 }
 
 const DraggableRole = ({ role, category, assignedStaff, onDelete }: { role: Role, category: Category | undefined, assignedStaff: StaffMember | undefined, onDelete: (role: Role) => void }) => {
-    const [{ isDragging }, drag] = useDrag(() => ({
+    const [{ isDragging }, drag, preview] = useDrag(() => ({
         type: ItemTypes.ROLE,
-        item: role,
+        item: { id: role.id, name: role.name, day: role.day },
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
         }),
@@ -68,7 +69,7 @@ const DraggableRole = ({ role, category, assignedStaff, onDelete }: { role: Role
                         <span>담당</span>
                     </div>
                 ) : (
-                    <p className='text-xs text-muted-foreground/70'>현재 이 직책이 배정된 스태프 이름이 나오게 해줘</p>
+                    <p className='text-xs text-muted-foreground/70'>스태프에게 드래그하여 배정</p>
                 )}
             </div>
         </div>
@@ -186,7 +187,12 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
             toast({ variant: 'destructive', title: '직책과 한 명 이상의 스태프를 선택해주세요.' });
             return;
         }
-        assignRoleToStaff(selectedStaffIds, selectedRoleId);
+        // This function is complex and might be simplified if we only assign one by one
+        // For now, let's assume we want to keep batch assignment via modal
+        staffIds.forEach(staffId => {
+            assignRoleToStaff(staffId, selectedRoleId);
+        });
+
         toast({ title: '성공', description: `${selectedStaffIds.length}명의 스태프에게 직책이 배정되었습니다.` });
         setIsAssignRoleModalOpen(false);
         setSelectedRoleId(null);
@@ -238,6 +244,8 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
         return data.roles.filter(r => r.day === selectedSlot.day);
     }, [data.roles, selectedSlot]);
 
+    const staffIds = selectedStaffIds; // Alias for clarity
+
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -251,7 +259,6 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                 <div className="flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setIsCategoryManagerOpen(true)}><Settings className="mr-2 h-4 w-4"/>카테고리 관리</Button>
                     <Button variant="outline" onClick={() => setIsCreateRoleModalOpen(true)}><Plus className="mr-2 h-4 w-4"/>직책 생성</Button>
-                    <Button onClick={() => { setIsAssignRoleModalOpen(true); setSelectedRoleId(null); setSelectedStaffIds([]); setStaffSearchTerm(''); }}><UserCheck className="mr-2 h-4 w-4"/>직책 배정</Button>
                 </div>
             </CardHeader>
             <CardContent>
@@ -259,6 +266,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
                         {rolesForCurrentDay.map(role => {
                             const category = data.categories.find(c => c.id === role.categoryId);
+                            // Find staff assigned to this role ON THE CURRENT DAY
                             const assignedStaff = data.staff.find(s => s.role?.id === role.id && s.role?.day === selectedSlot?.day);
                             return <DraggableRole key={role.id} role={role} category={category} assignedStaff={assignedStaff} onDelete={openDeleteRoleDialog} />
                         })}
@@ -392,7 +400,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                 </DialogContent>
             </Dialog>
 
-            {/* 직책 배정 모달 */}
+            {/* 직책 배정 모달 - This is currently not used due to DND but kept for potential future use */}
             <Dialog open={isAssignRoleModalOpen} onOpenChange={setIsAssignRoleModalOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
