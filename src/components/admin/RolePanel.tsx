@@ -70,7 +70,7 @@ const DraggableRole = ({ role, assignedStaff, onDelete }: { role: Role, assigned
                         <span className='font-semibold'>{assignedStaff.length}명 담당</span>
                     </div>
                 ) : (
-                    <p className='text-xs text-muted-foreground/70'>스태프에게 드래그하여 배정</p>
+                    <p className='text-xs text-muted-foreground/70'>현재 이 직책이 배정된 스태프 이름이 나오게 해줘</p>
                 )}
             </div>
         </div>
@@ -258,7 +258,10 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                             <ScrollArea className="h-[260px] border rounded-lg p-2">
                                                  {
                                                     (() => {
-                                                        const templatesToDisplay = uploadedData[`${day}`] || [];
+                                                        const allTemplatesForDay = uploadedData[`${day}`] || [];
+                                                        const templatesToDisplay = selectedSlot 
+                                                            ? allTemplatesForDay.filter(t => t.time === selectedSlot.time)
+                                                            : allTemplatesForDay;
 
                                                         if (templatesToDisplay.length > 0) {
                                                             return (
@@ -280,7 +283,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                                         }
                                                         return (
                                                             <div className="flex items-center justify-center h-full text-muted-foreground">
-                                                                CSV 파일을 업로드하세요.
+                                                                {allTemplatesForDay.length > 0 ? `현재 시간대(${selectedSlot?.time})에 맞는 스케줄이 없습니다.` : 'CSV 파일을 업로드하세요.'}
                                                             </div>
                                                         )
                                                     })()
