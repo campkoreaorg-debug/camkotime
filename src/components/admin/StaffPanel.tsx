@@ -49,11 +49,11 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.ROLE,
         drop: (item: Role) => {
-            if (item.day !== selectedSlot?.day) {
+            if (item.day !== selectedSlot?.day || item.time !== selectedSlot?.time) {
                 toast({
                     variant: 'destructive',
-                    title: '날짜 불일치',
-                    description: `이 직책은 Day ${item.day} 전용입니다. Day ${selectedSlot?.day}의 스태프에게 할당할 수 없습니다.`,
+                    title: '시간대 불일치',
+                    description: `이 직책은 Day ${item.day} ${item.time} 전용입니다. Day ${selectedSlot?.day} ${selectedSlot?.time}의 스태프에게 할당할 수 없습니다.`,
                 });
                 return;
             }
@@ -64,11 +64,11 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
             });
         },
         canDrop: (item: Role) => {
-            return item.day === selectedSlot?.day;
+            return item.day === selectedSlot?.day && item.time === selectedSlot?.time;
         },
         collect: (monitor: DropTargetMonitor) => ({
             isOver: !!monitor.isOver(),
-            canDrop: !!monitor.canDrop() && monitor.getItem().day === selectedSlot?.day,
+            canDrop: !!monitor.canDrop() && monitor.getItem().day === selectedSlot?.day && monitor.getItem().time === selectedSlot?.time,
         }),
     }), [staff.id, selectedSlot]);
 
@@ -85,7 +85,7 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
     const handleUnassignRole = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (staff.role) {
-            unassignRoleFromStaff(staff.id, staff.role.day);
+            unassignRoleFromStaff(staff.id, staff.role.day, staff.role.time);
             toast({
                 title: '직책 해제됨',
                 description: `${staff.name}님의 직책이 해제되었습니다.`,
@@ -93,7 +93,7 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
         }
     };
 
-    const showRole = staff.role && selectedSlot && staff.role.day === selectedSlot.day;
+    const showRole = staff.role && selectedSlot && staff.role.day === selectedSlot.day && staff.role.time === selectedSlot.time;
 
     return (
         <div 

@@ -16,6 +16,7 @@ export interface Role {
   id: string;
   name: string;
   day: number;
+  time: string; // 시간대 추가
   categoryId: string;
   scheduleTemplates?: ScheduleTemplate[];
 }
@@ -24,7 +25,7 @@ export interface StaffMember {
   id: string;
   name: string;
   avatar: string;
-  role: { id: string; name: string; day: number; } | null;
+  role: { id: string; name: string; day: number; time: string; } | null; // 시간대 추가
 }
 
 export interface ScheduleItem {

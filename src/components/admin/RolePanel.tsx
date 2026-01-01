@@ -31,10 +31,10 @@ interface RolePanelProps {
     selectedSlot: { day: number, time: string } | null;
 }
 
-const DraggableRole = ({ role, category, assignedStaff, onDelete }: { role: Role, category: Category | undefined, assignedStaff: StaffMember | undefined, onDelete: (role: Role) => void }) => {
+const DraggableRole = ({ role, category, assignedStaff, onDelete }: { role: Role, category: Category | undefined, assignedStaff: StaffMember[], onDelete: (role: Role) => void }) => {
     const [{ isDragging }, drag, preview] = useDrag(() => ({
         type: ItemTypes.ROLE,
-        item: { id: role.id, name: role.name, day: role.day },
+        item: { id: role.id, name: role.name, day: role.day, time: role.time },
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
         }),
@@ -59,14 +59,17 @@ const DraggableRole = ({ role, category, assignedStaff, onDelete }: { role: Role
                 </Button>
             </div>
             <div className="mt-2 text-right">
-                {assignedStaff ? (
+                {assignedStaff.length > 0 ? (
                      <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
-                        <Avatar className="h-5 w-5">
-                            <AvatarImage src={assignedStaff.avatar} />
-                            <AvatarFallback>{assignedStaff.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className='font-semibold'>{assignedStaff.name}</span>
-                        <span>담당</span>
+                        <div className="flex -space-x-2 overflow-hidden">
+                          {assignedStaff.slice(0, 2).map(s => (
+                              <Avatar key={s.id} className="h-5 w-5 inline-block border-2 border-background">
+                                <AvatarImage src={s.avatar} />
+                                <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                          ))}
+                        </div>
+                        <span className='font-semibold'>{assignedStaff.length}명 담당</span>
                     </div>
                 ) : (
                     <p className='text-xs text-muted-foreground/70'>스태프에게 드래그하여 배정</p>
@@ -112,9 +115,9 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
     
     const categoriesWithAll: Category[] = useMemo(() => [{ id: 'all', name: '전체' }, ...data.categories], [data.categories]);
     
-    const rolesForCurrentDay = useMemo(() => {
+    const rolesForCurrentSlot = useMemo(() => {
         if (!selectedSlot) return [];
-        return data.roles.filter(r => r.day === selectedSlot.day);
+        return data.roles.filter(r => r.day === selectedSlot.day && r.time === selectedSlot.time);
     }, [data.roles, selectedSlot]);
 
     const handleFileUpload = (day: number, categoryId: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,13 +170,9 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
             toast({ variant: 'destructive', title: '카테고리를 선택해주세요.' });
             return;
         }
-        if (selectedTemplates.length === 0) {
-            toast({ variant: 'destructive', title: '하나 이상의 스케줄을 선택해주세요.' });
-            return;
-        }
         if (!selectedSlot) return;
         
-        addRole(newRoleName, newRoleCategoryId, selectedSlot.day, selectedTemplates);
+        addRole(newRoleName, newRoleCategoryId, selectedSlot.day, selectedSlot.time, selectedTemplates);
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
         
         setIsCreateRoleModalOpen(false);
@@ -187,8 +186,6 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
             toast({ variant: 'destructive', title: '직책과 한 명 이상의 스태프를 선택해주세요.' });
             return;
         }
-        // This function is complex and might be simplified if we only assign one by one
-        // For now, let's assume we want to keep batch assignment via modal
         staffIds.forEach(staffId => {
             assignRoleToStaff(staffId, selectedRoleId);
         });
@@ -241,7 +238,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
 
     const filteredRolesForAssign = useMemo(() => {
         if (!selectedSlot) return [];
-        return data.roles.filter(r => r.day === selectedSlot.day);
+        return data.roles.filter(r => r.day === selectedSlot.day && r.time === selectedSlot.time);
     }, [data.roles, selectedSlot]);
 
     const staffIds = selectedStaffIds; // Alias for clarity
@@ -252,8 +249,8 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                 <div>
                     <CardTitle className="font-headline text-xl font-semibold">직책 관리</CardTitle>
                     <CardDescription>
-                        {selectedSlot ? `Day ${selectedSlot.day} | ` : ''}
-                        총 <Badge variant="secondary">{rolesForCurrentDay.length}</Badge>개의 직책. 스태프에게 드래그하세요.
+                        {selectedSlot ? `Day ${selectedSlot.day} ${selectedSlot.time} | ` : ''}
+                        총 <Badge variant="secondary">{rolesForCurrentSlot.length}</Badge>개의 직책. 스태프에게 드래그하세요.
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -262,18 +259,17 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                 </div>
             </CardHeader>
             <CardContent>
-                {rolesForCurrentDay.length > 0 ? (
+                {rolesForCurrentSlot.length > 0 ? (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-                        {rolesForCurrentDay.map(role => {
+                        {rolesForCurrentSlot.map(role => {
                             const category = data.categories.find(c => c.id === role.categoryId);
-                            // Find staff assigned to this role ON THE CURRENT DAY
-                            const assignedStaff = data.staff.find(s => s.role?.id === role.id && s.role?.day === selectedSlot?.day);
+                            const assignedStaff = data.staff.filter(s => s.role?.id === role.id && s.role?.day === selectedSlot?.day && s.role?.time === selectedSlot?.time);
                             return <DraggableRole key={role.id} role={role} category={category} assignedStaff={assignedStaff} onDelete={openDeleteRoleDialog} />
                         })}
                     </div>
                 ) : (
                     <div className="text-center text-muted-foreground py-10">
-                        <p>{selectedSlot ? `Day ${selectedSlot.day}에 생성된 직책이 없습니다.` : '시간대를 선택하세요.'}</p>
+                        <p>{selectedSlot ? `Day ${selectedSlot.day} ${selectedSlot.time}에 생성된 직책이 없습니다.` : '시간대를 선택하세요.'}</p>
                     </div>
                 )}
             </CardContent>
@@ -282,9 +278,9 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
             <Dialog open={isCreateRoleModalOpen} onOpenChange={setIsCreateRoleModalOpen}>
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle>새 직책 생성 ({selectedSlot ? `Day ${selectedSlot.day}` : ''})</DialogTitle>
+                        <DialogTitle>새 직책 생성 ({selectedSlot ? `Day ${selectedSlot.day} ${selectedSlot.time}` : ''})</DialogTitle>
                         <DialogDescription>
-                            CSV 업로드를 통해 직책에 할당할 스케줄 템플릿을 선택하세요. CSV 파일은 '시간', '이벤트', '위치' 헤더를 포함해야 합니다.
+                            이 시간대에만 적용되는 직책을 생성합니다. CSV로 스케줄 템플릿을 가져올 수 있습니다. CSV 파일은 '시간', '이벤트', '위치' 헤더를 포함해야 합니다.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
@@ -308,6 +304,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                             </div>
                             <div className='p-4 border rounded-lg bg-muted/20'>
                                 <h4 className='font-semibold mb-2'>선택된 스케줄 템플릿: {selectedTemplates.length}개</h4>
+                                <p className='text-xs text-muted-foreground mb-2'>템플릿을 선택하지 않아도 직책을 생성할 수 있습니다.</p>
                                 <ScrollArea className='h-52'>
                                     <div className='space-y-1 pr-2'>
                                     {selectedTemplates.sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)).map((template, index) => (
@@ -320,7 +317,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                             </div>
                         </div>
                         <div className="space-y-4">
-                             <Label>스케줄 템플릿 선택</Label>
+                             <Label>스케줄 템플릿 선택 (선택 사항)</Label>
                              <Tabs defaultValue={selectedSlot ? `day-${selectedSlot.day}` : 'day-0'}>
                                 <TabsList className="grid w-full grid-cols-4">
                                     {days.map(day => (

@@ -201,7 +201,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Role",
       "type": "object",
-      "description": "Represents a job role with a set of schedule templates.",
+      "description": "Represents a job role with a set of schedule templates for a specific time slot.",
       "properties": {
         "id": {
           "type": "string",
@@ -214,6 +214,10 @@
         "day": {
           "type": "number",
           "description": "The day this role is for (e.g., 0, 1, 2, 3)."
+        },
+        "time": {
+          "type": "string",
+          "description": "The time slot this role is for in HH:mm format."
         },
         "categoryId": {
           "type": "string",
@@ -233,7 +237,7 @@
           }
         }
       },
-      "required": ["id", "name", "day", "categoryId"]
+      "required": ["id", "name", "day", "time", "categoryId"]
     },
     "Category": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -415,6 +419,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support VenueSync's real-time updates and role-based access (admin/viewer) while adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling.  The structure uses path-based ownership and denormalization to avoid `get()` calls in security rules, enhancing security and scalability. \n\n*   **Venues Collection:** Top-level collection to store venue details.  All other data related to a venue (staff, schedules, devices, maps, markers) are stored in subcollections under each venue. This enforces a clear hierarchy and ownership.\n*   **Staff, Schedules, ExternalDevices, Maps, Markers, Roles, Categories Subcollections:** Each venue has its own subcollections for granular data management and security rules. The new `categories` collection allows for grouping roles, and the `roles` collection now includes a `categoryId`."
+    "reasoning": "The Firestore structure is designed to support VenueSync's real-time updates and role-based access (admin/viewer) while adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling.  The structure uses path-based ownership and denormalization to avoid `get()` calls in security rules, enhancing security and scalability. \n\n*   **Venues Collection:** Top-level collection to store venue details.  All other data related to a venue (staff, schedules, devices, maps, markers) are stored in subcollections under each venue. This enforces a clear hierarchy and ownership.\n*   **Staff, Schedules, ExternalDevices, Maps, Markers, Roles, Categories Subcollections:** Each venue has its own subcollections for granular data management and security rules. The `roles` collection now includes a `time` property to make roles time-slot specific."
   }
 }

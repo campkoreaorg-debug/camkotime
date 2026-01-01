@@ -7,17 +7,17 @@ const mapBg = PlaceHolderImages.find(p => p.id === 'map-background')?.imageUrl |
 
 export const initialData: Omit<VenueData, 'notification'> = {
   staff: [
-    { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '', role: { id: 'role-1', name: '보안팀', day: 0 } },
-    { id: 'staff-2', name: '박서준', avatar: PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '', role: { id: 'role-2', name: '의료팀', day: 0 } },
-    { id: 'staff-3', name: '김민지', avatar: PlaceHolderImages.find(p => p.id === 'avatar-3')?.imageUrl || '', role: { id: 'role-3', name: '안내팀', day: 1 } },
+    { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '', role: { id: 'role-1', name: '보안팀', day: 0, time: '09:00' } },
+    { id: 'staff-2', name: '박서준', avatar: PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '', role: { id: 'role-2', name: '의료팀', day: 0, time: '09:00' } },
+    { id: 'staff-3', name: '김민지', avatar: PlaceHolderImages.find(p => p.id === 'avatar-3')?.imageUrl || '', role: { id: 'role-3', name: '안내팀', day: 1, time: '10:30' } },
     { id: 'staff-4', name: '최현우', avatar: PlaceHolderImages.find(p => p.id === 'avatar-4')?.imageUrl || '', role: null },
     { id: 'staff-5', name: '정다은', avatar: PlaceHolderImages.find(p => p.id === 'avatar-5')?.imageUrl || '', role: null },
   ],
   roles: [
-    { id: 'role-1', name: '보안팀', day: 0, categoryId: 'cat-1', scheduleTemplates: [{ day: 0, event: '구역 순찰', location: '전체 구역', time: '09:00' }] },
-    { id: 'role-2', name: '의료팀', day: 0, categoryId: 'cat-2', scheduleTemplates: [{ day: 0, event: '의료 부스 대기', location: '의료 센터', time: '09:00' }] },
-    { id: 'role-3', name: '안내팀', day: 1, categoryId: 'cat-3', scheduleTemplates: [{ day: 1, event: '관객 안내', location: '메인 게이트', time: '09:00' }] },
-    { id: 'role-4', name: '운영팀', day: 1, categoryId: 'cat-4', scheduleTemplates: [{ day: 1, event: '상황실 대기', location: '운영 본부', time: '09:00' }] }
+    { id: 'role-1', name: '보안팀', day: 0, time: '09:00', categoryId: 'cat-1', scheduleTemplates: [{ day: 0, event: '구역 순찰', location: '전체 구역', time: '09:00' }] },
+    { id: 'role-2', name: '의료팀', day: 0, time: '09:00', categoryId: 'cat-2', scheduleTemplates: [{ day: 0, event: '의료 부스 대기', location: '의료 센터', time: '09:00' }] },
+    { id: 'role-3', name: '안내팀', day: 1, time: '10:30', categoryId: 'cat-3', scheduleTemplates: [{ day: 1, event: '관객 안내', location: '메인 게이트', time: '10:30' }] },
+    { id: 'role-4', name: '운영팀', day: 1, time: '09:00', categoryId: 'cat-4', scheduleTemplates: [{ day: 1, event: '상황실 대기', location: '운영 본부', time: '09:00' }] }
   ],
   categories: [
       { id: 'cat-1', name: '보안' },
@@ -41,5 +41,3 @@ export const initialData: Omit<VenueData, 'notification'> = {
     { id: 'day1-1030', day: 1, time: '10:30', mapImageUrl: mapBg },
   ],
 };
-
-    
