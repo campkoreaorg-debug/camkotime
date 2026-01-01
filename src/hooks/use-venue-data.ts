@@ -209,38 +209,38 @@ export const useVenueData = () => {
         }
     });
     
-    const batch = writeBatch(firestore);
-    const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
-    batch.delete(staffDocRef);
+    const processBackendDeletion = async () => {
+      const batch = writeBatch(firestore);
+      const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
+      batch.delete(staffDocRef);
 
-    const processQueries = async () => {
-        const scheduleQuery = query(scheduleColRef, where('staffIds', 'array-contains', staffId));
-        const scheduleSnapshot = await getDocs(scheduleQuery);
-        scheduleSnapshot.forEach(doc => {
-          const currentStaffIds = doc.data().staffIds || [];
-          const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
-          if (newStaffIds.length > 0) {
-            batch.update(doc.ref, { staffIds: newStaffIds });
-          } else {
-            batch.delete(doc.ref);
-          }
-        });
+      const scheduleQuery = query(scheduleColRef, where('staffIds', 'array-contains', staffId));
+      const scheduleSnapshot = await getDocs(scheduleQuery);
+      scheduleSnapshot.forEach(doc => {
+        const currentStaffIds = doc.data().staffIds || [];
+        const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
+        if (newStaffIds.length > 0) {
+          batch.update(doc.ref, { staffIds: newStaffIds });
+        } else {
+          batch.delete(doc.ref);
+        }
+      });
 
-        const markerQuery = query(markersColRef, where('staffIds', 'array-contains', staffId));
-        const markerSnapshot = await getDocs(markerQuery);
-        markerSnapshot.forEach(doc => {
-          const currentStaffIds = doc.data().staffIds || [];
-          const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
-          if (newStaffIds.length > 0) {
-            batch.update(doc.ref, { staffIds: newStaffIds });
-          } else {
-            batch.delete(doc.ref);
-          }
-        });
-        
-        await batch.commit();
-    }
-    processQueries();
+      const markerQuery = query(markersColRef, where('staffIds', 'array-contains', staffId));
+      const markerSnapshot = await getDocs(markerQuery);
+      markerSnapshot.forEach(doc => {
+        const currentStaffIds = doc.data().staffIds || [];
+        const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
+        if (newStaffIds.length > 0) {
+          batch.update(doc.ref, { staffIds: newStaffIds });
+        } else {
+          batch.delete(doc.ref);
+        }
+      });
+      
+      await batch.commit();
+    };
+    processBackendDeletion();
   };
 
   const addSchedule = (values: Omit<ScheduleItem, 'id'>) => {
@@ -312,6 +312,16 @@ export const useVenueData = () => {
     if (!firestore) return;
     const newId = `role-${Date.now()}`;
     const newRole: Role = { id: newId, name, day, time, scheduleTemplates };
+    
+    // Optimistic Update
+    setLocalData(prev => {
+        if (!prev) return null;
+        return {
+            ...prev,
+            roles: [...prev.roles, newRole].sort((a, b) => a.name.localeCompare(b.name))
+        }
+    });
+
     const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', newId);
     setDocumentNonBlocking(roleDocRef, newRole, {});
   };
@@ -321,51 +331,32 @@ export const useVenueData = () => {
 
     setLocalData(prev => {
         if (!prev) return null;
-        const staffIdsWithRole = prev.staff.filter(s => s.role?.id === roleId).map(s => s.id);
         return {
             ...prev,
             roles: prev.roles.filter(r => r.id !== roleId),
             staff: prev.staff.map(s => s.role?.id === roleId ? { ...s, role: null } : s),
-            schedule: prev.schedule.filter(s => !(s.staffIds && staffIdsWithRole.some(id => s.staffIds?.includes(id)))),
         }
     });
 
-    const batch = writeBatch(firestore);
-    const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', roleId);
-    batch.delete(roleDocRef);
+    const processBackendDeletion = async () => {
+        const batch = writeBatch(firestore);
+        const roleDocRef = doc(firestore, 'venues', VENUE_ID, 'roles', roleId);
+        batch.delete(roleDocRef);
 
-    const processDeletion = async () => {
         const staffQuery = query(staffColRef, where('role.id', '==', roleId));
         const staffSnapshot = await getDocs(staffQuery);
 
-        const staffIdsWithRole: string[] = [];
         staffSnapshot.forEach(staffDoc => {
-            staffIdsWithRole.push(staffDoc.id);
             batch.update(staffDoc.ref, { role: null });
         });
         
-        if (staffIdsWithRole.length > 0 && scheduleColRef) {
-            for (const staffId of staffIdsWithRole) {
-                const scheduleQuery = query(scheduleColRef, where('staffIds', 'array-contains', staffId));
-                const scheduleSnapshot = await getDocs(scheduleQuery);
-                scheduleSnapshot.forEach(scheduleDoc => {
-                    const currentStaffIds = scheduleDoc.data().staffIds || [];
-                    const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
-                    if(newStaffIds.length > 0) {
-                        batch.update(scheduleDoc.ref, { staffIds: newStaffIds });
-                    } else {
-                        batch.delete(scheduleDoc.ref);
-                    }
-                });
-            }
-        }
         await batch.commit();
     }
-    processDeletion();
+    processBackendDeletion();
   };
 
   const assignRoleToStaff = (staffId: string, roleId: string) => {
-    if (!localData || !firestore || !scheduleColRef || !staffColRef) return;
+    if (!localData || !firestore) return;
 
     const roleToAssign = localData.roles.find(r => r.id === roleId);
     if (!roleToAssign) return;
@@ -379,8 +370,10 @@ export const useVenueData = () => {
             s.id === staffId ? { ...s, role: { id: roleId, name: roleToAssign.name, day, time } } : s
         );
         
+        // Remove previous schedules for this staff at this specific time slot
         const remainingSchedules = prev.schedule.filter(s => !(s.staffIds?.includes(staffId) && s.day === day && s.time === time));
         
+        // Add new schedules from template
         const newSchedules: ScheduleItem[] = (roleToAssign.scheduleTemplates || []).map(template => ({
             id: `sch-${staffId}-${template.day}-${template.time.replace(':', '')}-${Math.random().toString(36).substr(2, 5)}`,
             day: template.day,
@@ -398,6 +391,7 @@ export const useVenueData = () => {
     });
 
     const processBackendUpdate = async () => {
+        if (!scheduleColRef) return;
         const batch = writeBatch(firestore);
         
         const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
@@ -405,7 +399,16 @@ export const useVenueData = () => {
         
         const scheduleQuery = query(scheduleColRef, where('staffIds', 'array-contains', staffId), where('day', '==', day), where('time', '==', time));
         const oldSchedulesSnapshot = await getDocs(scheduleQuery);
-        oldSchedulesSnapshot.forEach(d => batch.delete(d.ref));
+        oldSchedulesSnapshot.forEach(d => {
+             const currentStaffIds = d.data().staffIds || [];
+             if (currentStaffIds.length === 1) { // Only delete if this staff is the only one
+                 batch.delete(d.ref);
+             } else {
+                 batch.update(d.ref, {
+                     staffIds: currentStaffIds.filter((id: string) => id !== staffId)
+                 });
+             }
+        });
         
         (roleToAssign.scheduleTemplates || []).forEach(template => {
             const newScheduleId = `sch-tpl-${staffId}-${template.day}-${template.time.replace(':','')}-${Math.random().toString(36).substr(2, 5)}`;
@@ -437,25 +440,26 @@ export const useVenueData = () => {
         };
     });
     
-    const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
-    updateDocumentNonBlocking(staffDocRef, { role: null });
+    const processBackendUpdate = async () => {
+        const staffDocRef = doc(firestore, 'venues', VENUE_ID, 'staff', staffId);
+        updateDocumentNonBlocking(staffDocRef, { role: null });
 
-    const processScheduleDeletion = async () => {
         const batch = writeBatch(firestore);
         const q = query(scheduleColRef, where('staffIds', 'array-contains', staffId), where('day', '==', roleDay), where('time', '==', roleTime));
         const snapshot = await getDocs(q);
         snapshot.forEach(d => {
             const currentStaffIds = d.data().staffIds || [];
-            const newStaffIds = currentStaffIds.filter((id: string) => id !== staffId);
-            if(newStaffIds.length > 0) {
-                batch.update(d.ref, { staffIds: newStaffIds });
-            } else {
+            if (currentStaffIds.length === 1) {
                 batch.delete(d.ref);
+            } else {
+                batch.update(d.ref, { 
+                    staffIds: currentStaffIds.filter((id: string) => id !== staffId)
+                });
             }
         });
         await batch.commit();
     }
-    processScheduleDeletion();
+    processBackendUpdate();
   };
 
   const updateMapImage = (day: number, time: string, newUrl: string) => {
