@@ -20,18 +20,11 @@ export interface Role {
   scheduleTemplates?: ScheduleTemplate[];
 }
 
-export interface Position {
-  id: string;
-  name: string;
-  color: string;
-}
-
 export interface StaffMember {
   id: string;
   name: string;
   avatar: string;
   role: { id: string; name: string; day: number; } | null;
-  position: { id: string; name: string; color: string } | null;
 }
 
 export interface ScheduleItem {
@@ -63,7 +56,6 @@ export interface VenueData {
   staff: StaffMember[];
   roles: Role[];
   categories: Category[];
-  positions: Position[];
   schedule: ScheduleItem[];
   markers: MapMarker[];
   maps: MapInfo[];

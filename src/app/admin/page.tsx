@@ -10,7 +10,6 @@ import { RolePanel } from '@/components/admin/RolePanel';
 import { MapPanel } from '@/components/admin/MapPanel';
 import { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
-import { PositionPanel } from '@/components/admin/PositionPanel';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -162,10 +161,7 @@ export default function AdminPage() {
           <main className="p-4 md:p-8 space-y-8">
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 <StaffPanel selectedSlot={selectedSlot} />
-                <div className='flex flex-col gap-8'>
-                  <RolePanel selectedSlot={selectedSlot} />
-                  <PositionPanel />
-                </div>
+                <RolePanel selectedSlot={selectedSlot} />
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <SchedulePanel 

@@ -5,7 +5,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { CalendarClock, X, UserPlus, Upload, Megaphone, Trash2, Users } from 'lucide-react';
-import type { MapMarker, StaffMember, ScheduleItem, MapInfo, Position } from '@/lib/types';
+import type { MapMarker, StaffMember, ScheduleItem, MapInfo } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -16,7 +16,6 @@ import { useVenueData } from '@/hooks/use-venue-data';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from './ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { useDrop, DropTargetMonitor } from 'react-dnd';
 
 interface VenueMapProps {
   allMarkers: MapMarker[];
@@ -28,12 +27,8 @@ interface VenueMapProps {
   notification?: string;
 }
 
-const ItemTypes = {
-    POSITION: 'position',
-}
-
 export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDraggable = false, selectedSlot, notification }: VenueMapProps) {
-  const { updateMarkerPosition, addMarker, updateMapImage, deleteMarker, assignPositionToStaff } = useVenueData();
+  const { updateMarkerPosition, addMarker, updateMapImage, deleteMarker } = useVenueData();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isBannerVisible, setIsBannerVisible] = useState(true);
@@ -206,44 +201,22 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
     const staffMembers = useMemo(() => staff.filter(s => marker.staffIds?.includes(s.id)), [marker.staffIds, staff]);
     
-    const [{ isOver, canDrop }, drop] = useDrop(() => ({
-        accept: ItemTypes.POSITION,
-        drop: (item: Position) => {
-            if (staffMembers.length > 0) {
-                staffMembers.forEach(staffMember => {
-                    assignPositionToStaff(staffMember.id, item);
-                })
-                toast({
-                    title: '포지션 할당됨',
-                    description: `${staffMembers.map(s=>s.name).join(', ')}님에게 '${item.name}' 포지션이 할당되었습니다.`,
-                });
-            }
-        },
-        collect: (monitor: DropTargetMonitor) => ({
-            isOver: !!monitor.isOver(),
-            canDrop: !!monitor.canDrop(),
-        }),
-    }), [staffMembers]);
-
     if (staffMembers.length === 0) return null;
     const isOpen = activeMarkerId === marker.id;
     const isDraggingThis = draggingMarker?.id === marker.id;
 
     const mainStaff = staffMembers[0];
-    const positionColor = mainStaff.position?.color;
 
     return (
         <Popover open={isOpen} onOpenChange={(open) => { if (!open) setActiveMarkerId(null); }}>
             <PopoverTrigger asChild>
                 <div
-                    ref={drop}
                     data-marker-id={marker.id}
                     className={cn(
                         "absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-transform hover:scale-110 touch-none select-none", 
                         isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
                         isDraggingThis && "cursor-grabbing z-50 scale-110",
-                        isOpen && "z-40 scale-110",
-                        isOver && canDrop && 'scale-125'
+                        isOpen && "z-40 scale-110"
                     )}
                     style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
                     onPointerDown={(e) => handlePointerDown(e, marker)}
@@ -253,14 +226,12 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                         {staffMembers.slice(0, 3).map((staffMember, index) => (
                             <Avatar 
                                 key={staffMember.id}
-                                className={cn("h-10 w-10 border-4 shadow-lg pointer-events-none transition-colors", 
-                                    (isDraggingThis || isOpen || isOver) && "border-primary",
-                                    isOver && canDrop && 'ring-4 ring-offset-2 ring-primary',
+                                className={cn("h-10 w-10 border-4 border-primary-foreground shadow-lg pointer-events-none transition-colors", 
+                                    (isDraggingThis || isOpen) && "border-primary",
                                     index > 0 && "-ml-4"
                                 )}
                                 style={{
-                                    zIndex: staffMembers.length - index,
-                                    borderColor: isOver && canDrop ? 'hsl(var(--primary))' : staffMember.position?.color ? staffMember.position?.color : 'hsl(var(--primary-foreground))'
+                                    zIndex: staffMembers.length - index
                                 }}
                             >
                                 <AvatarImage src={staffMember.avatar} alt={staffMember.name} />
@@ -274,12 +245,8 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                         )}
                     </div>
                     {staffMembers.length === 1 && (
-                        <div className={cn("mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none transition-colors",
-                            mainStaff.position && "text-white"
-                        )}
-                        style={{ backgroundColor: mainStaff.position ? mainStaff.position.color : 'rgba(0,0,0,0.6)'}}
-                        >
-                        {mainStaff.name}
+                        <div className="mt-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-white text-xs font-medium text-center whitespace-nowrap shadow-sm pointer-events-none transition-colors">
+                            {mainStaff.name}
                         </div>
                     )}
                 </div>

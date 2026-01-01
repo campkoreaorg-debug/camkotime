@@ -42,7 +42,7 @@ const ItemTypes = {
 }
 
 const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, index: number, selectedSlot: { day: number, time: string } | null }) => {
-    const { deleteStaff, assignRoleToStaff } = useVenueData();
+    const { deleteStaff, assignRoleToStaff, unassignRoleFromStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
 
@@ -70,6 +70,17 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
         })
       setIsAlertOpen(false);
     };
+    
+    const handleUnassignRole = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (staff.role) {
+            unassignRoleFromStaff(staff.id, staff.role.day);
+            toast({
+                title: '직책 해제됨',
+                description: `${staff.name}님의 직책이 해제되었습니다.`,
+            });
+        }
+    };
 
     const showRole = staff.role && selectedSlot && staff.role.day === selectedSlot.day;
 
@@ -89,24 +100,18 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
             </Avatar>
             <div className='flex-1'>
                 <p className="font-semibold text-sm">{staff.name}</p>
-                {showRole && (
+                {showRole && staff.role ? (
                      <Badge 
                         variant="outline"
-                        className="mt-1 text-xs" 
+                        className="mt-1 text-xs group/badge relative pr-6" 
                     >
                         {staff.role.name}
+                        <button onClick={handleUnassignRole} className='absolute right-0.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground opacity-0 group-hover/badge:opacity-100 transition-opacity'>
+                           <X className='h-3 w-3 mx-auto'/>
+                        </button>
                     </Badge>
-                )}
-                 {staff.position && (
-                    <Badge 
-                        className="mt-1 text-xs ml-1" 
-                        style={{ 
-                            backgroundColor: staff.position.color,
-                            color: '#ffffff'
-                        }}
-                    >
-                        {staff.position.name}
-                    </Badge>
+                ) : (
+                    <div className='h-6 mt-1'/> 
                 )}
             </div>
             <Button
@@ -349,5 +354,3 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
     </Card>
   );
 }
-
-    

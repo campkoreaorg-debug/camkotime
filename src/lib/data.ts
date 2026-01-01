@@ -5,13 +5,13 @@ import { PlaceHolderImages } from './placeholder-images';
 
 const mapBg = PlaceHolderImages.find(p => p.id === 'map-background')?.imageUrl || '';
 
-export const initialData: VenueData = {
+export const initialData: Omit<VenueData, 'notification'> = {
   staff: [
-    { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '', role: { id: 'role-1', name: '보안' }, position: { id: 'pos-1', name: 'Stage A', color: '#3b82f6' } },
-    { id: 'staff-2', name: '박서준', avatar: PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '', role: { id: 'role-2', name: '의료' }, position: { id: 'pos-2', name: 'Gate 1', color: '#22c55e' } },
-    { id: 'staff-3', name: '김민지', avatar: PlaceHolderImages.find(p => p.id === 'avatar-3')?.imageUrl || '', role: { id: 'role-3', name: '안내' }, position: { id: 'pos-1', name: 'Stage A', color: '#3b82f6' } },
-    { id: 'staff-4', name: '최현우', avatar: PlaceHolderImages.find(p => p.id === 'avatar-4')?.imageUrl || '', role: null, position: null },
-    { id: 'staff-5', name: '정다은', avatar: PlaceHolderImages.find(p => p.id === 'avatar-5')?.imageUrl || '', role: null, position: null },
+    { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '', role: { id: 'role-1', name: '보안', day: 0 } },
+    { id: 'staff-2', name: '박서준', avatar: PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '', role: { id: 'role-2', name: '의료', day: 0 } },
+    { id: 'staff-3', name: '김민지', avatar: PlaceHolderImages.find(p => p.id === 'avatar-3')?.imageUrl || '', role: { id: 'role-3', name: '안내', day: 1 } },
+    { id: 'staff-4', name: '최현우', avatar: PlaceHolderImages.find(p => p.id === 'avatar-4')?.imageUrl || '', role: null },
+    { id: 'staff-5', name: '정다은', avatar: PlaceHolderImages.find(p => p.id === 'avatar-5')?.imageUrl || '', role: null },
   ],
   roles: [
     { id: 'role-1', name: '보안팀', day: 0, categoryId: 'cat-1', scheduleTemplates: [{ day: 0, event: '구역 순찰', location: '전체 구역', time: '09:00' }] },
@@ -24,11 +24,6 @@ export const initialData: VenueData = {
       { id: 'cat-2', name: '의료' },
       { id: 'cat-3', name: '안내' },
       { id: 'cat-4', name: '운영' },
-  ],
-  positions: [
-      { id: 'pos-1', name: 'Stage A', color: '#3b82f6' },
-      { id: 'pos-2', name: 'Gate 1', color: '#22c55e' },
-      { id: 'pos-3', name: 'Backstage', color: '#f97316' },
   ],
   schedule: [
     { id: 'sch-1', day: 0, time: '09:00', event: '오프닝 게이트 보안 점검', location: '메인 게이트', staffIds: ['staff-1'] },
