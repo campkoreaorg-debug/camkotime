@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from 'react';
-import { Plus, Trash2, GripVertical, Search, X, Upload } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Search, X, Upload, PlusCircle } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -70,7 +70,7 @@ const DraggableRole = ({ role, assignedStaff, onDelete }: { role: Role, assigned
                         <span className='font-semibold'>{assignedStaff.length}명 담당</span>
                     </div>
                 ) : (
-                    <p className='text-xs text-muted-foreground/70'>현재 이 직책이 배정된 스태프 이름이 나오게 해줘</p>
+                    <p className='text-xs text-muted-foreground/70'>담당자 없음</p>
                 )}
             </div>
         </div>
@@ -92,9 +92,10 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
     const [newRoleName, setNewRoleName] = useState('');
     const [selectedTemplates, setSelectedTemplates] = useState<ScheduleTemplate[]>([]);
     
-    // Uploaded Data State
+    // Uploaded Data & Manual Input State
     const [uploadedData, setUploadedData] = useState<Record<string, ScheduleTemplate[]>>({});
     const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+    const [manualTemplate, setManualTemplate] = useState({ event: '', location: '' });
 
     // Role Deletion State
     const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
@@ -125,7 +126,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                     return null;
                 }).filter((t): t is ScheduleTemplate => t !== null);
 
-                setUploadedData(prev => ({ ...prev, [key]: templates }));
+                setUploadedData(prev => ({ ...prev, [key]: [...(prev[key] || []), ...templates] }));
                 toast({ title: '업로드 완료', description: `${day}일차 스케줄 ${templates.length}개를 불러왔습니다.` });
             },
             error: (error) => {
@@ -145,6 +146,24 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
         });
     };
 
+    const handleAddManualTemplate = (day: number, time: string) => {
+        if (!manualTemplate.event.trim()) {
+            toast({ variant: 'destructive', title: '이벤트 내용을 입력해주세요.' });
+            return;
+        }
+
+        const newTemplate: ScheduleTemplate = {
+            day,
+            time,
+            event: manualTemplate.event,
+            location: manualTemplate.location || '',
+        };
+
+        const key = `${day}`;
+        setUploadedData(prev => ({ ...prev, [key]: [...(prev[key] || []), newTemplate] }));
+        setManualTemplate({ event: '', location: '' });
+    };
+
     const handleCreateRole = () => {
         if (!newRoleName.trim()) {
             toast({ variant: 'destructive', title: '직책 이름을 입력해주세요.' });
@@ -158,6 +177,8 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
         setIsCreateRoleModalOpen(false);
         setNewRoleName('');
         setSelectedTemplates([]);
+        setUploadedData({});
+        setManualTemplate({ event: '', location: '' });
     };
     
     const openDeleteRoleDialog = (role: Role) => {
@@ -209,7 +230,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                     <DialogHeader>
                         <DialogTitle>새 직책 생성 ({selectedSlot ? `Day ${selectedSlot.day} ${selectedSlot.time}` : ''})</DialogTitle>
                         <DialogDescription>
-                            이 시간대에만 적용되는 직책을 생성합니다. CSV로 스케줄 템플릿을 가져올 수 있습니다. CSV 파일은 '시간', '이벤트', '위치' 헤더를 포함해야 합니다.
+                            이 시간대에만 적용되는 직책을 생성합니다. CSV로 스케줄 템플릿을 가져오거나 직접 입력할 수 있습니다.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
@@ -244,18 +265,39 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                 {days.map(day => (
                                     <TabsContent key={`day-content-create-${day}`} value={`day-${day}`}>
                                         <div className="space-y-2">
-                                            <Button variant="outline" size="sm" onClick={() => fileInputRefs.current[`${day}`]?.click()}>
-                                                <Upload className="mr-2 h-4 w-4" />
-                                                CSV 업로드
-                                            </Button>
-                                            <input 
-                                                type="file" 
-                                                ref={el => fileInputRefs.current[`${day}`] = el}
-                                                className="hidden"
-                                                accept=".csv"
-                                                onChange={(e) => handleFileUpload(day, e)}
-                                            />
-                                            <ScrollArea className="h-[260px] border rounded-lg p-2">
+                                            <div className="flex gap-2">
+                                                <Button variant="outline" size="sm" onClick={() => fileInputRefs.current[`${day}`]?.click()}>
+                                                    <Upload className="mr-2 h-4 w-4" />
+                                                    CSV 업로드
+                                                </Button>
+                                                <input 
+                                                    type="file" 
+                                                    ref={el => fileInputRefs.current[`${day}`] = el}
+                                                    className="hidden"
+                                                    accept=".csv"
+                                                    onChange={(e) => handleFileUpload(day, e)}
+                                                />
+                                            </div>
+                                             <div className="flex gap-2 items-center p-2 border rounded-md">
+                                                <Input 
+                                                    placeholder="이벤트 내용" 
+                                                    value={manualTemplate.event}
+                                                    onChange={(e) => setManualTemplate(prev => ({ ...prev, event: e.target.value }))}
+                                                />
+                                                <Input 
+                                                    placeholder="위치 (선택)" 
+                                                    value={manualTemplate.location}
+                                                    onChange={(e) => setManualTemplate(prev => ({ ...prev, location: e.target.value }))}
+                                                />
+                                                <Button 
+                                                    size="icon" 
+                                                    variant="ghost"
+                                                    onClick={() => handleAddManualTemplate(day, selectedSlot?.time || '00:00')}
+                                                >
+                                                    <PlusCircle className="h-5 w-5" />
+                                                </Button>
+                                            </div>
+                                            <ScrollArea className="h-[220px] border rounded-lg p-2">
                                                  {
                                                     (() => {
                                                         const allTemplatesForDay = uploadedData[`${day}`] || [];
@@ -271,10 +313,16 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                                                         return (
                                                                             <div 
                                                                                 key={index}
-                                                                                className={`p-1.5 border rounded-md text-xs cursor-pointer ${isSelected ? 'bg-primary/20 border-primary' : 'bg-background'}`}
+                                                                                className={cn(
+                                                                                    "p-1.5 border rounded-md text-xs cursor-pointer flex items-center gap-2",
+                                                                                    isSelected ? 'bg-primary/20 border-primary' : 'bg-background'
+                                                                                )}
                                                                                 onClick={() => handleToggleTemplate(template)}
                                                                             >
-                                                                                <span className="font-bold">{template.time || '시간없음'}</span> - {template.event} ({template.location || '위치 없음'})
+                                                                                <Checkbox checked={isSelected} className='shrink-0'/>
+                                                                                <div>
+                                                                                    <span className="font-bold">{template.time || '시간없음'}</span> - {template.event} {template.location && `(${template.location})`}
+                                                                                </div>
                                                                             </div>
                                                                         )
                                                                     })}
@@ -283,7 +331,7 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
                                                         }
                                                         return (
                                                             <div className="flex items-center justify-center h-full text-muted-foreground">
-                                                                {allTemplatesForDay.length > 0 ? `현재 시간대(${selectedSlot?.time})에 맞는 스케줄이 없습니다.` : 'CSV 파일을 업로드하세요.'}
+                                                                {allTemplatesForDay.length > 0 ? `현재 시간대(${selectedSlot?.time})에 맞는 스케줄이 없습니다.` : 'CSV를 업로드하거나 직접 입력하세요.'}
                                                             </div>
                                                         )
                                                     })()
