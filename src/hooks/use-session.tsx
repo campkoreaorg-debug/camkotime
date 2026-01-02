@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, createContext, useContext, ReactNode, useMemo } from 'react';
@@ -107,10 +106,22 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// 🔴 [핵심 수정] Provider가 없어도 에러를 내지 않도록 변경
 export const useSession = () => {
   const context = useContext(SessionContext);
+  
+  // 만약 Provider 없이 사용되었다면(예: 새 창 /map), 
+  // 에러를 던지는 대신 안전한 '빈 객체(Fallback)'를 반환합니다.
   if (context === undefined) {
-    throw new Error('useSession must be used within a SessionProvider');
+    return {
+        sessions: [],
+        sessionId: null, // ID가 없으므로 useVenueData는 URL의 sid를 사용하게 됨
+        setSessionId: () => {},
+        isLoading: false,
+        updateSessionName: () => {},
+        importDataFromSession: async () => {},
+    };
   }
+  
   return context;
 };

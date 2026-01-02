@@ -32,10 +32,11 @@ import { Input } from '../ui/input';
 interface PendingStaff {
     key: string;
     name: string;
-    avatarDataUrl: string;
+    file: File;
+    avatarPreview: string;
 }
 
-const MAX_IMAGE_WIDTH = 800; // 픽셀 단위
+const MAX_IMAGE_WIDTH = 256; // 픽셀 단위
 
 export const ItemTypes = {
     TASK_BUNDLE: 'taskBundle',
@@ -192,7 +193,7 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
   }, [data, selectedSlot]);
 
 
-  const resizeImage = (file: File): Promise<string> => {
+  const resizeImage = (file: File): Promise<{file: File, preview: string}> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -214,8 +215,17 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
                 canvas.width = width;
                 canvas.height = height;
                 ctx.drawImage(img, 0, 0, width, height);
+                
+                const preview = canvas.toDataURL('image/webp', 0.8);
 
-                resolve(canvas.toDataURL('image/jpeg', 0.9)); 
+                canvas.toBlob((blob) => {
+                    if(!blob) return reject(new Error('Canvas to Blob 변환에 실패했습니다.'));
+                    const resizedFile = new File([blob], file.name, {
+                        type: 'image/webp',
+                        lastModified: Date.now()
+                    });
+                    resolve({ file: resizedFile, preview });
+                }, 'image/webp', 0.8);
             };
             img.onerror = reject;
             img.src = event.target?.result as string;
@@ -236,12 +246,13 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
 
     try {
         const resizePromises = Array.from(files).map(file => resizeImage(file));
-        const resizedDataUrls = await Promise.all(resizePromises);
+        const resizedImages = await Promise.all(resizePromises);
         
-        const newPendingStaff = resizedDataUrls.map((url, index) => ({
+        const newPendingStaff: PendingStaff[] = resizedImages.map((img, index) => ({
             key: `pending-${Date.now()}-${index}`,
             name: '',
-            avatarDataUrl: url,
+            file: img.file,
+            avatarPreview: img.preview,
         }));
 
         setPendingStaff(prev => [...prev, ...newPendingStaff]);
@@ -284,7 +295,7 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
         return;
     }
 
-    const newStaffMembers = pendingStaff.map(p => ({ name: p.name, avatar: p.avatarDataUrl }));
+    const newStaffMembers = pendingStaff.map(p => ({ name: p.name, file: p.file }));
     await addStaffBatch(newStaffMembers);
     toast({
         title: '일괄 등록 완료',
@@ -356,7 +367,7 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
                             {pendingStaff.map((p) => (
                                 <div key={p.key} className='flex items-center gap-3 p-2 border rounded-md bg-background'>
                                     <Avatar>
-                                        <AvatarImage src={p.avatarDataUrl} />
+                                        <AvatarImage src={p.avatarPreview} />
                                         <AvatarFallback><User /></AvatarFallback>
                                     </Avatar>
                                     <Input 

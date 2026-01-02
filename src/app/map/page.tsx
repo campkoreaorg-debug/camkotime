@@ -1,146 +1,144 @@
-
 "use client";
 
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation'; // useSearchParams 추가
+import { useEffect, useState, Suspense } from 'react'; // Suspense 추가
 import VenueMap from '@/components/VenueMap';
-import { useVenueData } from '@/hooks/use-venue-data';
-import { Loader2, Home } from 'lucide-react';
-import { useUser, useAuth } from '@/firebase';
-import { timeSlots } from '@/hooks/use-venue-data';
+import { useVenueData, timeSlots } from '@/hooks/use-venue-data';
 import { Button } from '@/components/ui/button';
+import { Home, Loader2, Database } from 'lucide-react';
+import { useUser, useAuth } from '@/firebase';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { StaffPanel } from '@/components/admin/StaffPanel';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-
-export default function MapPage() {
+// 내부 컴포넌트로 분리 (useSearchParams 사용을 위해)
+function MapContent() {
   const router = useRouter();
-  const auth = useAuth();
-  const { user, isUserLoading } = useUser();
-  const { data, isLoading } = useVenueData();
+  const searchParams = useSearchParams();
   
-  const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
-  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  // 🔴 [핵심 수정] URL에서 '?sid=...' 값을 가져옵니다.
+  const sid = searchParams.get('sid'); 
+  
+  // 🔴 [핵심 수정] 가져온 sid를 훅에 전달합니다. 
+  // 이제 훅이 이 ID를 보고 데이터를 가져옵니다.
+  const { data, isLoading } = useVenueData(sid); 
+  
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+
+  const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string }>({ day: 0, time: timeSlots[0] });
   const [activeTab, setActiveTab] = useState('day-0');
 
+  const handleReturnHome = async () => {
+    if (window.opener) {
+        window.close();
+    } else {
+        router.push('/');
+    }
+  }
+
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.replace('/');
+    if(!isUserLoading && !user){
+      router.push('/'); // 로그인 안 했으면 쫓아냄
     }
   }, [user, isUserLoading, router]);
 
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
-      if (storedSlot) {
-        const parsedSlot = JSON.parse(storedSlot);
-        setSelectedSlot(parsedSlot);
-        setActiveTab(`day-${parsedSlot.day}`);
-      } else {
-        const defaultSlot = { day: 0, time: '07:00' };
-        setSelectedSlot(defaultSlot);
-        setActiveTab('day-0');
-      }
-    };
-    
-    handleStorageChange();
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  const handleReturnHome = async () => {
-    await auth.signOut();
-    localStorage.removeItem('venueSyncSelectedSlot');
-    router.push('/');
-  }
-
   const handleTabChange = (newTab: string) => {
-    const newDay = parseInt(newTab.split('-')[1], 10);
     setActiveTab(newTab);
-    if(selectedSlot) {
-      handleSelectSlot(newDay, selectedSlot.time);
-    }
+    const newDay = parseInt(newTab.split('-')[1], 10);
+    setSelectedSlot({ day: newDay, time: timeSlots[0] });
   }
 
   const handleSelectSlot = (day: number, time: string) => {
-    const newSlot = { day, time };
-    setSelectedSlot(newSlot);
-    localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(newSlot));
-    setSelectedStaffId(null);
+    setSelectedSlot({ day, time });
   }
 
-  if (isUserLoading || isLoading || !selectedSlot) {
+  if(isUserLoading || isLoading){
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+        <div className="flex h-screen items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+    )
   }
 
-  const isDraggable = user ? !user.isAnonymous : false;
-  
+  // 데이터가 없거나 로드되지 않았을 때
+  if(!data || data.staff.length === 0){
+    return (
+        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
+            <Database className="h-12 w-12 text-muted-foreground" />
+             <h2 className="text-xl font-semibold">데이터 없음</h2>
+            <p className="text-muted-foreground">
+               {sid ? '선택된 차수에 데이터가 없습니다.' : '차수 정보(ID)를 찾을 수 없습니다.'}
+            </p>
+        </div>
+    )
+  }
+
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="min-h-screen bg-background">
-         <header className='flex justify-between items-center p-4 border-b bg-card shadow-sm'>
-              <h1 className='font-headline text-2xl font-bold text-primary'>
-                  VenueSync 실시간 지도 (Day {selectedSlot.day} - {selectedSlot.time})
-              </h1>
+      <div className="min-h-screen flex flex-col bg-background">
+        <header className='flex justify-between items-center p-4 border-b bg-card shadow-sm'>
+            <div className="flex items-center gap-4">
+                <h1 className='font-headline text-2xl font-bold text-primary'>
+                   실시간 상황판 <span className="text-muted-foreground text-lg font-normal ml-2">(Day {selectedSlot.day} - {selectedSlot.time})</span>
+                </h1>
+            </div>
               <Button variant="outline" onClick={handleReturnHome}>
-                  <Home className="mr-2 h-4 w-4" />
-                  홈으로 돌아가기
+                  <span className="flex items-center gap-2">
+                      <Home className="h-4 w-4" />
+                      <span>창 닫기</span>
+                  </span>
               </Button>
         </header>
-
-         <main className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 md:p-8">
-            <div className="lg:col-span-1 space-y-4">
-               <Tabs value={activeTab} onValueChange={handleTabChange} className="px-1">
-                  <TabsList className='mb-2'>
-                    {Array.from({length: 4}, (_, i) => i).map(day => (
-                      <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-                <div className="flex flex-wrap gap-2 pb-2">
-                    {timeSlots.map(time => {
-                      const day = parseInt(activeTab.split('-')[1], 10);
-                      const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
-                      return (
-                        <Button 
-                            key={time} 
-                            variant={isSelected ? "default" : "outline"}
-                            className="flex-shrink-0 text-xs h-8"
-                            onClick={() => handleSelectSlot(day, time)}
-                        >
-                            {time}
-                        </Button>
-                      )
-                    })}
+        <main className="flex-grow p-4 md:p-8 space-y-4">
+            <Tabs defaultValue="day-0" value={activeTab} onValueChange={handleTabChange}>
+              <TabsList className='mb-4'>
+                  <TabsTrigger value="day-0">1일차</TabsTrigger>
+                  <TabsTrigger value="day-1">2일차</TabsTrigger>
+                  <TabsTrigger value="day-2">3일차</TabsTrigger>
+                  <TabsTrigger value="day-3">4일차</TabsTrigger>
+              </TabsList>
+              
+              <div className="flex flex-wrap gap-2 pb-4"> 
+                  {timeSlots.map(time => {
+                    const day = parseInt(activeTab.split('-')[1], 10);
+                    const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
+                    return (
+                      <Button 
+                          key={time} 
+                          variant={isSelected ? "default" : "outline"}
+                          className="flex-shrink-0 text-xs h-8"
+                          onClick={() => handleSelectSlot(day, time)}
+                      >
+                        {time}
+                      </Button>
+                    )
+                  })}
                 </div>
-                {isDraggable && (
-                  <StaffPanel
-                    selectedSlot={selectedSlot}
-                    onStaffSelect={setSelectedStaffId}
-                    selectedStaffId={selectedStaffId}
-                  />
-                )}
-            </div>
+            </Tabs>
 
-            <div className='w-full lg:col-span-2'>
-              <VenueMap
-                allMarkers={data.markers}
-                allMaps={data.maps}
-                staff={data.staff}
-                schedule={data.schedule}
-                isDraggable={isDraggable}
-                selectedSlot={selectedSlot}
-                notification={data.notification}
-              />
+            <div className="border rounded-xl shadow-sm bg-slate-50/50 overflow-hidden" style={{ minHeight: '600px' }}>
+                <VenueMap 
+                      allMarkers={data.markers} 
+                      allMaps={data.maps}
+                      staff={data.staff} 
+                      schedule={data.schedule}
+                      isDraggable={false} 
+                      selectedSlot={selectedSlot}
+                      notification={data.notification}
+                />
             </div>
-         </main>
+        </main>
       </div>
     </DndProvider>
   );
+}
+
+// 🔴 [필수] useSearchParams를 쓰는 컴포넌트는 Suspense로 감싸야 함
+export default function MapPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+      <MapContent />
+    </Suspense>
+  )
 }

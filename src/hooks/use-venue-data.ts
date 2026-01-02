@@ -7,10 +7,6 @@ import {
   useFirestore,
   useMemoFirebase,
   useUser,
-  setDocumentNonBlocking,
-  addDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-  updateDocumentNonBlocking,
 } from '@/firebase';
 import {
   collection,
@@ -29,13 +25,18 @@ import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, Sc
 import { initialData, initialSessions } from '@/lib/data';
 import { useCallback, useState, useEffect } from 'react';
 import { useSession } from './use-session';
+import { uploadFile } from '@/firebase/storage';
 
 const VENUE_ID = 'main-venue';
 
-export const useVenueData = () => {
+export const useVenueData = (overrideSessionId?: string | null) => {
   const firestore = useFirestore();
   const { user } = useUser();
-  const { sessionId } = useSession();
+  
+  const sessionContext = useSession(); 
+  const contextSessionId = sessionContext?.sessionId;
+
+  const sessionId = overrideSessionId || contextSessionId;
 
   const [localData, setLocalData] = useState<VenueData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,7 +69,6 @@ export const useVenueData = () => {
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
-      // Check if essential data is missing to consider it "uninitialized"
       if (!venueDoc && !staff && !schedule) {
         setLocalData(null);
       } else {
@@ -90,15 +90,13 @@ export const useVenueData = () => {
   ]);
 
   const initializeFirestoreData = useCallback(async () => {
-    if (!firestore || !user ) return;
+    if (!firestore || !user || !sessionId ) return;
     const batch = writeBatch(firestore);
 
-    // Create initial sessions
     initialSessions.forEach((session) => {
         const sessionRef = doc(firestore, 'sessions', session.id);
         batch.set(sessionRef, { name: session.name, ownerId: user.uid });
 
-        // For each session, create the venue and initial data
         const venueDocRef = doc(sessionRef, 'venue', VENUE_ID);
         batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid, notification: '' });
         
@@ -110,18 +108,22 @@ export const useVenueData = () => {
     });
     
     await batch.commit();
-  }, [firestore, user]);
+  }, [firestore, user, sessionId]);
 
-  const addStaffBatch = (newStaffMembers: { name: string; avatar: string }[]) => {
+  const addStaffBatch = async (newStaffMembers: { name: string; file: File }[]) => {
     if (!firestore || !sessionId) return;
     const batch = writeBatch(firestore);
-    newStaffMembers.forEach(member => {
+    
+    for (const member of newStaffMembers) {
       const staffId = `staff-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const filePath = `sessions/${sessionId}/staff_avatars/${staffId}-${member.file.name}`;
+      const avatarUrl = await uploadFile(member.file, filePath);
+      
       batch.set(doc(firestore, 'sessions', sessionId, 'staff', staffId), {
-        id: staffId, name: member.name, avatar: member.avatar
+        id: staffId, name: member.name, avatar: avatarUrl
       });
-    });
-    batch.commit();
+    }
+    await batch.commit();
   };
 
   const deleteStaff = (staffId: string) => {
@@ -279,9 +281,17 @@ export const useVenueData = () => {
     });
   }
 
-  const updateMapImage = (day: number, time: string, newUrl: string) => {
-    if (!firestore || !sessionId) return;
-    setDoc(doc(firestore, 'sessions', sessionId, 'maps', `day${day}-${time.replace(':', '')}`), { day, time, mapImageUrl: newUrl }, { merge: true });
+  const updateMapImage = async (day: number, time: string, file: File): Promise<string | null> => {
+    if (!firestore || !sessionId) return null;
+    const mapId = `day${day}-${time.replace(':', '')}`;
+    const filePath = `sessions/${sessionId}/map_backgrounds/${mapId}-${file.name}`;
+    const mapImageUrl = await uploadFile(file, filePath);
+
+    if (mapImageUrl) {
+        await setDoc(doc(firestore, 'sessions', sessionId, 'maps', mapId), { day, time, mapImageUrl }, { merge: true });
+        return mapImageUrl;
+    }
+    return null;
   };
 
   const updateMarkerPosition = (markerId: string, x: number, y: number, staffIds?: string[], day?: number, time?: string) => {
@@ -341,7 +351,7 @@ export const useVenueData = () => {
     assignTasksToStaff,
     addTasksToRole,
     removeTaskFromRole,
-    isLoading: isLoading, // Return the hook's own loading state
+    isLoading: isLoading, 
     updateMarkerPosition,
     addMarker,
     deleteMarker,
@@ -358,5 +368,3 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
-
-    

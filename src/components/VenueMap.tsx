@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
@@ -33,8 +34,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isBannerVisible, setIsBannerVisible] = useState(true);
 
-  // 🔴 [추가] 이미지 비율 상태 관리
-  // 기본 16:9 비율 (1600/900)로 시작
   const [mapAspectRatio, setMapAspectRatio] = useState(16 / 9);
 
   useEffect(() => {
@@ -186,28 +185,38 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     addMarker(staffId, selectedSlot.day, selectedSlot.time, Math.round(Math.random() * 80) + 10, Math.round(Math.random() * 80) + 10);
   }
 
-  const handleMapImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMapImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if(!selectedSlot) return;
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({
           variant: 'destructive',
           title: '이미지 크기 초과',
-          description: '이미지 파일은 2MB를 초과할 수 없습니다.',
+          description: '이미지 파일은 5MB를 초과할 수 없습니다.',
         });
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const newMapImageUrl = reader.result as string;
-        updateMapImage(selectedSlot.day, selectedSlot.time, newMapImageUrl);
+      
+      toast({
+        title: '업로드 중...',
+        description: `지도 배경 이미지를 업로드하고 있습니다.`,
+      });
+
+      const newMapImageUrl = await updateMapImage(selectedSlot.day, selectedSlot.time, file);
+      
+      if(newMapImageUrl) {
         toast({
           title: '성공',
           description: `지도 배경 이미지가 업데이트되었습니다.`,
         });
-      };
-      reader.readAsDataURL(file);
+      } else {
+        toast({
+            variant: 'destructive',
+            title: '업로드 실패',
+            description: '지도 배경 이미지 업로드에 실패했습니다.',
+          });
+      }
     }
   };
   
@@ -220,7 +229,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     })
   }
 
-  // ... (StaffMarker 컴포넌트는 변경 없음, 그대로 사용) ...
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
     const staffMembers = useMemo(() => staff.filter(s => marker.staffIds?.includes(s.id)), [marker.staffIds, staff]);
     
@@ -281,7 +289,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                 {...{ "translate": "no" } as any}
                 onPointerDown={(e) => e.stopPropagation()}
             >
-                {/* Popover 내부 내용은 동일 */}
                 <div className="p-4 border-b flex justify-between items-start">
                     <div>
                         <h3 className="text-lg font-bold leading-tight flex items-center gap-2 mb-2">
@@ -377,7 +384,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }
 
   const UnassignedStaff = () => {
-    // ... (UnassignedStaff 내용은 변경 없음) ...
     const assignedStaffIds = useMemo(() => new Set(currentMarkers.flatMap(m => m.staffIds || [])), [currentMarkers]);
     const unassignedStaff = useMemo(() => staff.filter(s => !assignedStaffIds.has(s.id)), [staff, assignedStaffIds]);
     
@@ -433,7 +439,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }
   
   const MapActions = () => {
-    // ... (MapActions 변경 없음) ...
     if (!isDraggable || !selectedSlot) return null;
 
     return (
@@ -479,16 +484,11 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     )
   }
 
-  // 🔴 [핵심 변경] 렌더링 부분 구조 변경
-  // 1. 바깥 div: flex-center로 내부의 지도 컨테이너를 중앙 정렬
-  // 2. 내부 div (mapRef): aspectRatio 스타일을 적용하여 이미지 비율 강제 고정
-  // 3. Image: object-fit: cover로 변경 (부모가 이미 비율을 맞췄으므로 꽉 채움)
   return (
     <div className="w-full h-full bg-slate-50/50 rounded-xl overflow-hidden border shadow-sm flex items-center justify-center p-4">
         <div 
           ref={mapRef}
           className="relative w-full shadow-md notranslate"
-          // aspect-ratio 속성을 통해 부모 너비에 맞춰 높이가 자동 조절됨 -> 빈 공간 사라짐
           style={{ aspectRatio: mapAspectRatio }}
           {...{ "translate": "no" } as any}
           onPointerDown={() => setActiveMarkerId(null)}
@@ -497,11 +497,10 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
             <Image
               src={finalMapImageUrl}
               alt="Venue Map"
-              fill // layout="fill" (absolute inset-0)
+              fill
               sizes="(max-width: 768px) 100vw, 80vw"
-              className="object-cover pointer-events-none rounded-md" // object-contain -> object-cover
+              className="object-cover pointer-events-none rounded-md"
               priority
-              // 이미지가 로드되면 실제 비율을 계산하여 상태 업데이트
               onLoadingComplete={(img) => {
                 if (img.naturalWidth && img.naturalHeight) {
                     setMapAspectRatio(img.naturalWidth / img.naturalHeight);
@@ -514,7 +513,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
             </div>
           )}
 
-          {/* 오버레이 요소들은 mapRef(비율 고정된 박스) 안에 그대로 위치 */}
           <div className="absolute inset-0 bg-black/5 pointer-events-none rounded-md" />
           
           <NotificationBanner />

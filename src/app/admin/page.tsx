@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
@@ -17,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Role } from '@/lib/types';
+// 🔴 [복구] 다시 가져옵니다!
 import { useSession } from '@/hooks/use-session';
 
 const days = [0, 1, 2, 3];
@@ -34,6 +34,8 @@ export default function AdminPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const { data, isLoading: isDataLoading, initializeFirestoreData } = useVenueData();
+  
+  // 🔴 [복구] 현재 선택된 차수 ID를 가져옵니다.
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
   const [isLinked, setIsLinked] = useState(true);
@@ -74,7 +76,7 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-      if (!data?.roles) { // 데이터가 로드되지 않았을 수 있으므로 early return
+      if (!data?.roles) { 
           setSelectedRole(null);
           return;
       }
@@ -84,13 +86,13 @@ export default function AdminPage() {
       }
       
       const staffSchedule = data.schedule.find(s => 
-          s.staffIds.includes(selectedStaffId) && 
+          s.staffIds?.includes(selectedStaffId) && 
           s.day === selectedSlot.day && 
           s.time === selectedSlot.time
       );
 
-      if (staffSchedule && staffSchedule.roleName) {
-          const role = data.roles.find(r => r.name === staffSchedule.roleName);
+      if (staffSchedule && (staffSchedule as any).roleName) {
+          const role = data.roles.find(r => r.name === (staffSchedule as any).roleName);
           setSelectedRole(role || null);
       } else {
           setSelectedRole(null);
@@ -125,6 +127,16 @@ export default function AdminPage() {
       }
   };
 
+  const openMapWindow = () => {
+    if (!sessionId) {
+        alert("먼저 차수(Session)를 선택해주세요.");
+        return;
+    }
+    // 🔴 [핵심 수정] URL 뒤에 ID를 붙여서 보냅니다!
+    // 예: /map?sid=abc12345
+    window.open(`/map?sid=${sessionId}`, '_blank', 'width=1200,height=800');
+  };
+
   if (isUserLoading || isDataLoading || isSessionLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -133,22 +145,13 @@ export default function AdminPage() {
     );
   }
 
+  // sessionId 없으면 초기화 화면
   if (!sessionId) {
     return (
         <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
             <Database className="h-12 w-12 text-muted-foreground" />
             <h2 className="text-xl font-semibold">데이터베이스가 비어있습니다</h2>
-            <p className="text-muted-foreground">시작하려면 초기 데이터를 생성해주세요.</p>
-            <Button 
-                onClick={() => initializeFirestoreData()} 
-                variant="default"
-                className='mt-4'
-            >
-                <span className="flex items-center gap-2">
-                    <Database className="h-4 w-4" />
-                    <span>초기 데이터 및 8개 차수 생성하기</span>
-                </span>
-            </Button>
+            <p className="text-muted-foreground">시작하려면 차수를 선택하거나 생성해주세요.</p>
         </div>
     )
   }
@@ -170,6 +173,10 @@ export default function AdminPage() {
                       <div className='flex justify-between items-center mb-4'>
                         <h2 className="font-headline text-xl font-semibold">시간대 설정</h2>
                         <div className="flex items-center space-x-2">
+                            <Button variant="outline" size="sm" onClick={openMapWindow}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                따로 보기
+                            </Button>
                             <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
                             <Label htmlFor="link-panels" className='flex items-center gap-2'>
                                 <LinkIcon className='h-4 w-4'/>
@@ -184,7 +191,7 @@ export default function AdminPage() {
                           ))}
                         </TabsList>
                       </Tabs>
-                       <div className="flex flex-wrap gap-2 pb-2">
+                        <div className="flex flex-wrap gap-2 pb-2">
                           {timeSlots.map(time => {
                             const day = parseInt(activeTab.split('-')[1], 10);
                             const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
