@@ -78,7 +78,8 @@ export function useCollection<T = any>(
       (snapshot: QuerySnapshot<DocumentData>) => {
         const results: ResultItemType[] = [];
         for (const doc of snapshot.docs) {
-          results.push({ ...(doc.data() as T), id: doc.id });
+          // @ts-ignore
+          results.push({ ...(doc.data() as T), id: doc.id, ref: doc.ref });
         }
         setData(results);
         setError(null);

@@ -81,11 +81,17 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         return (b.tasks?.length || 0) - (a.tasks?.length || 0);
       });
       
-      const sessionRoles = allRoles?.map(role => ({
-        ...role,
+      const sessionRoles = allRoles?.map(role => {
         // @ts-ignore
-        day: parseInt(role.ref.parent.parent.id.split('-')[1], 10) || 0
-      })) || [];
+        if (role.ref && role.ref.parent && role.ref.parent.parent) {
+            return {
+                ...role,
+                // @ts-ignore
+                day: parseInt(role.ref.parent.parent.id.split('-')[1], 10) || 0
+            }
+        }
+        return { ...role, day: 0 };
+      }) || [];
 
 
       setLocalData({
@@ -359,7 +365,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const addTasksToRole = (roleId: string, tasks: ScheduleTemplate[]) => {
     if(!firestore || !sessionId) return;
     updateDoc(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
-        tasks: arrayUnion(...tasks.map(t => ({...t, isCompleted: false})))
+        tasks: arrayUnion(...tasks.map(t => ({...t})))
     });
   }
 
@@ -370,10 +376,14 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     });
   };
 
-  const updateScheduleStatus = (scheduleId: string, newStatus: boolean) => {
+  const updateScheduleStatus = (scheduleIds: string[], newStatus: boolean) => {
     if (!firestore || !sessionId) return;
-    const scheduleRef = doc(firestore, 'sessions', sessionId, 'schedules', scheduleId);
-    updateDoc(scheduleRef, { isCompleted: newStatus });
+    const batch = writeBatch(firestore);
+    scheduleIds.forEach(id => {
+      const scheduleRef = doc(firestore, 'sessions', sessionId, 'schedules', id);
+      batch.update(scheduleRef, { isCompleted: newStatus });
+    })
+    batch.commit();
   };
   
   const toggleScheduleCompletion = async (scheduleId: string) => {
