@@ -16,6 +16,8 @@ import { useVenueData } from '@/hooks/use-venue-data';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from './ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { useDrop } from 'react-dnd';
+import { ItemTypes } from './admin/StaffPanel';
 
 interface VenueMapProps {
   allMarkers: MapMarker[];
@@ -89,6 +91,26 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const currentInteractMarkerRef = useRef<MapMarker | null>(null);
   const [isUnassignedPopoverOpen, setIsUnassignedPopoverOpen] = useState(false);
 
+  const [, drop] = useDrop(() => ({
+    accept: ItemTypes.STAFF,
+    drop: (item: { staffId: string }, monitor) => {
+      if (!selectedSlot || !mapRef.current) return;
+      const dropPosition = monitor.getClientOffset();
+      const mapBounds = mapRef.current.getBoundingClientRect();
+      
+      if(dropPosition){
+        let x = ((dropPosition.x - mapBounds.left) / mapBounds.width) * 100;
+        let y = ((dropPosition.y - mapBounds.top) / mapBounds.height) * 100;
+        x = Math.max(0, Math.min(100, x));
+        y = Math.max(0, Math.min(100, y));
+        
+        addMarker(item.staffId, selectedSlot.day, selectedSlot.time, x, y);
+      }
+    },
+  }), [selectedSlot, addMarker]);
+
+  drop(mapRef);
+
   const handlePointerDown = (e: React.PointerEvent, marker: MapMarker) => {
     e.stopPropagation();
     if (activeMarkerId && activeMarkerId !== marker.id) {
@@ -161,7 +183,8 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
 
   const handleAddMarkerClick = (staffId: string) => {
     if(!selectedSlot) return;
-    addMarker(staffId, selectedSlot.day, selectedSlot.time);
+    // Add marker at a random position when added from the list
+    addMarker(staffId, selectedSlot.day, selectedSlot.time, Math.round(Math.random() * 80) + 10, Math.round(Math.random() * 80) + 10);
   }
 
   const handleMapImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -491,3 +514,5 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     </div>
   );
 }
+
+    

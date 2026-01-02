@@ -278,7 +278,7 @@ export const useVenueData = () => {
     }
   };
 
-  const addMarker = (staffId: string, day: number, time: string) => {
+  const addMarker = (staffId: string, day: number, time: string, x: number, y: number) => {
     if (!firestore) return;
     const markerId = `marker-${staffId}-${day}-${time.replace(':', '')}`;
     const existingMarker = localData?.markers.find(m => m.id === markerId);
@@ -295,8 +295,8 @@ export const useVenueData = () => {
             staffIds: [staffId],
             day,
             time,
-            x: Math.round(Math.random() * 80) + 10,
-            y: Math.round(Math.random() * 80) + 10
+            x,
+            y
         });
     }
   };
@@ -346,6 +346,8 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    
 
     
 

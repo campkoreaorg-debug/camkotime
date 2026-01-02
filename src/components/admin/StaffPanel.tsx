@@ -26,7 +26,7 @@ import {
     CollapsibleTrigger,
   } from "@/components/ui/collapsible"
 import { cn } from '@/lib/utils';
-import { useDrop, DropTargetMonitor } from 'react-dnd';
+import { useDrop, useDrag, DropTargetMonitor } from 'react-dnd';
 import { Input } from '../ui/input';
 
 interface PendingStaff {
@@ -39,6 +39,7 @@ const MAX_IMAGE_WIDTH = 800; // 픽셀 단위
 
 export const ItemTypes = {
     TASK_BUNDLE: 'taskBundle',
+    STAFF: 'staff',
 }
 
 interface TaskBundle {
@@ -59,6 +60,15 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
+
+    const [{ isDragging: isDraggingStaff }, dragStaff] = useDrag(() => ({
+        type: ItemTypes.STAFF,
+        item: { staffId: staff.id },
+        collect: (monitor) => ({
+            isDragging: !!monitor.isDragging(),
+        }),
+    }), [staff.id]);
+
 
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.TASK_BUNDLE,
@@ -95,11 +105,12 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
     
     return (
         <div 
-            ref={drop}
-            className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all",
+            ref={(node) => dragStaff(drop(node))}
+            className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all cursor-grab active:cursor-grabbing",
                 isOver && canDrop && "ring-2 ring-primary bg-primary/10",
                 isOver && !canDrop && "ring-2 ring-destructive bg-destructive/10",
-                isScheduled && "border-destructive ring-1 ring-destructive"
+                isScheduled && "border-destructive ring-1 ring-destructive",
+                isDraggingStaff && 'opacity-50'
             )}
         >
             <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
@@ -384,3 +395,5 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
     </Card>
   );
 }
+
+    

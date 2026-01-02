@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { ScheduleItem } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -10,8 +10,10 @@ import { Button } from '../ui/button';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Input } from '../ui/input';
-import { Megaphone } from 'lucide-react';
+import { Megaphone, MousePointerSquareDashed } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useDrop } from 'react-dnd';
+import { ItemTypes } from './StaffPanel';
 
 interface MapPanelProps {
     selectedSlot: { day: number, time: string } | null;
@@ -22,11 +24,35 @@ interface MapPanelProps {
 const days = [0, 1, 2, 3];
 
 export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps) {
-    const { data, updateNotification } = useVenueData();
+    const { data, updateNotification, addMarker } = useVenueData();
     const { toast } = useToast();
     
     const [activeTab, setActiveTab] = useState(`day-${selectedSlot?.day ?? 0}`);
     const [notificationText, setNotificationText] = useState('');
+    const mapRef = useRef<HTMLDivElement>(null);
+
+
+    const [{ isOver, canDrop }, drop] = useDrop(() => ({
+        accept: ItemTypes.STAFF,
+        drop: (item: { staffId: string }, monitor) => {
+            if (!selectedSlot || !mapRef.current) return;
+            const dropPosition = monitor.getClientOffset();
+            const mapBounds = mapRef.current.getBoundingClientRect();
+            
+            if(dropPosition){
+                let x = ((dropPosition.x - mapBounds.left) / mapBounds.width) * 100;
+                let y = ((dropPosition.y - mapBounds.top) / mapBounds.height) * 100;
+                x = Math.max(0, Math.min(100, x));
+                y = Math.max(0, Math.min(100, y));
+                
+                addMarker(item.staffId, selectedSlot.day, selectedSlot.time, x, y);
+            }
+        },
+        collect: (monitor) => ({
+            isOver: !!monitor.isOver(),
+            canDrop: !!monitor.canDrop(),
+        }),
+    }), [selectedSlot, addMarker]);
 
     useEffect(() => {
         if(data?.notification) {
@@ -45,7 +71,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
 
 
     const scheduleByDay = useMemo(() => {
-        if (!data) return [];
+        if (!data?.schedule) return [];
         return days.map(day => {
             return data.schedule.filter(s => s.day === day).reduce((acc, item) => {
                 if (!acc[item.time]) {
@@ -92,7 +118,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
     }
 
     return (
-        <Card className='lg:col-span-1'>
+        <Card ref={drop} className='lg:col-span-1 relative'>
             <CardHeader>
                 <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
                 <CardDescription>
@@ -144,16 +170,26 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
                     </Tabs>
                 )}
 
-                <VenueMap
-                    allMarkers={data.markers}
-                    allMaps={data.maps}
-                    staff={data.staff}
-                    schedule={data.schedule}
-                    isDraggable={true}
-                    selectedSlot={selectedSlot}
-                    notification={data.notification}
-                />
+                <div ref={mapRef}>
+                    <VenueMap
+                        allMarkers={data.markers}
+                        allMaps={data.maps}
+                        staff={data.staff}
+                        schedule={data.schedule}
+                        isDraggable={true}
+                        selectedSlot={selectedSlot}
+                        notification={data.notification}
+                    />
+                </div>
             </CardContent>
+            {isOver && canDrop && (
+                <div className="absolute inset-0 bg-primary/20 border-2 border-dashed border-primary rounded-lg flex flex-col items-center justify-center pointer-events-none z-10">
+                    <MousePointerSquareDashed className="h-16 w-16 text-primary" />
+                    <p className="mt-4 text-lg font-semibold text-primary">여기에 스태프를 놓아 지도에 추가하세요</p>
+                </div>
+            )}
       </Card>
     );
 }
+
+    
