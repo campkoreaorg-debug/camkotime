@@ -243,7 +243,9 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     if (!firestore || !sessionId) return;
     const batch = writeBatch(firestore);
     roles.forEach(role => {
-        const roleId = `role-csv-${role.name.replace(/\s+/g, '')}-${Date.now()}`;
+        // Sanitize role name to create a valid document ID
+        const sanitizedName = role.name.replace(/[\/\s#$.\[\]]/g, ''); // Remove slashes and other invalid characters
+        const roleId = `role-csv-${sanitizedName}-${Date.now()}`;
         batch.set(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
             id: roleId,
             name: role.name,
@@ -442,6 +444,8 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    
 
     
 
