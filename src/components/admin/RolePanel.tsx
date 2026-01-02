@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 
-const DraggableRoleItem = ({ role, index, moveRole, onSelectRole, selectedRole }: { role: Role, index: number, moveRole: (dragIndex: number, hoverIndex: number) => void, onSelectRole: (role: Role) => void, selectedRole: Role | null }) => {
+const DraggableRoleItem = ({ role, index, moveRole, onSelectRole, selectedRole, onDeleteRole }: { role: Role, index: number, moveRole: (dragIndex: number, hoverIndex: number) => void, onSelectRole: (role: Role) => void, selectedRole: Role | null, onDeleteRole: (role: Role) => void }) => {
     const ref = useRef<HTMLDivElement>(null);
 
     const [, drop] = useDrop({
@@ -58,14 +58,16 @@ const DraggableRoleItem = ({ role, index, moveRole, onSelectRole, selectedRole }
             onClick={() => onSelectRole(role)}
         >
             <div className="flex items-start gap-3 flex-1">
-                <GripVertical ref={ref} className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0 cursor-move" />
+                <div ref={ref} className="pt-0.5 cursor-move">
+                    <GripVertical className="h-5 w-5 text-muted-foreground shrink-0" />
+                </div>
                 <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="flex-1">
                     <p className="font-semibold text-sm truncate">{role.name}</p>
                     <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
                 </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer shrink-0" onClick={(e) => { e.stopPropagation(); /* openDeleteRoleDialog(role) */ }}>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer shrink-0" onClick={(e) => { e.stopPropagation(); onDeleteRole(role) }}>
                 <Trash2 className="h-4 w-4" />
             </Button>
         </div>
@@ -157,7 +159,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
         addRole(newRoleName, manualTask ? [{ event: manualTask }] : []);
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
         
-        setIsCreateRoleModalOpen(false);
+        // Don't close modal, just clear inputs for next entry
         setNewRoleName('');
         setManualTask('');
     };
@@ -222,11 +224,10 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                 }
 
                 const roleNames = parsedData[0];
-                const maxTasks = Math.max(...parsedData.slice(1).map(row => row.length));
                 
                 const roles: Role[] = roleNames.map((name, colIndex) => {
                     const tasks: ScheduleTemplate[] = [];
-                    if(name) { // 직책 이름이 있는 경우에만
+                    if(name && name.trim() !== '') {
                         for (let rowIndex = 1; rowIndex < parsedData.length; rowIndex++) {
                             const event = parsedData[rowIndex][colIndex];
                             if (event && event.trim() !== '') {
@@ -234,8 +235,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                             }
                         }
                     }
-                    // 임시 ID 사용, 실제 ID는 use-venue-data에서 생성
-                    return { id: `role-${name}-${colIndex}`, name, tasks }; 
+                    return { id: `temp-id-${colIndex}`, name, tasks }; 
                 }).filter(role => role.name && role.name.trim() !== '');
                 
                 uploadRoles(roles);
@@ -246,7 +246,6 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
             }
         });
 
-        // Reset file input
         if(event.target) event.target.value = '';
     };
 
@@ -256,14 +255,14 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
             return;
         }
 
-        const roles = data.roles;
-        const header = roles.map(r => r.name);
+        const rolesToDownload = data.roles;
+        const header = rolesToDownload.map(r => r.name);
         
-        const maxTasks = Math.max(...roles.map(r => (r.tasks || []).length));
+        const maxTasks = Math.max(0, ...rolesToDownload.map(r => (r.tasks || []).length));
 
         const rows: string[][] = [];
         for (let i = 0; i < maxTasks; i++) {
-            rows.push(roles.map(r => (r.tasks && r.tasks[i]) ? r.tasks[i].event : ''));
+            rows.push(rolesToDownload.map(r => (r.tasks && r.tasks[i]) ? r.tasks[i].event : ''));
         }
 
         const csvData = [header, ...rows];
@@ -318,7 +317,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
     const rolesByDay = useMemo(() => {
         if (!data?.allRoles) return {};
         return data.allRoles.reduce((acc, role) => {
-            const day = role.day ?? 0; // Fallback for old data
+            const day = role.day ?? 0;
             if (!acc[day]) {
                 acc[day] = [];
             }
@@ -339,6 +338,8 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
             </Card>
         )
     }
+    
+    const dayFilteredRoles = roles;
 
     return (
         <Card className='xl:col-span-2'>
@@ -346,7 +347,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                 <div>
                     <CardTitle className="font-headline text-xl font-semibold">직책 및 업무 할당</CardTitle>
                     <CardDescription>
-                        직책을 선택하여 업무를 할당하세요. 현재 날짜에 <Badge variant="secondary">{roles?.length || 0}</Badge>개의 직책.
+                        직책을 선택하여 업무를 할당하세요. 현재 날짜에 <Badge variant="secondary">{dayFilteredRoles?.length || 0}</Badge>개의 직책.
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -354,7 +355,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>직책 업로드</Button>
                     <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
                     <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4"/>다운로드</Button>
-                    <Button variant="outline" onClick={() => setIsCreateRoleModalOpen(true)}><Plus className="mr-2 h-4 w-4"/>직책 생성</Button>
+                    <Button variant="outline" onClick={() => { setIsCreateRoleModalOpen(true); setNewRoleName(''); setManualTask(''); }}><Plus className="mr-2 h-4 w-4"/>직책 생성</Button>
                 </div>
             </CardHeader>
             <CardContent>
@@ -362,10 +363,10 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     {/* Left Column: Role List */}
                     <div onMouseUp={handleDragEnd}>
                         <h3 className="font-semibold text-md mb-2">1. 직책 선택 (드래그로 순서 변경)</h3>
-                        {roles && roles.length > 0 ? (
+                        {dayFilteredRoles && dayFilteredRoles.length > 0 ? (
                              <ScrollArea className="h-96 pr-4">
                                 <div className="space-y-2">
-                                    {roles.map((role, index) => (
+                                    {dayFilteredRoles.map((role, index) => (
                                         <DraggableRoleItem 
                                             key={role.id} 
                                             role={role} 
@@ -373,12 +374,13 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                                             moveRole={moveRole}
                                             onSelectRole={handleSelectRole}
                                             selectedRole={selectedRole}
+                                            onDeleteRole={openDeleteRoleDialog}
                                         />
                                     ))}
                                 </div>
                             </ScrollArea>
                         ) : (
-                            <div className="text-center text-muted-foreground py-10 border rounded-lg">
+                            <div className="text-center text-muted-foreground py-10 border rounded-lg h-96 flex items-center justify-center">
                                 <p>생성된 직책이 없습니다.</p>
                             </div>
                         )}
@@ -467,7 +469,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     <DialogHeader>
                         <DialogTitle>새 직책 생성</DialogTitle>
                         <DialogDescription>
-                            현재 선택된 날짜({selectedSlot.day}일차)에 사용할 수 있는 직책 템플릿을 만듭니다.
+                            현재 선택된 날짜({(selectedSlot.day ?? 0) + 1}일차)에 사용할 수 있는 직책 템플릿을 만듭니다.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -481,7 +483,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCreateRoleModalOpen(false)}>취소</Button>
+                        <Button variant="outline" onClick={() => setIsCreateRoleModalOpen(false)}>닫기</Button>
                         <Button onClick={handleCreateRole}>생성</Button>
                     </DialogFooter>
                 </DialogContent>
@@ -492,14 +494,14 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     <DialogHeader>
                         <DialogTitle>다른 날짜에서 직책 불러오기</DialogTitle>
                         <DialogDescription>
-                            다른 날짜에 생성된 직책들을 선택하여 현재 날짜({selectedSlot.day}일차)로 복사합니다.
+                            다른 날짜에 생성된 직책들을 선택하여 현재 날짜({(selectedSlot.day ?? 0) + 1}일차)로 복사합니다.
                         </DialogDescription>
                     </DialogHeader>
                     <ScrollArea className="h-96 my-4">
                         <Accordion type="multiple" className="w-full" defaultValue={['day-0', 'day-1', 'day-2', 'day-3']}>
                             {Object.entries(rolesByDay).map(([day, dayRoles]) => (
                                 <AccordionItem value={`day-${day}`} key={day}>
-                                    <AccordionTrigger>{day}일차</AccordionTrigger>
+                                    <AccordionTrigger>{parseInt(day) + 1}일차</AccordionTrigger>
                                     <AccordionContent>
                                         <div className='grid grid-cols-2 gap-2 p-2'>
                                             {dayRoles.map(role => (
@@ -556,5 +558,3 @@ export function RolePanel(props: RolePanelProps) {
         </DndProvider>
     )
 }
-
-    
