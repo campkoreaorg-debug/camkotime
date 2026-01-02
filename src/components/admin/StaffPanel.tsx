@@ -73,25 +73,21 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
             name: staff.name, 
             avatar: staff.avatar 
         },
-        begin: (monitor) => {
-            postMessage({ type: 'staff-drag-start', staff: { id: staff.id, name: staff.name, avatar: staff.avatar } });
-
-            const handleMouseMove = (e: MouseEvent) => {
-              postMessage({ type: 'staff-drag-move', x: e.clientX, y: e.clientY });
-            };
-            window.addEventListener('mousemove', handleMouseMove);
-
-            // end 콜백에서 리스너를 제거할 수 있도록 함수를 반환합니다.
-            return {
-                removeListener: () => window.removeEventListener('mousemove', handleMouseMove)
-            };
-        },
         end: (item, monitor) => {
-            const dropResult = monitor.getDropResult<{ removeListener?: () => void }>();
-            if (dropResult && dropResult.removeListener) {
-              dropResult.removeListener();
-            }
-             postMessage({ type: 'staff-drag-end' });
+            postMessage({ type: 'staff-drag-start', staff: { id: staff.id, name: staff.name, avatar: staff.avatar } });
+            
+            const handleMouseMove = (e: MouseEvent) => {
+                postMessage({ type: 'staff-drag-move', x: e.clientX, y: e.clientY });
+            };
+            
+            const handleMouseUp = () => {
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('mouseup', handleMouseUp);
+                postMessage({ type: 'staff-drag-end' });
+            };
+
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
         },
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
@@ -442,4 +438,3 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
     </Card>
   );
 }
-
