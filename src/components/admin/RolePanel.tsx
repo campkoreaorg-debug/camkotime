@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
-import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -18,6 +18,8 @@ import { Checkbox } from '../ui/checkbox';
 import { useDrag } from 'react-dnd';
 import { ItemTypes } from './StaffPanel';
 import { cn } from '@/lib/utils';
+import Papa from 'papaparse';
+
 
 interface DraggableTaskBundleProps {
     role: Role;
@@ -50,7 +52,7 @@ const DraggableTaskBundle = ({ role, selectedTasks }: DraggableTaskBundleProps) 
 };
 
 export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time: string } | null }) {
-    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole } = useVenueData();
+    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles } = useVenueData();
     const { toast } = useToast();
 
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
@@ -62,6 +64,9 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
     const [selectedTasks, setSelectedTasks] = useState<ScheduleTemplate[]>([]);
+    
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
 
     const handleCreateRole = () => {
         if (!newRoleName.trim()) {
@@ -125,6 +130,76 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
         if (!selectedRole) return;
         removeTaskFromRole(selectedRole.id, task);
     };
+    
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            complete: (results) => {
+                const parsedData = results.data as string[][];
+                if (parsedData.length < 1) {
+                    toast({ variant: 'destructive', title: '잘못된 CSV 형식', description: '파일에 데이터가 없습니다.' });
+                    return;
+                }
+
+                const roleNames = parsedData[0];
+                const maxTasks = Math.max(...parsedData.slice(1).map(row => row.length));
+                
+                const roles: Role[] = roleNames.map((name, colIndex) => {
+                    const tasks: ScheduleTemplate[] = [];
+                    if(name) { // 직책 이름이 있는 경우에만
+                        for (let rowIndex = 1; rowIndex < parsedData.length; rowIndex++) {
+                            const event = parsedData[rowIndex][colIndex];
+                            if (event && event.trim() !== '') {
+                                tasks.push({ event });
+                            }
+                        }
+                    }
+                    // 임시 ID 사용, 실제 ID는 use-venue-data에서 생성
+                    return { id: `role-${name}-${colIndex}`, name, tasks }; 
+                }).filter(role => role.name && role.name.trim() !== '');
+                
+                uploadRoles(roles);
+                toast({ title: '업로드 완료', description: `${roles.length}개의 직책과 업무가 업로드되었습니다.` });
+            },
+            error: (error) => {
+                toast({ variant: 'destructive', title: 'CSV 파싱 오류', description: error.message });
+            }
+        });
+
+        // Reset file input
+        if(event.target) event.target.value = '';
+    };
+
+    const handleDownload = () => {
+        if (!data || !data.roles || data.roles.length === 0) {
+            toast({ variant: 'destructive', title: '데이터 없음', description: '다운로드할 직책 데이터가 없습니다.' });
+            return;
+        }
+
+        const roles = data.roles;
+        const header = roles.map(r => r.name);
+        
+        const maxTasks = Math.max(...roles.map(r => (r.tasks || []).length));
+
+        const rows: string[][] = [];
+        for (let i = 0; i < maxTasks; i++) {
+            rows.push(roles.map(r => (r.tasks && r.tasks[i]) ? r.tasks[i].event : ''));
+        }
+
+        const csvData = [header, ...rows];
+        const csv = Papa.unparse(csvData);
+
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "venue_roles.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     if (!data) {
         return (
@@ -149,6 +224,9 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>직책 업로드</Button>
+                    <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
+                    <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4"/>다운로드</Button>
                     <Button variant="outline" onClick={() => setIsCreateRoleModalOpen(true)}><Plus className="mr-2 h-4 w-4"/>직책 생성</Button>
                 </div>
             </CardHeader>

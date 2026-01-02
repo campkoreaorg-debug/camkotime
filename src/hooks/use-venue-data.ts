@@ -41,6 +41,7 @@ export const useVenueData = () => {
   const scheduleColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'schedules') : null), [firestore]);
   const markersColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'markers') : null), [firestore]);
   const mapsColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'maps') : null), [firestore]);
+  const scheduleTemplatesColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'scheduleTemplates') : null), [firestore]);
 
   const { data: venueDoc, isLoading: venueLoading } = useDoc<any>(venueRef);
   const { data: staff, isLoading: staffLoading } = useCollection<StaffMember>(staffColRef);
@@ -48,9 +49,10 @@ export const useVenueData = () => {
   const { data: schedule, isLoading: scheduleLoading } = useCollection<ScheduleItem>(scheduleColRef);
   const { data: markers, isLoading: markersLoading } = useCollection<MapMarker>(markersColRef);
   const { data: maps, isLoading: mapsLoading } = useCollection<MapInfo>(mapsColRef);
+  const { data: scheduleTemplates, isLoading: templatesLoading } = useCollection<ScheduleTemplate>(scheduleTemplatesColRef);
 
   useEffect(() => {
-    const isDataLoading = venueLoading || staffLoading || rolesLoading || scheduleLoading || markersLoading || mapsLoading;
+    const isDataLoading = venueLoading || staffLoading || rolesLoading || scheduleLoading || markersLoading || mapsLoading || templatesLoading;
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
@@ -61,12 +63,12 @@ export const useVenueData = () => {
         markers: markers || [],
         maps: maps || [],
         notification: venueDoc?.notification || '',
-        scheduleTemplates: [], // This is now part of Role
+        scheduleTemplates: scheduleTemplates || [],
       });
     }
   }, [
-    venueDoc, staff, roles, schedule, markers, maps,
-    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading
+    venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates,
+    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading, templatesLoading
   ]);
 
 
@@ -81,6 +83,7 @@ export const useVenueData = () => {
     initialData.schedule.forEach((item) => batch.set(doc(firestore, 'venues', VENUE_ID, 'schedules', item.id), item));
     initialData.markers.forEach((m) => batch.set(doc(firestore, 'venues', VENUE_ID, 'markers', m.id), m));
     initialData.maps.forEach((map) => batch.set(doc(firestore, 'venues', VENUE_ID, 'maps', map.id), map));
+    initialData.scheduleTemplates.forEach((template) => batch.set(doc(firestore, 'venues', VENUE_ID, 'scheduleTemplates', template.id), template));
     
     await batch.commit();
   }, [firestore, user]);
@@ -172,6 +175,20 @@ export const useVenueData = () => {
       setDoc(doc(firestore, 'venues', VENUE_ID, 'roles', newId), newRole);
   };
 
+  const uploadRoles = (roles: Role[]) => {
+    if (!firestore) return;
+    const batch = writeBatch(firestore);
+    roles.forEach(role => {
+        const roleId = `role-csv-${role.name.replace(/\s+/g, '')}-${Date.now()}`;
+        batch.set(doc(firestore, 'venues', VENUE_ID, 'roles', roleId), {
+            id: roleId,
+            name: role.name,
+            tasks: role.tasks || []
+        });
+    });
+    batch.commit();
+  }
+
   const deleteRole = (roleId: string) => {
     if (!firestore) return;
     deleteDoc(doc(firestore, 'venues', VENUE_ID, 'roles', roleId));
@@ -211,6 +228,17 @@ export const useVenueData = () => {
     });
   }
 
+  const addScheduleTemplate = (template: Omit<ScheduleTemplate, 'id'>) => {
+    if (!firestore) return;
+    const newId = `template-${Date.now()}`;
+    setDoc(doc(firestore, 'venues', VENUE_ID, 'scheduleTemplates', newId), { id: newId, ...template });
+  }
+
+  const deleteScheduleTemplate = (templateId: string) => {
+    if (!firestore) return;
+    deleteDoc(doc(firestore, 'venues', VENUE_ID, 'scheduleTemplates', templateId));
+  }
+
   const updateMapImage = (day: number, time: string, newUrl: string) => {
     if (!firestore) return;
     setDoc(doc(firestore, 'venues', VENUE_ID, 'maps', `day${day}-${time.replace(':', '')}`), { day, time, mapImageUrl: newUrl }, { merge: true });
@@ -219,7 +247,7 @@ export const useVenueData = () => {
   const updateMarkerPosition = (markerId: string, x: number, y: number, staffIds?: string[], day?: number, time?: string) => {
     if (!firestore) return;
     if (markerId.startsWith('default-marker-') && staffIds && day !== undefined && time) {
-      setDoc(doc(firestore, 'venues', VENUE_ID, 'markers', `marker-${staffIds[0]}-${day}-${time.replace(':', '')}`), { staffIds, day, time, x, y }, { merge: true });
+      setDoc(doc(firestore, 'venues', VENUE_ID, 'markers', `marker-${staffIds[0]}-${day}-${time.replace(':', '')}`), { staffIds: [staffIds[0]], day, time, x, y }, { merge: true });
     } else {
       updateDoc(doc(firestore, 'venues', VENUE_ID, 'markers', markerId), { x, y });
     }
@@ -227,9 +255,25 @@ export const useVenueData = () => {
 
   const addMarker = (staffId: string, day: number, time: string) => {
     if (!firestore) return;
-    setDoc(doc(firestore, 'venues', VENUE_ID, 'markers', `marker-${staffId}-${day}-${time.replace(':', '')}`), {
-      staffIds: [staffId], day, time, x: Math.round(Math.random() * 80) + 10, y: Math.round(Math.random() * 80) + 10
-    }, { merge: true });
+    const markerId = `marker-${staffId}-${day}-${time.replace(':', '')}`;
+    const existingMarker = localData?.markers.find(m => m.id === markerId);
+
+    if (existingMarker) {
+        // 이미 해당 시간대에 마커가 있으면 staffIds에 추가
+        updateDoc(doc(firestore, 'venues', VENUE_ID, 'markers', markerId), {
+            staffIds: arrayUnion(staffId)
+        });
+    } else {
+        // 없으면 새로 생성
+        setDoc(doc(firestore, 'venues', VENUE_ID, 'markers', markerId), {
+            id: markerId,
+            staffIds: [staffId],
+            day,
+            time,
+            x: Math.round(Math.random() * 80) + 10,
+            y: Math.round(Math.random() * 80) + 10
+        });
+    }
   };
 
   const deleteMarker = (markerId: string) => {
@@ -253,10 +297,13 @@ export const useVenueData = () => {
     updateMapImage,
     initializeFirestoreData,
     addRole,
+    uploadRoles,
     deleteRole,
     assignTasksToStaff,
     addTasksToRole,
     removeTaskFromRole,
+    addScheduleTemplate,
+    deleteScheduleTemplate,
     isLoading,
     updateMarkerPosition,
     addMarker,
