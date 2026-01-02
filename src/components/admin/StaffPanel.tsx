@@ -112,7 +112,7 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
                 isOver && canDrop && "ring-2 ring-primary bg-primary/10",
                 isOver && !canDrop && "ring-2 ring-destructive bg-destructive/10",
                 isScheduled && "border-destructive ring-1 ring-destructive",
-                isSelected && "ring-2 ring-blue-500 border-blue-500",
+                isSelected && "ring-2 ring-blue-500 border-blue-500 shadow-lg",
                 isDraggingStaff ? 'opacity-50 cursor-grabbing' : 'cursor-grab'
             )}
             onClick={() => onStaffSelect(staff.id)}
@@ -299,7 +299,7 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
+                <CardTitle className="font-headline text-xl font-semibold">스태프 관리</CardTitle>
             </CardHeader>
             <CardContent className="flex items-center justify-center h-40">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -313,7 +313,7 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
       <Collapsible open={isGridOpen} onOpenChange={setIsGridOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
             <div className='space-y-1.5'>
-                <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
+                <CardTitle className="font-headline text-xl font-semibold">스태프 관리</CardTitle>
                 <CardDescription>
                     총 <Badge variant="secondary">{data?.staff.length || 0}</Badge>명의 스태프. 클릭하여 배정된 업무 확인
                 </CardDescription>
@@ -403,5 +403,3 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
     </Card>
   );
 }
-
-    
