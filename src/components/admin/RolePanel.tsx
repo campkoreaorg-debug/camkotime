@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download } from 'lucide-react';
+import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download, ArrowDown, ArrowUp } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -15,10 +15,62 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
 import { Role, ScheduleTemplate } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
-import { useDrag } from 'react-dnd';
+import { useDrag, useDrop, DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ItemTypes } from './StaffPanel';
 import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
+
+const DraggableRoleItem = ({ role, index, moveRole, onSelectRole, selectedRole }: { role: Role, index: number, moveRole: (dragIndex: number, hoverIndex: number) => void, onSelectRole: (role: Role) => void, selectedRole: Role | null }) => {
+    const ref = useRef<HTMLDivElement>(null);
+
+    const [, drop] = useDrop({
+        accept: 'ROLE',
+        hover(item: { index: number }, monitor) {
+            if (!ref.current) return;
+            const dragIndex = item.index;
+            const hoverIndex = index;
+            if (dragIndex === hoverIndex) return;
+            moveRole(dragIndex, hoverIndex);
+            item.index = hoverIndex;
+        },
+    });
+
+    const [{ isDragging }, drag, preview] = useDrag({
+        type: 'ROLE',
+        item: { id: role.id, index },
+        collect: (monitor) => ({
+            isDragging: monitor.isDragging(),
+        }),
+    });
+
+    drag(drop(ref));
+
+    return (
+        <div
+            ref={preview}
+            style={{ opacity: isDragging ? 0.5 : 1 }}
+            className={cn(
+                "group p-3 rounded-md border bg-card flex justify-between items-start cursor-pointer transition-all hover:shadow-md",
+                selectedRole?.id === role.id ? "border-primary shadow-md" : "hover:border-primary/50"
+            )}
+            onClick={() => onSelectRole(role)}
+        >
+            <div className="flex items-start gap-3 flex-1">
+                <GripVertical ref={ref} className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0 cursor-move" />
+                <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="flex-1">
+                    <p className="font-semibold text-sm truncate">{role.name}</p>
+                    <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
+                </div>
+            </div>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer shrink-0" onClick={(e) => { e.stopPropagation(); /* openDeleteRoleDialog(role) */ }}>
+                <Trash2 className="h-4 w-4" />
+            </Button>
+        </div>
+    );
+};
 
 
 interface DraggableTaskBundleProps {
@@ -57,12 +109,13 @@ interface RolePanelProps {
     onRoleSelect: (role: Role | null) => void;
 }
 
-export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePanelProps) {
-    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles } = useVenueData();
+function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePanelProps) {
+    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles, updateRoleOrder, importRolesFromOtherDays } = useVenueData();
     const { toast } = useToast();
 
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
     const [isDeleteRoleAlertOpen, setIsDeleteRoleAlertOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     
     const [newRoleName, setNewRoleName] = useState('');
     const [manualTask, setManualTask] = useState('');
@@ -71,6 +124,24 @@ export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePane
     const [selectedTasks, setSelectedTasks] = useState<ScheduleTemplate[]>([]);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [rolesToImport, setRolesToImport] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        if (data?.roles) {
+            const sortedRoles = [...data.roles].sort((a, b) => {
+                if (a.order !== undefined && b.order !== undefined) {
+                    return a.order - b.order;
+                }
+                if (a.order !== undefined) return -1;
+                if (b.order !== undefined) return 1;
+                return (b.tasks?.length || 0) - (a.tasks?.length || 0);
+            });
+            setRoles(sortedRoles);
+        }
+    }, [data?.roles]);
+
 
     useEffect(() => {
         // When selected role changes from parent, clear task selection
@@ -208,14 +279,62 @@ export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePane
         document.body.removeChild(link);
     };
 
-    if (!data) {
+    const moveRole = (dragIndex: number, hoverIndex: number) => {
+        setRoles(prev => {
+            const newRoles = [...prev];
+            const [draggedItem] = newRoles.splice(dragIndex, 1);
+            newRoles.splice(hoverIndex, 0, draggedItem);
+            return newRoles;
+        });
+    };
+
+    const handleDragEnd = () => {
+        const roleIdsInOrder = roles.map(r => r.id);
+        updateRoleOrder(roleIdsInOrder);
+    };
+
+    const handleToggleImportCheckbox = (roleId: string) => {
+        setRolesToImport(prev => ({ ...prev, [roleId]: !prev[roleId] }));
+    };
+
+    const handleImportRoles = () => {
+        if (!selectedSlot) {
+            toast({ variant: 'destructive', title: '날짜 선택 필요', description: '먼저 작업할 날짜와 시간대를 선택해주세요.' });
+            return;
+        }
+        const rolesToImportIds = Object.keys(rolesToImport).filter(id => rolesToImport[id]);
+        if (rolesToImportIds.length === 0) {
+            toast({ variant: 'destructive', title: '선택된 직책 없음', description: '불러올 직책을 하나 이상 선택해주세요.' });
+            return;
+        }
+        
+        importRolesFromOtherDays(rolesToImportIds, selectedSlot.day);
+        
+        toast({ title: '불러오기 완료', description: `${rolesToImportIds.length}개의 직책을 현재 날짜로 불러왔습니다.` });
+        setIsImportModalOpen(false);
+        setRolesToImport({});
+    };
+
+    const rolesByDay = useMemo(() => {
+        if (!data?.allRoles) return {};
+        return data.allRoles.reduce((acc, role) => {
+            const day = role.day ?? 0; // Fallback for old data
+            if (!acc[day]) {
+                acc[day] = [];
+            }
+            acc[day].push(role);
+            return acc;
+        }, {} as Record<number, Role[]>);
+    }, [data?.allRoles]);
+
+    if (!data || !selectedSlot) {
         return (
             <Card>
                 <CardHeader>
                     <CardTitle className="font-headline text-xl font-semibold">직책 관리</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p>데이터 로딩 중...</p>
+                    <p>상단에서 날짜와 시간대를 선택하세요.</p>
                 </CardContent>
             </Card>
         )
@@ -227,10 +346,11 @@ export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePane
                 <div>
                     <CardTitle className="font-headline text-xl font-semibold">직책 및 업무 할당</CardTitle>
                     <CardDescription>
-                        직책을 선택하여 업무를 할당하세요. 총 <Badge variant="secondary">{data.roles?.length || 0}</Badge>개의 직책.
+                        직책을 선택하여 업무를 할당하세요. 현재 날짜에 <Badge variant="secondary">{roles?.length || 0}</Badge>개의 직책.
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setIsImportModalOpen(true)}><Download className="mr-2 h-4 w-4"/>직책 불러오기</Button>
                     <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>직책 업로드</Button>
                     <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
                     <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4"/>다운로드</Button>
@@ -240,30 +360,20 @@ export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePane
             <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Left Column: Role List */}
-                    <div>
-                        <h3 className="font-semibold text-md mb-2">1. 직책 선택</h3>
-                        {data.roles && data.roles.length > 0 ? (
+                    <div onMouseUp={handleDragEnd}>
+                        <h3 className="font-semibold text-md mb-2">1. 직책 선택 (드래그로 순서 변경)</h3>
+                        {roles && roles.length > 0 ? (
                              <ScrollArea className="h-96 pr-4">
                                 <div className="space-y-2">
-                                    {data.roles.map(role => (
-                                        <div key={role.id}
-                                            className={cn(
-                                                "group p-3 rounded-md border bg-card flex justify-between items-start cursor-pointer transition-all hover:shadow-md",
-                                                selectedRole?.id === role.id ? "border-primary shadow-md" : "hover:border-primary/50"
-                                            )}
-                                            onClick={() => handleSelectRole(role)}
-                                        >
-                                            <div className="flex items-start gap-3 flex-1">
-                                                <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-                                                <div className="flex-1">
-                                                    <p className="font-semibold text-sm truncate">{role.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
-                                                </div>
-                                            </div>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer shrink-0" onClick={(e) => {e.stopPropagation(); openDeleteRoleDialog(role)}}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
+                                    {roles.map((role, index) => (
+                                        <DraggableRoleItem 
+                                            key={role.id} 
+                                            role={role} 
+                                            index={index} 
+                                            moveRole={moveRole}
+                                            onSelectRole={handleSelectRole}
+                                            selectedRole={selectedRole}
+                                        />
                                     ))}
                                 </div>
                             </ScrollArea>
@@ -357,7 +467,7 @@ export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePane
                     <DialogHeader>
                         <DialogTitle>새 직책 생성</DialogTitle>
                         <DialogDescription>
-                            시간대에 관계 없이 사용할 수 있는 직책 템플릿을 만듭니다.
+                            현재 선택된 날짜({selectedSlot.day}일차)에 사용할 수 있는 직책 템플릿을 만듭니다.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -376,6 +486,50 @@ export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePane
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            
+            <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>다른 날짜에서 직책 불러오기</DialogTitle>
+                        <DialogDescription>
+                            다른 날짜에 생성된 직책들을 선택하여 현재 날짜({selectedSlot.day}일차)로 복사합니다.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="h-96 my-4">
+                        <Accordion type="multiple" className="w-full" defaultValue={['day-0', 'day-1', 'day-2', 'day-3']}>
+                            {Object.entries(rolesByDay).map(([day, dayRoles]) => (
+                                <AccordionItem value={`day-${day}`} key={day}>
+                                    <AccordionTrigger>{day}일차</AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className='grid grid-cols-2 gap-2 p-2'>
+                                            {dayRoles.map(role => (
+                                                <div key={role.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted">
+                                                    <Checkbox
+                                                        id={`import-${role.id}`}
+                                                        checked={rolesToImport[role.id] || false}
+                                                        onCheckedChange={() => handleToggleImportCheckbox(role.id)}
+                                                    />
+                                                    <label
+                                                        htmlFor={`import-${role.id}`}
+                                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                                    >
+                                                        {role.name} <span className='text-muted-foreground'>({role.tasks?.length || 0}개 업무)</span>
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                    </ScrollArea>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsImportModalOpen(false)}>취소</Button>
+                        <Button onClick={handleImportRoles}>선택한 직책 불러오기</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
 
             <AlertDialog open={isDeleteRoleAlertOpen} onOpenChange={setIsDeleteRoleAlertOpen}>
                 <AlertDialogContent>
@@ -393,6 +547,14 @@ export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePane
             </AlertDialog>
         </Card>
     );
+}
+
+export function RolePanel(props: RolePanelProps) {
+    return (
+        <DndProvider backend={HTML5Backend}>
+            <RolePanelInternal {...props} />
+        </DndProvider>
+    )
 }
 
     

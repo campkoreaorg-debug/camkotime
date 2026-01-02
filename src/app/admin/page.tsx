@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Role } from '@/lib/types';
 import { useSession } from '@/hooks/use-session';
-import { CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { CardHeader, CardTitle, CardDescription, Card } from '@/components/ui/card';
 
 const days = [0, 1, 2, 3];
 export const timeSlots = (() => {
@@ -63,12 +63,19 @@ export default function AdminPage() {
   useEffect(() => {
     const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
     if (storedSlot) {
-      const parsedSlot = JSON.parse(storedSlot);
-      setSelectedSlot(parsedSlot);
-      setMapSlot(parsedSlot);
-      setActiveTab(`day-${parsedSlot.day}`);
+      try {
+        const parsedSlot = JSON.parse(storedSlot);
+        setSelectedSlot(parsedSlot);
+        setMapSlot(parsedSlot);
+        setActiveTab(`day-${parsedSlot.day}`);
+      } catch (e) {
+        // Fallback if parsing fails
+        const defaultSlot = { day: 0, time: timeSlots[0] };
+        setSelectedSlot(defaultSlot);
+        setMapSlot(defaultSlot);
+      }
     } else {
-      const defaultSlot = { day: 0, time: '07:00' };
+      const defaultSlot = { day: 0, time: timeSlots[0] };
       setSelectedSlot(defaultSlot);
       setMapSlot(defaultSlot);
       setActiveTab('day-0');
@@ -76,11 +83,11 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-      if (!data?.roles) { 
+      if (!data?.roles || !data.schedule) { 
           setSelectedRole(null);
           return;
       }
-      if (!selectedStaffId || !selectedSlot || !data?.schedule) {
+      if (!selectedStaffId || !selectedSlot) {
           setSelectedRole(null);
           return;
       }
@@ -91,8 +98,8 @@ export default function AdminPage() {
           s.time === selectedSlot.time
       );
 
-      if (staffSchedule && (staffSchedule as any).roleName) {
-          const role = data.roles.find(r => r.name === (staffSchedule as any).roleName);
+      if (staffSchedule && staffSchedule.roleName) {
+          const role = data.roles.find(r => r.name === staffSchedule.roleName);
           setSelectedRole(role || null);
       } else {
           setSelectedRole(null);
@@ -191,7 +198,7 @@ export default function AdminPage() {
               <Tabs value={activeTab} onValueChange={handleTabChange}>
                 <TabsList className='mb-4'>
                   {days.map(day => (
-                    <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
+                    <TabsTrigger key={day} value={`day-${day}`}>{day+1}일차</TabsTrigger>
                   ))}
                 </TabsList>
               </Tabs>
@@ -230,31 +237,36 @@ export default function AdminPage() {
               <SchedulePanel 
                 selectedSlot={selectedSlot} 
               />
-              <MapPanel 
-                  selectedSlot={isLinked ? selectedSlot : mapSlot} 
-                  onSlotChange={handleMapSlotChange} 
-                  isLinked={isLinked}
-              >
-                  <CardHeader>
-                      <div className="flex justify-between items-start">
-                          <div>
-                              <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
-                              <CardDescription>
-                              {isLinked ? 
-                                  '전역 시간대 설정과 연동된 지도입니다.' :
-                                  selectedSlot ? `독립적으로 ${selectedSlot.day}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` : '시간대를 선택하여 지도를 확인하세요.'
-                              }
-                              </CardDescription>
-                          </div>
-                          <Button variant="outline" size="sm" onClick={openMapWindow}>
-                              <ExternalLink className="mr-2 h-4 w-4" />
-                              따로 보기
-                          </Button>
-                      </div>
-                  </CardHeader>
-              </MapPanel>
+               <Card className='lg:col-span-1 relative h-full flex flex-col'>
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
+                       <CardDescription>
+                        {isLinked 
+                          ? '전역 시간대 설정과 연동된 지도입니다.' 
+                          : selectedSlot 
+                            ? `독립적으로 ${selectedSlot.day+1}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` 
+                            : '시간대를 선택하여 지도를 확인하세요.'
+                        }
+                       </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={openMapWindow}>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      따로 보기
+                    </Button>
+                  </div>
+                </CardHeader>
+                <MapPanel 
+                    selectedSlot={isLinked ? selectedSlot : mapSlot} 
+                    onSlotChange={handleMapSlotChange} 
+                    isLinked={isLinked}
+                />
+              </Card>
           </div>
       </div>
     </DndProvider>
   );
 }
+
+    

@@ -14,6 +14,8 @@ export interface Role {
   id: string;
   name: string;
   tasks: ScheduleTemplate[];
+  day?: number;
+  order?: number;
 }
 
 export interface StaffMember {
@@ -51,9 +53,12 @@ export interface MapInfo {
 export interface VenueData {
   staff: StaffMember[];
   roles: Role[];
+  allRoles?: Role[];
   schedule: ScheduleItem[];
   markers: MapMarker[];
   maps: MapInfo[];
   notification?: string;
   scheduleTemplates: ScheduleTemplate[];
 }
+
+    

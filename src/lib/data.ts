@@ -11,7 +11,7 @@ export const initialSessions: Session[] = Array.from({ length: 8 }, (_, i) => ({
 }));
 
 // VenueData 타입에 맞게 Omit 수정
-export const initialData: Omit<VenueData, 'notification' | 'scheduleTemplates'> = {
+export const initialData: Omit<VenueData, 'notification' | 'scheduleTemplates' | 'allRoles'> = {
   staff: [
     { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '' },
     { id: 'staff-2', name: '박서준', avatar: PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '' },
@@ -20,9 +20,9 @@ export const initialData: Omit<VenueData, 'notification' | 'scheduleTemplates'> 
     { id: 'staff-5', name: '정다은', avatar: PlaceHolderImages.find(p => p.id === 'avatar-5')?.imageUrl || '' },
   ],
   roles: [
-    { id: 'role-1', name: '보안팀', tasks: [{ event: '구역 순찰', location: '전체 구역' }, { event: '게이트 통제'}] },
-    { id: 'role-2', name: '의료팀', tasks: [{ event: '의료 부스 대기', location: '의료 센터' }] },
-    { id: 'role-3', name: '안내팀', tasks: [{ event: '관객 안내', location: '메인 게이트' }] },
+    { id: 'role-1', name: '보안팀', tasks: [{ event: '구역 순찰', location: '전체 구역' }, { event: '게이트 통제'}], day: 0, order: 0 },
+    { id: 'role-2', name: '의료팀', tasks: [{ event: '의료 부스 대기', location: '의료 센터' }], day: 0, order: 1 },
+    { id: 'role-3', name: '안내팀', tasks: [{ event: '관객 안내', location: '메인 게이트' }], day: 0, order: 2 },
   ],
   schedule: [
     { id: 'sch-1', day: 0, time: '09:00', event: '오프닝 게이트 보안 점검', location: '메인 게이트', staffIds: ['staff-1'], roleName: '보안팀' },
@@ -40,3 +40,5 @@ export const initialData: Omit<VenueData, 'notification' | 'scheduleTemplates'> 
     { id: 'day1-1030', day: 1, time: '10:30', mapImageUrl: mapBg },
   ]
 };
+
+    

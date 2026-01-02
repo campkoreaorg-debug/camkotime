@@ -19,12 +19,11 @@ interface MapPanelProps {
     selectedSlot: { day: number, time: string } | null;
     onSlotChange: (day: number, time: string) => void;
     isLinked: boolean;
-    children?: React.ReactNode;
 }
 
 const days = [0, 1, 2, 3];
 
-export function MapPanel({ selectedSlot, onSlotChange, isLinked, children }: MapPanelProps) {
+export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps) {
     const { data, updateNotification, addMarker } = useVenueData();
     const { toast } = useToast();
     
@@ -119,23 +118,13 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked, children }: Map
     }
 
     return (
-        <Card ref={drop} className='lg:col-span-1 relative h-full flex flex-col'>
-            {children ? children : (
-                <CardHeader>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
-                            <CardDescription>
-                            {isLinked ? 
-                                '전역 시간대 설정과 연동된 지도입니다.' :
-                                selectedSlot ? `독립적으로 ${selectedSlot.day}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` : '시간대를 선택하여 지도를 확인하세요.'
-                            }
-                            </CardDescription>
-                        </div>
+            <CardContent ref={drop} className="space-y-4 flex-grow flex flex-col pt-6 relative">
+                 {isOver && canDrop && (
+                    <div className="absolute inset-0 bg-primary/20 border-2 border-dashed border-primary rounded-lg flex flex-col items-center justify-center pointer-events-none z-10">
+                        <MousePointerSquareDashed className="h-16 w-16 text-primary" />
+                        <p className="mt-4 text-lg font-semibold text-primary">여기에 스태프를 놓아 지도에 추가하세요</p>
                     </div>
-                </CardHeader>
-            )}
-            <CardContent className="space-y-4 flex-grow flex flex-col">
+                )}
                 <div className="flex w-full items-center space-x-2">
                     <Input
                         type="text"
@@ -153,7 +142,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked, children }: Map
                     <Tabs value={activeTab} onValueChange={handleTabChange}>
                         <TabsList className='mb-4'>
                             {days.map(day => (
-                                <TabsTrigger key={`map-day-${day}`} value={`day-${day}`}>{day}일차</TabsTrigger>
+                                <TabsTrigger key={`map-day-${day}`} value={`day-${day}`}>{day+1}일차</TabsTrigger>
                             ))}
                         </TabsList>
                         
@@ -189,16 +178,14 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked, children }: Map
                     />
                 </div>
             </CardContent>
-            {isOver && canDrop && (
-                <div className="absolute inset-0 bg-primary/20 border-2 border-dashed border-primary rounded-lg flex flex-col items-center justify-center pointer-events-none z-10">
-                    <MousePointerSquareDashed className="h-16 w-16 text-primary" />
-                    <p className="mt-4 text-lg font-semibold text-primary">여기에 스태프를 놓아 지도에 추가하세요</p>
-                </div>
-            )}
-      </Card>
+           
+      
     );
 }
 
     
+
+    
+
 
     
