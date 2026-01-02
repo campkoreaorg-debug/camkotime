@@ -83,11 +83,7 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-      if (!data?.roles || !data.schedule) { 
-          setSelectedRole(null);
-          return;
-      }
-      if (!selectedStaffId || !selectedSlot) {
+      if (!data?.roles || !data.schedule || !selectedStaffId || !selectedSlot) {
           setSelectedRole(null);
           return;
       }
@@ -105,7 +101,7 @@ export default function AdminPage() {
           setSelectedRole(null);
       }
 
-  }, [selectedStaffId, selectedSlot, data]);
+  }, [selectedStaffId, selectedSlot, data?.schedule, data?.roles]);
   
   const handleSlotChange = (day: number, time: string) => {
     const newSlot = { day, time };
