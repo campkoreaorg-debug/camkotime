@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
@@ -47,7 +47,7 @@ interface TaskBundle {
 }
 
 
-const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }) => {
+const StaffMemberCard = ({ staff, index, isScheduled }: { staff: StaffMember, index: number, isScheduled: boolean }) => {
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -82,7 +82,8 @@ const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }
             ref={drop}
             className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all",
                 isOver && canDrop && "ring-2 ring-primary bg-primary/10",
-                isOver && !canDrop && "ring-2 ring-destructive bg-destructive/10"
+                isOver && !canDrop && "ring-2 ring-destructive bg-destructive/10",
+                isScheduled && "border-destructive ring-1 ring-destructive"
             )}
         >
             <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
@@ -132,6 +133,16 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
   const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGridOpen, setIsGridOpen] = useState(true);
+
+  const scheduledStaffIds = useMemo(() => {
+    if (!data || !selectedSlot) return new Set();
+    return new Set(
+        data.schedule
+            .filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time)
+            .flatMap(s => s.staffIds)
+    );
+  }, [data, selectedSlot]);
+
 
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -236,7 +247,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
 
   const canRegister = pendingStaff.length > 0 && pendingStaff.every(p => p.name.trim() !== '');
 
-  if (isLoading) {
+  if (isLoading || !data) {
     return (
         <Card>
             <CardHeader>
@@ -318,7 +329,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
                 {data && data.staff.length > 0 ? (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.28),1fr))] gap-4 p-1">
                     {data.staff.map((s, index) => (
-                        <StaffMemberCard key={s.id} staff={s} index={index} />
+                        <StaffMemberCard key={s.id} staff={s} index={index} isScheduled={scheduledStaffIds.has(s.id)} />
                     ))}
                     </div>
                 ) : (
@@ -335,6 +346,3 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
     </Card>
   );
 }
-
-
-    

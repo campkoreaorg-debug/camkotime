@@ -387,7 +387,3 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
         </Card>
     );
 }
-
-    
-
-    
