@@ -2,24 +2,25 @@
 "use client";
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense, useCallback } from 'react';
-import { Loader2, Database, Link as LinkIcon, User } from 'lucide-react';
-import { useUser } from '@/firebase';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Database, Link as LinkIcon, Loader2, User } from 'lucide-react';
 import { DndProvider, useDrag } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { useUser } from '@/firebase';
 import { MapPanel } from '@/components/admin/MapPanel';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { SessionProvider, useSession } from '@/hooks/use-session';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { StaffMember } from '@/lib/types';
 import { ItemTypes } from '@/components/admin/StaffPanel';
+import type { StaffMember } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
 
-const DraggableStaffItem = ({ staff }: { staff: StaffMember }) => {
+const DraggableStaffItem = ({ staff, isScheduled }: { staff: StaffMember, isScheduled: boolean }) => {
     const [{ isDragging }, drag] = useDrag(() => ({
         type: ItemTypes.STAFF,
         item: { staffId: staff.id },
@@ -32,8 +33,9 @@ const DraggableStaffItem = ({ staff }: { staff: StaffMember }) => {
         <div
             ref={drag}
             className={cn(
-                "flex flex-col items-center gap-1 p-2 rounded-md border bg-card cursor-grab",
-                isDragging && "opacity-50"
+                "flex flex-col items-center gap-1 p-2 rounded-md border bg-card cursor-grab transition-all",
+                isDragging && "opacity-50",
+                isScheduled && "border-destructive ring-1 ring-destructive"
             )}
         >
             <Avatar className="h-10 w-10">
@@ -70,14 +72,12 @@ function MapContent() {
             localStorage.removeItem('venueSyncSelectedSlot');
         }
     } else if (selectedSlot === null) {
-        // Set a default if nothing is in storage and it's the initial load
         setSelectedSlot({ day: 0, time: '07:00' });
     }
   }, [selectedSlot]);
 
-
   useEffect(() => {
-      updateSlotFromStorage(); // Initial check
+      updateSlotFromStorage(); 
   }, [updateSlotFromStorage]);
   
   useEffect(() => {
@@ -98,6 +98,19 @@ function MapContent() {
       router.push('/');
     }
   }, [user, isUserLoading, router]);
+
+  const scheduledStaffIds = useMemo(() => {
+    if (!data || !selectedSlot) return new Set<string>();
+    
+    const ids = new Set<string>();
+
+    (data.schedule || []).forEach(s => {
+        if (s.day === selectedSlot.day && s.time === selectedSlot.time) {
+            (s.staffIds || []).forEach(staffId => ids.add(staffId));
+        }
+    });
+    return ids;
+  }, [data, selectedSlot]);
 
   const handleSlotChange = (day: number, time: string) => {
     const newSlot = { day, time };
@@ -133,7 +146,7 @@ function MapContent() {
         <header className="flex-shrink-0">
             <div className="flex items-center justify-between mb-4">
                 <h1 className='font-headline text-2xl font-bold text-primary'>
-                    VenueSync 지도
+                    VenueSync 지도 <Badge variant="outline" className="ml-2">따로 보기</Badge>
                 </h1>
                 <div className="flex items-center space-x-2">
                     <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
@@ -151,7 +164,11 @@ function MapContent() {
                     <ScrollArea className="h-40">
                         <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.20),1fr))] gap-3 p-1">
                             {data.staff.map(staff => (
-                                <DraggableStaffItem key={staff.id} staff={staff} />
+                                <DraggableStaffItem 
+                                  key={staff.id} 
+                                  staff={staff}
+                                  isScheduled={scheduledStaffIds.has(staff.id)}
+                                />
                             ))}
                         </div>
                     </ScrollArea>
