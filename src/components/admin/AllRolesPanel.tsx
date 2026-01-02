@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from 'react';
-import { Plus, Trash2, Edit, Download, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit, Download, Upload, ChevronsUpDown } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
 import { ScheduleTemplate } from '@/lib/types';
 import Papa from 'papaparse';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 
 export function AllRolesPanel() {
     const { data, addScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate, importScheduleTemplates } = useVenueData();
@@ -23,6 +24,7 @@ export function AllRolesPanel() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+    const [isCollapsibleOpen, setIsCollapsibleOpen] = useState(true);
 
     const [editingTemplate, setEditingTemplate] = useState<ScheduleTemplate | null>(null);
     const [templateToDelete, setTemplateToDelete] = useState<ScheduleTemplate | null>(null);
@@ -106,7 +108,7 @@ export function AllRolesPanel() {
 
         const csvData = data.scheduleTemplates.map(template => ({
             name: template.name,
-            tasks: (template.tasks || []).map(t => t.event).join('; ')
+            tasks: (template.tasks || []).map(t => t.event).join(';')
         }));
 
         const csv = Papa.unparse(csvData);
@@ -155,45 +157,55 @@ export function AllRolesPanel() {
 
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle className="font-headline text-xl font-semibold">전체 직책 관리 (템플릿)</CardTitle>
-                    <CardDescription>
-                        여기서 생성/수정한 직책은 모든 날짜에서 불러와 사용할 수 있는 템플릿입니다.
-                    </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".csv" />
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>엑셀 업로드</Button>
-                    <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />엑셀 다운로드</Button>
-                    <Button variant="outline" onClick={handleOpenCreateModal}><Plus className="mr-2 h-4 w-4" />직책 생성</Button>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <ScrollArea className="h-72">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {templates.length > 0 ? templates.map(template => (
-                            <div key={template.id} className="p-4 border rounded-lg group relative">
-                                <h4 className="font-bold text-md mb-2">{template.name}</h4>
-                                <ul className="list-disc pl-5 text-sm space-y-1 text-muted-foreground">
-                                    {(template.tasks || []).map((task, index) => (
-                                        <li key={index}>{task.event}</li>
-                                    ))}
-                                    {(template.tasks || []).length === 0 && <li className="list-none text-gray-400">업무 없음</li>}
-                                </ul>
-                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditModal(template)}><Edit className="h-4 w-4" /></Button>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleOpenDeleteAlert(template)}><Trash2 className="h-4 w-4" /></Button>
-                                </div>
-                            </div>
-                        )) : (
-                            <div className="col-span-full text-center text-muted-foreground py-10">
-                                <p>생성된 직책 템플릿이 없습니다.</p>
-                            </div>
-                        )}
+            <Collapsible open={isCollapsibleOpen} onOpenChange={setIsCollapsibleOpen}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="font-headline text-xl font-semibold">전체 직책 관리 (템플릿)</CardTitle>
+                        <CardDescription>
+                            여기서 생성/수정한 직책은 모든 날짜에서 불러와 사용할 수 있는 템플릿입니다.
+                        </CardDescription>
                     </div>
-                </ScrollArea>
-            </CardContent>
+                    <div className="flex items-center gap-2">
+                        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".csv" />
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>엑셀 업로드</Button>
+                        <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />엑셀 다운로드</Button>
+                        <Button variant="outline" onClick={handleOpenCreateModal}><Plus className="mr-2 h-4 w-4" />직책 생성</Button>
+                        <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <ChevronsUpDown className="h-4 w-4" />
+                                <span className="sr-only">Toggle</span>
+                            </Button>
+                        </CollapsibleTrigger>
+                    </div>
+                </CardHeader>
+                <CollapsibleContent>
+                    <CardContent>
+                        <ScrollArea className="h-72">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {templates.length > 0 ? templates.map(template => (
+                                    <div key={template.id} className="p-4 border rounded-lg group relative">
+                                        <h4 className="font-bold text-md mb-2">{template.name}</h4>
+                                        <ul className="list-disc pl-5 text-sm space-y-1 text-muted-foreground">
+                                            {(template.tasks || []).map((task, index) => (
+                                                <li key={index}>{task.event}</li>
+                                            ))}
+                                            {(template.tasks || []).length === 0 && <li className="list-none text-gray-400">업무 없음</li>}
+                                        </ul>
+                                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditModal(template)}><Edit className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleOpenDeleteAlert(template)}><Trash2 className="h-4 w-4" /></Button>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="col-span-full text-center text-muted-foreground py-10">
+                                        <p>생성된 직책 템플릿이 없습니다.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </CardContent>
+                </CollapsibleContent>
+            </Collapsible>
 
             {/* Create/Edit Dialog */}
             <Dialog open={isCreateModalOpen || isEditModalOpen} onOpenChange={(isOpen) => {
