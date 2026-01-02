@@ -73,23 +73,30 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
             name: staff.name, 
             avatar: staff.avatar 
         },
+        begin: (monitor) => {
+            postMessage({ type: 'staff-drag-start', staff: { id: staff.id, name: staff.name, avatar: staff.avatar } });
+
+            const handleMouseMove = (e: MouseEvent) => {
+              postMessage({ type: 'staff-drag-move', x: e.clientX, y: e.clientY });
+            };
+            window.addEventListener('mousemove', handleMouseMove);
+
+            // end 콜백에서 리스너를 제거할 수 있도록 함수를 반환합니다.
+            return {
+                removeListener: () => window.removeEventListener('mousemove', handleMouseMove)
+            };
+        },
+        end: (item, monitor) => {
+            const dropResult = monitor.getDropResult<{ removeListener?: () => void }>();
+            if (dropResult && dropResult.removeListener) {
+              dropResult.removeListener();
+            }
+             postMessage({ type: 'staff-drag-end' });
+        },
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
         }),
-        end: (item, monitor) => {
-            const clientOffset = monitor.getClientOffset();
-            if (clientOffset) {
-                // We send the start message on end, because `item` is only calculated once on drag start.
-                // This ensures the other window knows which staff member is being dragged.
-                postMessage({ type: 'staff-drag-start', staff: { id: item.staffId, name: item.name, avatar: item.avatar }, x: clientOffset.x, y: clientOffset.y });
-            }
-             postMessage({ type: 'staff-drag-end' });
-        }
     }), [staff.id, staff.name, staff.avatar, postMessage]);
-
-    const handleExternalDrag = (e: React.DragEvent) => {
-      postMessage({ type: 'staff-drag-move', x: e.clientX, y: e.clientY });
-    }
 
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.TASK_BUNDLE,
@@ -130,8 +137,6 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
                 dragStaff(node);
                 drop(node);
             }}
-            draggable="true"
-            onDrag={handleExternalDrag}
             className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all cursor-pointer hover:bg-muted/50",
                 isOver && canDrop && "ring-2 ring-primary bg-primary/10",
                 isOver && !canDrop && "ring-2 ring-destructive bg-destructive/10",
@@ -437,3 +442,4 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
     </Card>
   );
 }
+
