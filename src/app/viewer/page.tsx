@@ -4,19 +4,15 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import VenueMap from '@/components/VenueMap';
 import { Button } from '@/components/ui/button';
-import { Home, Loader2, Database, WifiOff } from 'lucide-react';
+import { LogOut, Loader2, Database, WifiOff } from 'lucide-react';
 import { useUser, useAuth } from '@/firebase';
-import { useVenueData } from '@/hooks/use-venue-data';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-// 🔴 [변경] SessionProvider, useSession, useVenueData 제거
-// 🟢 [추가] 방금 만든 usePublicViewer 훅 import
 import { usePublicViewer } from '@/hooks/use-public-viewer'; 
 import { timeSlots } from '@/hooks/use-venue-data';
 
 export default function ViewerPage() {
-  // 🟢 [변경] 훅 교체: 이제 로그인한 유저가 누구든 상관없이 공개된 데이터를 가져옵니다.
   const { data, loading, error } = usePublicViewer();
   
   const { user, isUserLoading } = useUser();
@@ -26,14 +22,11 @@ export default function ViewerPage() {
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string }>({ day: 0, time: timeSlots[0] });
   const [activeTab, setActiveTab] = useState('day-0');
 
-  const handleReturnHome = async () => {
-    // 뷰어가 로그인 없이 보는 페이지라면 로그아웃 로직은 상황에 맞춰 조정하세요.
-    // 현재는 홈으로 보내는 기능으로 유지합니다.
+  const handleLogout = async () => {
+    await auth.signOut();
     router.push('/');
   }
 
-  // 💡 [참고] 만약 뷰어가 '로그인 없이' 봐야 한다면 아래 useEffect는 제거해도 됩니다.
-  // 현재는 로그인이 되어있지 않으면 튕겨내는 로직이 유지되어 있습니다.
   useEffect(() => {
     if(!isUserLoading && !user){
       router.push('/');
@@ -50,7 +43,6 @@ export default function ViewerPage() {
     setSelectedSlot({ day, time });
   }
 
-  // 로딩 상태 처리
   if(isUserLoading || loading){
     return (
         <div className="flex h-screen items-center justify-center">
@@ -59,7 +51,6 @@ export default function ViewerPage() {
     )
   }
 
-  // 에러 처리 (공개된 차수가 없을 때)
   if(error) {
      return (
         <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
@@ -71,7 +62,6 @@ export default function ViewerPage() {
      )
   }
 
-  // 데이터가 비어있을 때
   if(!data || data.staff.length === 0){
     return (
         <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
@@ -92,10 +82,10 @@ export default function ViewerPage() {
                    VenueSync 뷰어 <span className="text-muted-foreground text-lg font-normal ml-2">(Day {selectedSlot.day} - {selectedSlot.time})</span>
                 </h1>
             </div>
-              <Button variant="outline" onClick={handleReturnHome}>
+              <Button variant="outline" onClick={handleLogout}>
                   <span className="flex items-center gap-2">
-                      <Home className="h-4 w-4" />
-                      <span>홈으로 돌아가기</span>
+                      <LogOut className="h-4 w-4" />
+                      <span>로그아웃</span>
                   </span>
               </Button>
         </header>

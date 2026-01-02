@@ -388,51 +388,42 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
                                 const isSelected = selectedScheduleIds.includes(item.id);
                                 const isEditingThis = editingItem?.id === item.id;
                                 
+                                const getStaffRoleName = (staffId: string) => {
+                                    if (!data.schedule) return '';
+                                    const staffSchedule = data.schedule.find(s => 
+                                        s.day === item.day && 
+                                        s.time === item.time && 
+                                        s.staffIds.includes(staffId) &&
+                                        s.roleName
+                                    );
+                                    return staffSchedule?.roleName || null;
+                                };
+
                                 return (
                                 <div 
                                     key={item.id} 
                                     className={cn(
-                                        "p-2 rounded-md border flex justify-between items-center group transition-colors",
+                                        "p-3 rounded-md border flex justify-between items-center group transition-colors",
                                         !isEditingThis && "cursor-pointer hover:bg-muted/60",
                                         isSelected && !isEditingThis && "bg-primary/10 border-primary",
                                         isEditingThis && "bg-amber-100/50"
                                     )}
                                     onClick={() => handleItemClick(item.id)}
                                 >
-                                    <div className="flex items-center gap-3 flex-1">
-                                        <div>
-                                            <p className="font-medium text-sm">{item.event}</p>
-                                            <div className='flex items-center gap-2 mt-1'>
-                                                {assignedStaff.length > 0 ? (
-                                                    <div className="flex items-center -space-x-2">
-                                                        {assignedStaff.slice(0, 3).map(staff => (
-                                                            <TooltipProvider key={staff.id}>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger>
-                                                                        <Avatar className="h-5 w-5 border-2 border-background">
-                                                                            <AvatarImage src={staff.avatar} alt={staff.name} />
-                                                                            <AvatarFallback>{staff.name.charAt(0)}</AvatarFallback>
-                                                                        </Avatar>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>{staff.name}</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            </TooltipProvider>
-                                                        ))}
-                                                        {assignedStaff.length > 3 && (
-                                                            <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground border-2 border-background">
-                                                                +{assignedStaff.length - 3}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <User className='h-4 w-4 text-muted-foreground' />
-                                                        <p className="text-xs text-muted-foreground">담당자 미지정</p>
-                                                    </>
-                                                )}
-                                            </div>
+                                    <div className="flex flex-col items-start gap-2 flex-1">
+                                        <p className="font-medium text-sm">{item.event}</p>
+                                        <div className='flex items-center gap-2'>
+                                            <Users className='h-4 w-4 text-muted-foreground' />
+                                            {assignedStaff.length > 0 ? (
+                                                <p className="text-xs text-muted-foreground">
+                                                {assignedStaff.map(staff => {
+                                                    const roleName = getStaffRoleName(staff.id);
+                                                    return `${staff.name}${roleName ? ` (${roleName})` : ''}`;
+                                                }).join(', ')}
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-muted-foreground">담당자 미지정</p>
+                                            )}
                                         </div>
                                     </div>
                                     {!isEditingThis && (
