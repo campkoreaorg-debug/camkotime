@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -18,6 +17,7 @@ import {
   deleteDoc,
   setDoc,
   updateDoc,
+  getDoc, // 🟢 [추가] 직접 조회를 위해 필요
 } from 'firebase/firestore';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate } from '@/lib/types';
 import { initialData } from '@/lib/data';
@@ -56,7 +56,8 @@ export const useVenueData = () => {
 
     if (!isDataLoading) {
       const staffWithRoles = (staff || []).map(s => {
-        const assignedRole = (roles || []).find(r => s.role && s.role.id === r.id && s.role.day === r.day && s.role.time === r.time);
+        // role 매칭 로직 안전성 강화
+        const assignedRole = (roles || []).find(r => s.role && s.role.id === r.id);
         return {
           ...s,
           role: assignedRole ? { ...assignedRole, ...s.role } : s.role,
@@ -219,28 +220,62 @@ export const useVenueData = () => {
     processBackendDeletion();
   };
 
-  const assignRoleToStaff = (staffId: string, roleId: string) => {
-    if (!localData) return;
+  // 🟢 [수정] assignRoleToStaff: staffIds가 없는 경우 방어 코드 추가 (|| [])
+  const assignRoleToStaff = async (staffId: string, roleId: string) => {
+    console.log(`[배정 시작] 스태프: ${staffId}, 직책: ${roleId}`);
+    
+    if (!firestore) return;
 
-    const roleToAssign = localData.roles.find(r => r.id === roleId);
-    if (!roleToAssign) return;
+    // 1. 로컬 데이터에서 먼저 찾아봄
+    let roleToAssign = localData?.roles.find(r => r.id === roleId);
 
+    // 2. 로컬에 없다면 DB에서 직접 조회
+    if (!roleToAssign) {
+      console.log("⚠️ 로컬에서 직책을 못 찾음. DB 직접 조회 시도...");
+      try {
+        const { getDoc, doc } = await import('firebase/firestore'); // import 최적화
+        const roleSnap = await getDoc(doc(firestore, 'venues', VENUE_ID, 'roles', roleId));
+        if (roleSnap.exists()) {
+          roleToAssign = roleSnap.data() as Role;
+          console.log("✅ DB에서 직책 찾음:", roleToAssign.name);
+        } else {
+          console.error("❌ DB에도 직책이 없음.");
+          return;
+        }
+      } catch (e) {
+        console.error("🔥 DB 조회 실패:", e);
+        return;
+      }
+    }
+
+    // 3. 화면 업데이트 (Optimistic Update)
     setLocalData(prev => {
         if (!prev) return null;
+        
+        const roleExists = prev.roles.some(r => r.id === roleToAssign!.id);
+        const updatedRoles = roleExists ? prev.roles : [...prev.roles, roleToAssign!];
+
         const newStaffList = prev.staff.map(s => {
-            if (s.id === staffId) return { ...s, role: { id: roleId, name: roleToAssign.name, day: roleToAssign.day, time: roleToAssign.time } };
+            if (s.id === staffId) return { ...s, role: { id: roleId, name: roleToAssign!.name, day: roleToAssign!.day, time: roleToAssign!.time } };
             if (s.role?.id === roleId) return { ...s, role: null };
             return s;
         });
 
+        // 스케줄 정리 (낙관적) - 🔴 여기가 수정된 부분입니다!
         const oldSchedules = prev.schedule.filter(s => {
-            const wasAssignedToThisStaff = s.staffIds.includes(staffId) && s.day === roleToAssign.day && s.time === roleToAssign.time;
+            // staffIds가 undefined일 경우 빈 배열로 처리
+            const currentStaffIds = s.staffIds || []; 
+            
+            const wasAssignedToThisStaff = currentStaffIds.includes(staffId) && s.day === roleToAssign!.day && s.time === roleToAssign!.time;
             const wasAssignedToOldOwner = prev.staff.find(staff => staff.role?.id === roleId && staff.id !== staffId)?.id;
-            const belongsToOldOwner = wasAssignedToOldOwner && s.staffIds.includes(wasAssignedToOldOwner) && s.day === roleToAssign.day && s.time === roleToAssign.time;
+            
+            // 여기서도 currentStaffIds 사용
+            const belongsToOldOwner = wasAssignedToOldOwner && currentStaffIds.includes(wasAssignedToOldOwner) && s.day === roleToAssign!.day && s.time === roleToAssign!.time;
+            
             return !wasAssignedToThisStaff && !belongsToOldOwner;
         });
 
-        const newSchedules = (roleToAssign.scheduleTemplates || []).map(template => ({
+        const newSchedules = (roleToAssign!.scheduleTemplates || []).map(template => ({
             id: `sch-${staffId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             day: template.day,
             time: template.time,
@@ -249,40 +284,47 @@ export const useVenueData = () => {
             staffIds: [staffId]
         }));
         
-        return { ...prev, staff: newStaffList, schedule: [...oldSchedules, ...newSchedules] };
+        return { ...prev, roles: updatedRoles, staff: newStaffList, schedule: [...oldSchedules, ...newSchedules] };
     });
 
+    // 4. 백엔드 업데이트
     const processBackendUpdate = async () => {
-        if (!firestore) return;
-        const batch = writeBatch(firestore);
-        
-        // Unassign from old staff
-        const staffQuery = query(collection(firestore, 'venues', VENUE_ID, 'staff'), where('role.id', '==', roleId));
-        const staffSnapshot = await getDocs(staffQuery);
-        const oldOwnerIds: string[] = [];
-        staffSnapshot.forEach(d => {
-            if (d.id !== staffId) {
-                oldOwnerIds.push(d.id);
-                batch.update(d.ref, { role: null });
+        try {
+            const batch = writeBatch(firestore);
+            
+            // 이전 담당자 해제
+            const staffQuery = query(collection(firestore, 'venues', VENUE_ID, 'staff'), where('role.id', '==', roleId));
+            const staffSnapshot = await getDocs(staffQuery);
+            const oldOwnerIds: string[] = [];
+            staffSnapshot.forEach(d => {
+                if (d.id !== staffId) {
+                    oldOwnerIds.push(d.id);
+                    batch.update(d.ref, { role: null });
+                }
+            });
+
+            // 새 담당자 배정
+            batch.update(doc(firestore, 'venues', VENUE_ID, 'staff', staffId), { role: { id: roleId, name: roleToAssign!.name, day: roleToAssign!.day, time: roleToAssign!.time } });
+
+            // 기존 스케줄 삭제
+            const staffIdsToClear = [staffId, ...oldOwnerIds];
+            if (staffIdsToClear.length > 0) {
+                 const scheduleQuery = query(collection(firestore, 'venues', VENUE_ID, 'schedules'), where('staffIds', 'array-contains-any', staffIdsToClear), where('day', '==', roleToAssign!.day), where('time', '==', roleToAssign!.time));
+                 const oldSchedulesSnapshot = await getDocs(scheduleQuery);
+                 oldSchedulesSnapshot.forEach(d => batch.delete(d.ref));
             }
-        });
+            
+            // 새 스케줄 템플릿 적용
+            (roleToAssign!.scheduleTemplates || []).forEach(template => {
+                const newId = `sch-tpl-${staffId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                batch.set(doc(firestore, 'venues', VENUE_ID, 'schedules', newId), { ...template, id: newId, staffIds: [staffId] });
+            });
 
-        // Assign to new staff
-        batch.update(doc(firestore, 'venues', VENUE_ID, 'staff', staffId), { role: { id: roleId, name: roleToAssign.name, day: roleToAssign.day, time: roleToAssign.time } });
-
-        // Delete old schedules for the role
-        const staffIdsToClear = [staffId, ...oldOwnerIds];
-        const scheduleQuery = query(collection(firestore, 'venues', VENUE_ID, 'schedules'), where('staffIds', 'array-contains-any', staffIdsToClear), where('day', '==', roleToAssign.day), where('time', '==', roleToAssign.time));
-        const oldSchedulesSnapshot = await getDocs(scheduleQuery);
-        oldSchedulesSnapshot.forEach(d => batch.delete(d.ref));
-        
-        // Add new schedules from template
-        (roleToAssign.scheduleTemplates || []).forEach(template => {
-            const newId = `sch-tpl-${staffId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-            batch.set(doc(firestore, 'venues', VENUE_ID, 'schedules', newId), { ...template, id: newId, staffIds: [staffId] });
-        });
-
-        await batch.commit();
+            await batch.commit();
+            console.log("✅ [DB 저장 성공]");
+        } catch (e) {
+            console.error("🔥 [DB 저장 실패]", e);
+        }
     };
     processBackendUpdate();
   };

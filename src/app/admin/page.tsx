@@ -124,7 +124,7 @@ export default function AdminPage() {
 
           <section className="p-4 md:p-8 space-y-4 border-b">
               <div className='flex justify-between items-center mb-4'>
-                <h2 className="font-headline text-xl font-semibold">전역 시간대 설정</h2>
+                <h2 className="font-headline text-xl font-semibold">시간대 설정</h2>
                 <div className="flex items-center space-x-2">
                   <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
                   <Label htmlFor="link-panels" className='flex items-center gap-2'>
