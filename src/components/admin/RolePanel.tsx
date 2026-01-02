@@ -159,7 +159,11 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
             toast({ variant: 'destructive', title: '직책 이름을 입력해주세요.' });
             return;
         }
-        addRole(newRoleName, manualTask ? [{ event: manualTask }] : []);
+        if (!selectedSlot) {
+            toast({ variant: 'destructive', title: '오류', description: '시간대를 먼저 선택해주세요.' });
+            return;
+        }
+        addRole(newRoleName, manualTask ? [{ event: manualTask }] : [], selectedSlot.day);
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
         
         // Don't close modal, just clear inputs for next entry
@@ -239,9 +243,14 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
     }, [selectedRole, relevantSchedules]);
 
     const handleToggleCompletion = useCallback((task: ScheduleTemplate) => {
-        if (!selectedRole || !selectedSlot || !relevantSchedules) return;
+        if (!selectedRole || !selectedSlot || !data?.schedule) return;
 
-        const schedulesToUpdate = relevantSchedules.filter(s => s.event === task.event);
+        const schedulesToUpdate = data.schedule.filter(s => 
+            s.day === selectedSlot.day &&
+            s.roleName === selectedRole.name &&
+            s.event === task.event
+        );
+        
         if (schedulesToUpdate.length === 0) return;
 
         const areAllCompleted = schedulesToUpdate.every(s => s.isCompleted);
@@ -250,12 +259,12 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
 
         updateScheduleStatus(scheduleIdsToUpdate, newStatus);
         
-    }, [selectedRole, selectedSlot, relevantSchedules, updateScheduleStatus]);
+    }, [selectedRole, selectedSlot, data?.schedule, updateScheduleStatus]);
 
     
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (!file) return;
+        if (!file || !selectedSlot) return;
 
         Papa.parse(file, {
             complete: (results) => {
@@ -280,7 +289,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     return { id: `temp-id-${colIndex}`, name, tasks }; 
                 }).filter(role => role.name && role.name.trim() !== '');
                 
-                uploadRoles(roles);
+                uploadRoles(roles, selectedSlot.day);
                 toast({ title: '업로드 완료', description: `${roles.length}개의 직책과 업무가 업로드되었습니다.` });
             },
             error: (error) => {
