@@ -148,6 +148,7 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
   }
 
   const scheduleByDay = useMemo(() => {
+    if (!data?.schedule) return [{}, {}, {}, {}];
     return [0, 1, 2, 3].map(day => {
         return data.schedule.filter(s => s.day === day).reduce((acc, item) => {
             if (!acc[item.time]) {
@@ -157,7 +158,7 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
             return acc;
         }, {} as Record<string, ScheduleItem[]>);
     });
-  }, [data.schedule]);
+  }, [data]);
 
 
   const handleItemClick = (itemId: string) => {
@@ -172,7 +173,7 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
   };
   
   const handleCopy = () => {
-    if(!selectedSlot) return;
+    if(!selectedSlot || !data) return;
     const itemsToCopy = data.schedule
       .filter(item => selectedScheduleIds.includes(item.id))
       .map(({ id, day, time, ...rest }) => rest);
@@ -193,7 +194,7 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
   };
 
   const handleDownload = () => {
-    if (!selectedSlot) return;
+    if (!selectedSlot || !data) return;
     const day = selectedSlot.day;
     const schedulesToDownload = data.schedule.filter(s => s.day === day);
 
@@ -258,9 +259,9 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
   }, [selectedSlot, currentDaySchedules, filteredStaffId]);
 
   const selectedStaffForFilter = useMemo(() => {
-      if (!filteredStaffId) return null;
+      if (!filteredStaffId || !data) return null;
       return data.staff.find(s => s.id === filteredStaffId);
-  }, [filteredStaffId, data.staff]);
+  }, [filteredStaffId, data]);
   const { ref: formRef, ...restFormProps } = form.register('event');
 
   return (
@@ -284,7 +285,7 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
           </div>
         </CardHeader>
         <CardContent>
-            {selectedSlot ? (
+            {selectedSlot && data ? (
                 <div className="pt-4 space-y-6">
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">

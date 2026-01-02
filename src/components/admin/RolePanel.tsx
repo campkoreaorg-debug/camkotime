@@ -98,14 +98,14 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
     const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
     
     const rolesForCurrentSlot = useMemo(() => {
-        if (!selectedSlot || !data) return [];
+        if (!selectedSlot || !data?.roles) return [];
         return data.roles.filter(r => r.day === selectedSlot.day && r.time === selectedSlot.time);
-    }, [data?.roles, selectedSlot]);
+    }, [data, selectedSlot]);
 
     const templatesForCurrentSlot = useMemo(() => {
-        if (!selectedSlot || !data) return [];
+        if (!selectedSlot || !data?.scheduleTemplates) return [];
         return data.scheduleTemplates.filter(t => t.day === selectedSlot.day && t.time === selectedSlot.time);
-    }, [data?.scheduleTemplates, selectedSlot]);
+    }, [data, selectedSlot]);
 
 
     const handleFileUpload = (day: number, time: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -371,4 +371,3 @@ export function RolePanel({ selectedSlot }: RolePanelProps) {
         </Card>
     );
 }
-
