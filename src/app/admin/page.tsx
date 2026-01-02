@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
-import { RolePanel }mport { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { RolePanel } from '@/components/admin/RolePanel';
+import { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -41,7 +42,7 @@ export default function AdminPage() {
   
   const [mapSlot, setMapSlot] = useState<{ day: number; time: string } | null>(null);
 
-  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId]_useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
 
