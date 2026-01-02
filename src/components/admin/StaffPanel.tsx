@@ -51,21 +51,14 @@ interface StaffMemberCardProps {
   index: number;
   isScheduled: boolean;
   assignedRoleName: string | null;
+  selectedSlot: { day: number, time: string } | null;
 }
 
 
-const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName }: StaffMemberCardProps) => {
+const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selectedSlot }: StaffMemberCardProps) => {
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
-    const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
-
-    useEffect(() => {
-        const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
-        if (storedSlot) {
-            setSelectedSlot(JSON.parse(storedSlot));
-        }
-    }, []);
 
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.TASK_BUNDLE,
@@ -373,6 +366,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
                             index={index} 
                             isScheduled={scheduledStaffInfo.ids.has(s.id)}
                             assignedRoleName={scheduledStaffInfo.roles.get(s.id) || null}
+                            selectedSlot={selectedSlot}
                         />
                     ))}
                     </div>
@@ -390,5 +384,3 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
     </Card>
   );
 }
-
-    
