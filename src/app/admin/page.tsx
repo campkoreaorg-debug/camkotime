@@ -74,7 +74,11 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-      if (!selectedStaffId || !selectedSlot || !data?.schedule || !data?.roles) {
+      if (!data?.roles) { // 데이터가 로드되지 않았을 수 있으므로 early return
+          setSelectedRole(null);
+          return;
+      }
+      if (!selectedStaffId || !selectedSlot || !data?.schedule) {
           setSelectedRole(null);
           return;
       }
@@ -119,10 +123,6 @@ export default function AdminPage() {
         setActiveTab(`day-${day}`);
         setSelectedStaffId(null);
       }
-  };
-
-  const openMapWindow = () => {
-    window.open('/map', '_blank', 'width=1200,height=800');
   };
 
   if (isUserLoading || isDataLoading || isSessionLoading) {
@@ -170,10 +170,6 @@ export default function AdminPage() {
                       <div className='flex justify-between items-center mb-4'>
                         <h2 className="font-headline text-xl font-semibold">시간대 설정</h2>
                         <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="sm" onClick={openMapWindow}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                새 창으로 열기
-                            </Button>
                             <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
                             <Label htmlFor="link-panels" className='flex items-center gap-2'>
                                 <LinkIcon className='h-4 w-4'/>
@@ -232,5 +228,3 @@ export default function AdminPage() {
     </DndProvider>
   );
 }
-
-    
