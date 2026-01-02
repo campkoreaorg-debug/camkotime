@@ -69,7 +69,7 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
             toast({ variant: 'destructive', title: '직책 이름을 입력해주세요.' });
             return;
         }
-        addRole(newRoleName, [{ event: manualTask }]);
+        addRole(newRoleName, manualTask ? [{ event: manualTask }] : []);
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
         
         setIsCreateRoleModalOpen(false);
@@ -158,7 +158,7 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
                                         <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
                                         <div className="flex-1">
                                             <p className="font-semibold text-sm truncate">{role.name}</p>
-                                            <p className="text-xs text-muted-foreground">{role.tasks.length}개 업무</p>
+                                            <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
                                         </div>
                                     </div>
                                     <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer shrink-0" onClick={(e) => {e.stopPropagation(); openDeleteRoleDialog(role)}}>
@@ -226,7 +226,7 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
                             </Button>
                         </div>
                         <ScrollArea className="h-[220px] border rounded-lg p-2">
-                             {roleToModify && roleToModify.tasks.length > 0 ? (
+                             {roleToModify && roleToModify.tasks && roleToModify.tasks.length > 0 ? (
                                 <div className="space-y-1">
                                     {roleToModify.tasks.map((task, index) => {
                                         const isSelected = selectedTasks.some(t => t.event === task.event);
@@ -286,3 +286,5 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
         </Card>
     );
 }
+
+    

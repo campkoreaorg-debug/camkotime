@@ -168,7 +168,7 @@ export const useVenueData = () => {
   const addRole = (name: string, tasks: ScheduleTemplate[]) => {
       if (!firestore) return;
       const newId = `role-${Date.now()}`;
-      const newRole: Role = { id: newId, name, tasks };
+      const newRole: Role = { id: newId, name, tasks: tasks || [] };
       setDoc(doc(firestore, 'venues', VENUE_ID, 'roles', newId), newRole);
   };
 
@@ -275,3 +275,5 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    
