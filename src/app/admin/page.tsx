@@ -6,8 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
-import { RolePanel } from '@/components/admin/RolePanel';
-import { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { RolePanel }mport { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -16,6 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Role } from '@/lib/types';
+import { MapPanel } from '@/components/admin/MapPanel';
 
 
 const days = [0, 1, 2, 3];
@@ -157,56 +157,56 @@ export default function AdminPage() {
               </div>
           </header>
 
-          <section className="p-4 md:p-8 space-y-4 border-b">
-              <div className='flex justify-between items-center mb-4'>
-                <h2 className="font-headline text-xl font-semibold">시간대 설정</h2>
-                <div className="flex items-center space-x-2">
-                  <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
-                  <Label htmlFor="link-panels" className='flex items-center gap-2'>
-                    <LinkIcon className='h-4 w-4'/>
-                    지도 연동
-                  </Label>
-                </div>
+          <main className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-4 xl:gap-8 p-4 md:p-8">
+              <div className="lg:col-span-2 space-y-8">
+                  <section className="p-4 md:p-6 space-y-4 border rounded-lg bg-card shadow-sm">
+                      <div className='flex justify-between items-center mb-4'>
+                        <h2 className="font-headline text-xl font-semibold">시간대 설정</h2>
+                        <div className="flex items-center space-x-2">
+                          <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
+                          <Label htmlFor="link-panels" className='flex items-center gap-2'>
+                            <LinkIcon className='h-4 w-4'/>
+                            지도 연동
+                          </Label>
+                        </div>
+                      </div>
+                      <Tabs value={activeTab} onValueChange={handleTabChange}>
+                        <TabsList className='mb-4'>
+                          {days.map(day => (
+                            <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
+                          ))}
+                        </TabsList>
+                      </Tabs>
+                       <div className="flex flex-wrap gap-2 pb-2">
+                          {timeSlots.map(time => {
+                            const day = parseInt(activeTab.split('-')[1], 10);
+                            const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
+                            return (
+                              <Button 
+                                  key={time} 
+                                  variant={isSelected ? "default" : "outline"}
+                                  className="flex-shrink-0 text-xs h-8"
+                                  onClick={() => handleSlotChange(day, time)}
+                              >
+                                  {time}
+                              </Button>
+                            )
+                          })}
+                        </div>
+                  </section>
+                  <StaffPanel 
+                    selectedSlot={selectedSlot}
+                    onStaffSelect={setSelectedStaffId}
+                    selectedStaffId={selectedStaffId}
+                  />
+                  <RolePanel 
+                    selectedSlot={selectedSlot}
+                    selectedRole={selectedRole}
+                    onRoleSelect={setSelectedRole}
+                  />
               </div>
-              <Tabs value={activeTab} onValueChange={handleTabChange}>
-                <TabsList className='mb-4'>
-                  {days.map(day => (
-                    <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-               <div className="flex flex-wrap gap-2 pb-2">
-                  {timeSlots.map(time => {
-                    const day = parseInt(activeTab.split('-')[1], 10);
-                    const isSelected = selectedSlot?.day === day && selectedSlot?.time === time;
-                    return (
-                      <Button 
-                          key={time} 
-                          variant={isSelected ? "default" : "outline"}
-                          className="flex-shrink-0 text-xs h-8"
-                          onClick={() => handleSlotChange(day, time)}
-                      >
-                          {time}
-                      </Button>
-                    )
-                  })}
-                </div>
-          </section>
 
-          <main className="p-4 md:p-8 space-y-8">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <StaffPanel 
-                  selectedSlot={selectedSlot}
-                  onStaffSelect={setSelectedStaffId}
-                  selectedStaffId={selectedStaffId}
-                />
-                <RolePanel 
-                  selectedSlot={selectedSlot}
-                  selectedRole={selectedRole}
-                  onRoleSelect={setSelectedRole}
-                />
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="lg:col-span-1 space-y-8 mt-8 lg:mt-0">
                 <SchedulePanel 
                   selectedSlot={selectedSlot} 
                 />
@@ -221,5 +221,3 @@ export default function AdminPage() {
     </DndProvider>
   );
 }
-
-    
