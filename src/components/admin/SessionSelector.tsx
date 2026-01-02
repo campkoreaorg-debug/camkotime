@@ -9,43 +9,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Edit, Check, X, Copy } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2, Edit, Copy } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
 
 export function SessionSelector() {
   const { sessions, sessionId, setSessionId, isLoading, updateSessionName, importDataFromSession } = useSession();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
-
+  
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isConfirmAlertOpen, setIsConfirmAlertOpen] = useState(false);
   const [sourceSessionId, setSourceSessionId] = useState<string | null>(null);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  
   const { toast } = useToast();
 
-  const handleEditClick = (e: React.MouseEvent, id: string, currentName: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setEditingId(id);
-    setEditingName(currentName);
-  };
+  const currentSession = sessions.find(s => s.id === sessionId);
 
-  const handleSave = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    updateSessionName(id, editingName);
-    setEditingId(null);
-  };
+  useEffect(() => {
+    if (currentSession) {
+      setEditingName(currentSession.name);
+    }
+  }, [currentSession, isEditModalOpen]);
 
-  const handleCancel = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setEditingId(null);
+
+  const handleSaveName = () => {
+    if (sessionId) {
+      updateSessionName(sessionId, editingName);
+      setIsEditModalOpen(false);
+    }
   };
 
   const handleImportClick = () => {
@@ -94,43 +92,48 @@ export function SessionSelector() {
         <SelectContent>
           {sessions.map((session) => (
             <SelectItem key={session.id} value={session.id}>
-              <div className="flex justify-between items-center w-full">
-                {editingId === session.id ? (
-                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                    <Input 
-                      value={editingName} 
-                      onChange={(e) => setEditingName(e.target.value)}
-                      className="h-7"
-                      autoFocus
-                      onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSave(e, session.id);
-                          if (e.key === 'Escape') handleCancel(e);
-                      }}
-                    />
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleSave(e, session.id)}><Check className="h-4 w-4 text-green-500" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCancel}><X className="h-4 w-4 text-red-500" /></Button>
-                  </div>
-                ) : (
-                  <>
-                    <span>{session.name}</span>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-7 w-7 opacity-50 hover:opacity-100"
-                      onClick={(e) => handleEditClick(e, session.id, session.name)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
+              <span>{session.name}</span>
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
+      
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" disabled={!sessionId}>
+            <Edit className="mr-2 h-4 w-4" />
+            이름 수정
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>차수 이름 수정</DialogTitle>
+                <DialogDescription>
+                    현재 선택된 차수의 이름을 수정합니다.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="session-name">차수 이름</Label>
+                <Input 
+                    id="session-name"
+                    value={editingName} 
+                    onChange={(e) => setEditingName(e.target.value)}
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                />
+            </div>
+            <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">취소</Button>
+                </DialogClose>
+                <Button onClick={handleSaveName}>저장</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
           <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" disabled={!sessionId}>
                   <Copy className="mr-2 h-4 w-4" />
                   데이터 불러오기
               </Button>
