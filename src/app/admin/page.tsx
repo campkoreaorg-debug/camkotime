@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -7,7 +8,7 @@ import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import { RolePanel } from '@/components/admin/RolePanel';
 import { MapPanel } from '@/components/admin/MapPanel';
-import { Loader2, ExternalLink, Link as LinkIcon, Database } from 'lucide-react';
+import { Loader2, Link as LinkIcon, Database, ExternalLink } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -17,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Role } from '@/lib/types';
 import { useSession } from '@/hooks/use-session';
+import { CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 const days = [0, 1, 2, 3];
 export const timeSlots = (() => {
@@ -130,7 +132,7 @@ export default function AdminPage() {
         alert("먼저 차수(Session)를 선택해주세요.");
         return;
     }
-    window.open(`/map?sid=${sessionId}`, '_blank', 'width=1200,height=800');
+    window.open(`/map?sid=${sessionId}`, '_blank', 'width=1280,height=800,resizable=yes,scrollbars=yes');
   };
 
   if (isUserLoading || isDataLoading || isSessionLoading) {
@@ -229,10 +231,28 @@ export default function AdminPage() {
                   selectedSlot={selectedSlot} 
                 />
                 <MapPanel 
-                  selectedSlot={isLinked ? selectedSlot : mapSlot} 
-                  onSlotChange={handleMapSlotChange} 
-                  isLinked={isLinked}
-                />
+                    selectedSlot={isLinked ? selectedSlot : mapSlot} 
+                    onSlotChange={handleMapSlotChange} 
+                    isLinked={isLinked}
+                >
+                    <CardHeader>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
+                                <CardDescription>
+                                {isLinked ? 
+                                    '전역 시간대 설정과 연동된 지도입니다.' :
+                                    selectedSlot ? `독립적으로 ${selectedSlot.day}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` : '시간대를 선택하여 지도를 확인하세요.'
+                                }
+                                </CardDescription>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={openMapWindow}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                따로 보기
+                            </Button>
+                        </div>
+                    </CardHeader>
+                </MapPanel>
               </div>
           </div>
       </div>
