@@ -29,10 +29,10 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
     const [notificationText, setNotificationText] = useState('');
 
     useEffect(() => {
-        if(data.notification) {
+        if(data?.notification) {
             setNotificationText(data.notification);
         }
-    }, [data.notification]);
+    }, [data]);
     
     useEffect(() => {
         if (selectedSlot) {
@@ -45,6 +45,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
 
 
     const scheduleByDay = useMemo(() => {
+        if (!data) return [];
         return days.map(day => {
             return data.schedule.filter(s => s.day === day).reduce((acc, item) => {
                 if (!acc[item.time]) {
@@ -54,7 +55,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
                 return acc;
             }, {} as Record<string, ScheduleItem[]>);
         });
-    }, [data.schedule]);
+    }, [data]);
 
     const currentDaySchedules = useMemo(() => {
         const day = parseInt(activeTab.split('-')[1], 10);
@@ -75,6 +76,19 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
             title: '공지 저장됨',
             description: '지도에 공지사항이 업데이트되었습니다.',
         });
+    }
+
+    if (!data) {
+        return (
+             <Card className='lg:col-span-1'>
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p>데이터 로딩 중...</p>
+                </CardContent>
+             </Card>
+        )
     }
 
     return (
