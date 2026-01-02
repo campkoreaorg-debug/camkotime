@@ -88,7 +88,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
             const roleSessionId = role.ref.parent.parent.id;
             const matchingSession = sessionContext.sessions.find(s => s.id === roleSessionId);
             if (matchingSession) {
-                // Assuming session name is like "1차", "2차"
                 const dayNumber = parseInt(matchingSession.name, 10) - 1;
                 return { ...role, day: isNaN(dayNumber) ? 0 : dayNumber };
             }
@@ -135,6 +134,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     initialData.schedule.forEach((item) => batch.set(doc(sessionRef, 'schedules', item.id), item));
     initialData.markers.forEach((m) => batch.set(doc(sessionRef, 'markers', m.id), m));
     initialData.maps.forEach((map) => batch.set(doc(sessionRef, 'maps', map.id), map));
+    initialData.scheduleTemplates.forEach((template) => batch.set(doc(sessionRef, 'scheduleTemplates', template.id), template));
     
     await batch.commit();
     window.location.reload();
@@ -248,11 +248,14 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   };
 
   const addRole = (name: string, tasks: ScheduleTemplate[], day: number) => {
-      if (!firestore || !sessionId || !localData || localData.schedule === null) return;
-      const newId = `role-${Date.now()}`;
-      const newRole: Role = { id: newId, name, tasks: tasks || [], day, order: (localData.roles?.length || 0) };
-      setDoc(doc(firestore, 'sessions', sessionId, 'roles', newId), newRole);
-  };
+    if (!firestore || !sessionId) return;
+    const newId = `role-${Date.now()}`;
+    const newRole = { id: newId, name, tasks };
+    
+    // Roles are now templates, so they go into 'scheduleTemplates'
+    const templateRef = doc(firestore, 'sessions', sessionId, 'scheduleTemplates', newId);
+    setDoc(templateRef, newRole);
+};
 
   const uploadRoles = (roles: Role[], day: number) => {
     if (!firestore || !sessionId) return;
@@ -463,6 +466,43 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       if(venueRef) updateDoc(venueRef, { notification: text });
   }
 
+    const addScheduleTemplatesToSlot = async (templateIds: string[], day: number, time: string) => {
+        if (!firestore || !sessionId || !localData?.scheduleTemplates) return;
+
+        const templates = localData.scheduleTemplates.filter(t => templateIds.includes(t.id));
+
+        const batch = writeBatch(firestore);
+
+        // First, clear existing roles for this day that are not in the new selection
+        const rolesForDayQuery = query(collection(firestore, 'sessions', sessionId, 'roles'), where('day', '==', day));
+        const existingRolesSnap = await getDocs(rolesForDayQuery);
+        
+        const newRoleNames = new Set(templates.map(t => t.name));
+
+        existingRolesSnap.forEach(roleDoc => {
+            if (!newRoleNames.has(roleDoc.data().name)) {
+                // This logic needs refinement: should we delete roles if they are not selected for THIS timeslot?
+                // The current data model links roles to a `day`, not a `time`.
+                // A safer approach for now is to only add, not delete.
+            }
+        });
+
+        // Add selected templates as roles for the current day
+        templates.forEach((template, index) => {
+            const role: Role = {
+                ...template, // Includes name, tasks
+                id: `role-slot-${day}-${time.replace(':','')}-${template.id}`, // Make it unique per timeslot
+                day: day,
+                order: index
+            };
+            const roleRef = doc(firestore, 'sessions', sessionId, 'roles', role.id);
+            batch.set(roleRef, role, { merge: true }); // Use set with merge to create or overwrite
+        });
+
+        await batch.commit();
+    };
+
+
   return {
     data: localData,
     addStaffBatch,
@@ -486,6 +526,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     removeTaskFromRole,
     updateScheduleStatus,
     toggleScheduleCompletion,
+    addScheduleTemplatesToSlot,
     isLoading: isLoading, 
     updateMarkerPosition,
     addMarker,
@@ -503,5 +544,3 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
-
-    

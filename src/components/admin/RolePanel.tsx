@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download, ArrowDown, ArrowUp, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download, ArrowDown, ArrowUp, CheckCircle2, Circle, ListPlus } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -21,6 +21,7 @@ import { ItemTypes } from './StaffPanel';
 import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 const DraggableRoleItem = ({ role, index, moveRole, onSelectRole, selectedRole, onDeleteRole, isAssigned }: { role: Role, index: number, moveRole: (dragIndex: number, hoverIndex: number) => void, onSelectRole: (role: Role) => void, selectedRole: Role | null, onDeleteRole: (role: Role) => void, isAssigned: boolean }) => {
     const ref = useRef<HTMLDivElement>(null);
@@ -115,23 +116,33 @@ interface RolePanelProps {
 }
 
 function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePanelProps) {
-    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles, updateRoleOrder, importRolesFromOtherDays, updateScheduleStatus } = useVenueData();
+    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles, updateRoleOrder, importRolesFromOtherDays, updateScheduleStatus, addScheduleTemplatesToSlot } = useVenueData();
     const { toast } = useToast();
 
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
     const [isDeleteRoleAlertOpen, setIsDeleteRoleAlertOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    
+    const [isTemplateSelectModalOpen, setIsTemplateSelectModalOpen] = useState(false);
+
     const [newRoleName, setNewRoleName] = useState('');
     const [manualTask, setManualTask] = useState('');
     
     const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
     const [selectedTasks, setSelectedTasks] = useState<ScheduleTemplate[]>([]);
+    const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     const [roles, setRoles] = useState<Role[]>([]);
     const [rolesToImport, setRolesToImport] = useState<Record<string, boolean>>({});
+
+    const timeSlotRoles = useMemo(() => {
+        if (!selectedSlot || !data?.roles) return [];
+        // This should filter roles that are specifically for this time slot
+        // For now, we'll keep the day-based filter as a placeholder until the data model is fully updated
+        return data.roles.filter(role => role.day === selectedSlot.day);
+    }, [data?.roles, selectedSlot]);
+
 
     useEffect(() => {
         if (data?.roles) {
@@ -166,7 +177,6 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
         addRole(newRoleName, manualTask ? [{ event: manualTask }] : [], selectedSlot.day);
         toast({ title: '성공', description: `새 직책 '${newRoleName}'이(가) 생성되었습니다.` });
         
-        // Don't close modal, just clear inputs for next entry
         setNewRoleName('');
         setManualTask('');
     };
@@ -201,7 +211,6 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                 onRoleSelect(null);
             }
             deleteRole(roleToDelete.id);
-            toast({ title: '삭제 완료', description: `'${roleToDelete.name}' 직책이 삭제되었습니다.` });
         }
         setIsDeleteRoleAlertOpen(false);
         setRoleToDelete(null);
@@ -390,7 +399,33 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
     }, [data?.schedule, selectedSlot]);
 
 
-    if (!data || !selectedSlot) {
+    const openTemplateSelector = () => {
+        if (!data?.scheduleTemplates) return;
+        
+        const currentSlotRoles = roles.filter(r => r.day === selectedSlot?.day).map(r => r.name);
+        
+        const preSelected = data.scheduleTemplates.filter(t => currentSlotRoles.includes(t.name)).map(t => t.id);
+
+        setSelectedTemplateIds(preSelected);
+        setIsTemplateSelectModalOpen(true);
+    };
+    
+    const handleSaveTemplatesToSlot = () => {
+        if (!selectedSlot) return;
+        addScheduleTemplatesToSlot(selectedTemplateIds, selectedSlot.day, selectedSlot.time);
+        toast({ title: '저장 완료', description: '선택한 포지션이 현재 시간대에 할당되었습니다.'});
+        setIsTemplateSelectModalOpen(false);
+    }
+    
+    const handleTemplateSelection = (templateId: string) => {
+        setSelectedTemplateIds(prev => 
+            prev.includes(templateId)
+                ? prev.filter(id => id !== templateId)
+                : [...prev, templateId]
+        );
+    }
+
+    if (!selectedSlot) {
         return (
             <Card>
                 <CardHeader>
@@ -415,6 +450,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" onClick={openTemplateSelector}><ListPlus className="mr-2 h-4 w-4"/>이 시간대 필요 포지션 선택</Button>
                     <Button variant="outline" onClick={() => setIsImportModalOpen(true)}><Download className="mr-2 h-4 w-4"/>직책 불러오기</Button>
                     <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>직책 업로드</Button>
                     <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
@@ -546,7 +582,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     <DialogHeader>
                         <DialogTitle>새 직책 생성</DialogTitle>
                         <DialogDescription>
-                            현재 선택된 날짜({selectedSlot.day}일차)에 사용할 수 있는 직책 템플릿을 만듭니다.
+                            직책 템플릿을 만들어 필요할 때마다 불러서 사용할 수 있습니다.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -566,6 +602,40 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                 </DialogContent>
             </Dialog>
             
+            <Dialog open={isTemplateSelectModalOpen} onOpenChange={setIsTemplateSelectModalOpen}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>이 시간대 필요 포지션 선택</DialogTitle>
+                        <DialogDescription>
+                            직책 템플릿 목록에서 현재 시간대({selectedSlot.day}일차 {selectedSlot.time})에 필요한 포지션을 선택하세요.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="h-96 my-4">
+                         <div className='grid grid-cols-2 gap-2 p-2'>
+                            {(data.scheduleTemplates || []).map(template => (
+                                <div key={template.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted">
+                                    <Checkbox
+                                        id={`template-${template.id}`}
+                                        checked={selectedTemplateIds.includes(template.id)}
+                                        onCheckedChange={() => handleTemplateSelection(template.id)}
+                                    />
+                                    <label
+                                        htmlFor={`template-${template.id}`}
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                    >
+                                        {template.name}
+                                    </label>
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
+                        <Button onClick={handleSaveTemplatesToSlot}>선택한 포지션 저장</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
@@ -635,5 +705,3 @@ export function RolePanel(props: RolePanelProps) {
         </DndProvider>
     )
 }
-
-    

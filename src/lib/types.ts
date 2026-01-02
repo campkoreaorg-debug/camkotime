@@ -6,14 +6,21 @@ export interface Session {
 }
 
 export interface ScheduleTemplate {
-  event: string;
-  location?: string;
+  id: string;
+  name: string;
+  tasks: {
+      event: string;
+      location?: string;
+  }[];
 }
 
 export interface Role {
   id: string;
   name: string;
-  tasks: ScheduleTemplate[];
+  tasks: {
+      event: string;
+      location?: string;
+  }[];
   day?: number;
   order?: number;
 }

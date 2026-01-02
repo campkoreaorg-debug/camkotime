@@ -1,6 +1,5 @@
 
-
-import type { VenueData, Session } from './types';
+import type { VenueData, Session, ScheduleTemplate } from './types';
 import { PlaceHolderImages } from './placeholder-images';
 
 const mapBg = PlaceHolderImages.find(p => p.id === 'map-background')?.imageUrl || '';
@@ -10,8 +9,15 @@ export const initialSessions: Session[] = Array.from({ length: 8 }, (_, i) => ({
   name: `${i + 1}차`,
 }));
 
-// VenueData 타입에 맞게 Omit 수정
-export const initialData: Omit<VenueData, 'notification' | 'scheduleTemplates' | 'allRoles'> = {
+const initialScheduleTemplates: ScheduleTemplate[] = [
+  { id: 'template-1', name: '보안팀', tasks: [{ event: '구역 순찰', location: '전체 구역' }, { event: '게이트 통제'}] },
+  { id: 'template-2', name: '의료팀', tasks: [{ event: '의료 부스 대기', location: '의료 센터' }] },
+  { id: 'template-3', name: '안내팀', tasks: [{ event: '관객 안내', location: '메인 게이트' }] },
+  { id: 'template-4', name: '무대지원', tasks: [{ event: '백스테이지 통제'}, { event: '아티스트 케어'}] },
+  { id: 'template-5', name: '운영본부', tasks: [{ event: '상황 모니터링'}, { event: '무전 보고'}] },
+];
+
+export const initialData: Omit<VenueData, 'notification' | 'allRoles'> = {
   staff: [
     { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '' },
     { id: 'staff-2', name: '박서준', avatar: PlaceHolderImages.find(p => p.id === 'avatar-2')?.imageUrl || '' },
@@ -38,7 +44,6 @@ export const initialData: Omit<VenueData, 'notification' | 'scheduleTemplates' |
     { id: 'day0-0900', day: 0, time: '09:00', mapImageUrl: mapBg },
     { id: 'day0-1000', day: 0, time: '10:00', mapImageUrl: mapBg },
     { id: 'day1-1030', day: 1, time: '10:30', mapImageUrl: mapBg },
-  ]
+  ],
+  scheduleTemplates: initialScheduleTemplates,
 };
-
-    
