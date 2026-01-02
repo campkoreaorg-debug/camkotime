@@ -107,14 +107,20 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 export const useSession = () => {
   const context = useContext(SessionContext);
   if (context === undefined) {
-    // This allows the hook to be used in pages like /map
-    // which might not be wrapped in the provider, but can get the
-    // session ID from the URL.
+    const [isLoading, setIsLoading] = useState(true);
+    useEffect(() => {
+        // This is a workaround for pages that are not wrapped in the provider
+        // but still need the hook to not throw an error.
+        // The loading state gives time for other hooks to get the session ID from the URL.
+        const timer = setTimeout(() => setIsLoading(false), 100);
+        return () => clearTimeout(timer);
+    }, []);
+
     return {
         sessions: [],
         sessionId: null,
         setSessionId: () => {},
-        isLoading: false,
+        isLoading: isLoading,
         updateSessionName: () => {},
         importDataFromSession: async () => {},
     };

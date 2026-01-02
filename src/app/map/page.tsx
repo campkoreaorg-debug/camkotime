@@ -10,6 +10,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { MapPanel } from '@/components/admin/MapPanel';
 import { useVenueData } from '@/hooks/use-venue-data';
+import { SessionProvider } from '@/hooks/use-session';
 
 function MapContent() {
   const router = useRouter();
@@ -76,8 +77,10 @@ function MapContent() {
 
 export default function MapPage() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
-      <MapContent />
-    </Suspense>
+    <SessionProvider>
+      <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+        <MapContent />
+      </Suspense>
+    </SessionProvider>
   )
 }
