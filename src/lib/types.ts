@@ -24,6 +24,7 @@ export interface ScheduleItem {
   event: string;
   location?: string;
   staffIds: string[];
+  roleName?: string;
 }
 
 export interface MapMarker {
@@ -51,3 +52,5 @@ export interface VenueData {
   notification?: string;
   scheduleTemplates: ScheduleTemplate[];
 }
+
+    

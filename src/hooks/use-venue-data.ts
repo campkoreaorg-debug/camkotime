@@ -197,11 +197,11 @@ export const useVenueData = () => {
   staffId: string,
   tasks: ScheduleTemplate[], 
   day: number,
-  time: string
+  time: string,
+  roleName: string
 ) => {
   if (!firestore) return;
 
-  // 1. 필수 값 검증
   if (!staffId) {
       console.error("⛔ [배정 실패] Staff ID가 누락되었습니다. 누구에게 배정할지 모릅니다.");
       return; 
@@ -211,9 +211,6 @@ export const useVenueData = () => {
       console.error("⛔ [배정 실패] 날짜(Day) 또는 시간(Time)이 누락되었습니다.");
       return;
   }
-
-  // 2. 들어오는 데이터 확인 (개발자 도구 콘솔 확인용)
-  console.log(`🚀 배정 시작: Staff[${staffId}]에게 ${tasks.length}개의 업무를 Day[${day}] Time[${time}]에 배정합니다.`);
 
   try {
       const batch = writeBatch(firestore);
@@ -227,7 +224,8 @@ export const useVenueData = () => {
               time,
               event: task.event,
               location: task.location || '',
-              staffIds: [staffId]
+              staffIds: [staffId],
+              roleName: roleName,
           };
 
           const docRef = doc(firestore, 'venues', VENUE_ID, 'schedules', newScheduleId);
@@ -235,7 +233,6 @@ export const useVenueData = () => {
       });
       
       await batch.commit();
-      console.log("✅ DB 업로드 성공!");
       
   } catch (error) {
       console.error("🔥 DB 업로드 중 에러 발생:", error);
@@ -349,5 +346,7 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    
 
     

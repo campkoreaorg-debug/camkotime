@@ -5,7 +5,7 @@ import { useState, useRef, useMemo } from 'react';
 import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { StaffMember, ScheduleTemplate } from '@/lib/types';
+import type { StaffMember, ScheduleTemplate, ScheduleItem } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -50,20 +50,28 @@ interface StaffMemberCardProps {
   staff: StaffMember;
   index: number;
   isScheduled: boolean;
-  selectedSlot: { day: number; time: string };
+  assignedRoleName: string | null;
 }
 
 
-const StaffMemberCard = ({ staff, index, isScheduled, selectedSlot }: StaffMemberCardProps) => {
+const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName }: StaffMemberCardProps) => {
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
+    const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
+
+    useEffect(() => {
+        const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
+        if (storedSlot) {
+            setSelectedSlot(JSON.parse(storedSlot));
+        }
+    }, []);
 
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.TASK_BUNDLE,
         drop: (item: TaskBundle) => {
             if (selectedSlot) {
-                assignTasksToStaff(staff.id, item.tasks, selectedSlot.day, selectedSlot.time);
+                assignTasksToStaff(staff.id, item.tasks, selectedSlot.day, selectedSlot.time, item.roleName);
                 toast({
                     title: '업무 할당됨',
                     description: `${staff.name}님에게 '${item.roleName}' 직책의 ${item.tasks.length}개 업무가 할당되었습니다.`,
@@ -110,7 +118,11 @@ const StaffMemberCard = ({ staff, index, isScheduled, selectedSlot }: StaffMembe
             </Avatar>
             <div className='flex-1'>
                 <p className="font-semibold text-sm">{staff.name}</p>
-                 <div className='h-6 mt-1'/> 
+                 {assignedRoleName ? (
+                    <Badge variant="secondary" className="mt-1 font-normal">{assignedRoleName}</Badge>
+                 ) : (
+                    <div className='h-6 mt-1'/> 
+                 )}
             </div>
             <Button
                 variant="ghost"
@@ -149,13 +161,24 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGridOpen, setIsGridOpen] = useState(true);
 
-  const scheduledStaffIds = useMemo(() => {
-    if (!data || !selectedSlot) return new Set();
-    return new Set(
-        (data.schedule || [])
-            .filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time)
-            .flatMap(s => s.staffIds)
-    );
+  const scheduledStaffInfo = useMemo(() => {
+    if (!data || !selectedSlot) return { ids: new Set(), roles: new Map() };
+    
+    const ids = new Set<string>();
+    const roles = new Map<string, string>();
+
+    (data.schedule || []).forEach(s => {
+        if (s.day === selectedSlot.day && s.time === selectedSlot.time) {
+            (s.staffIds || []).forEach(staffId => {
+                ids.add(staffId);
+                if (s.roleName && !roles.has(staffId)) {
+                    roles.set(staffId, s.roleName);
+                }
+            });
+        }
+    });
+
+    return { ids, roles };
   }, [data, selectedSlot]);
 
 
@@ -262,7 +285,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
 
   const canRegister = pendingStaff.length > 0 && pendingStaff.every(p => p.name.trim() !== '');
 
-  if (isLoading || !data || !selectedSlot) {
+  if (isLoading || !data) {
     return (
         <Card>
             <CardHeader>
@@ -344,7 +367,13 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
                 {data && data.staff.length > 0 ? (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.28),1fr))] gap-4 p-1">
                     {data.staff.map((s, index) => (
-                        <StaffMemberCard key={s.id} staff={s} index={index} isScheduled={scheduledStaffIds.has(s.id)} selectedSlot={selectedSlot} />
+                        <StaffMemberCard 
+                            key={s.id} 
+                            staff={s} 
+                            index={index} 
+                            isScheduled={scheduledStaffInfo.ids.has(s.id)}
+                            assignedRoleName={scheduledStaffInfo.roles.get(s.id) || null}
+                        />
                     ))}
                     </div>
                 ) : (
@@ -361,3 +390,5 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
     </Card>
   );
 }
+
+    
