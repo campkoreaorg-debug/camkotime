@@ -3,67 +3,54 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Venues can be read by anyone.
-    // Venues can only be created, updated, or deleted by the user
-    // who owns the venue.
-    match /venues/{venueId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+    function isVenueOwner(venueId) {
+      return request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+    }
 
-      // Staff can be read by anyone.
-      // Staff can only be created, updated, or deleted by the user
-      // who owns the venue.
+    match /venues/{venueId} {
+      allow get, list: if true;
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isVenueOwner(venueId);
+
       match /staff/{staffId} {
         allow get, list: if true;
-        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+        allow create, update, delete: if isVenueOwner(venueId);
       }
 
-      // Schedules can be read by anyone.
-      // Schedules can only be created, updated, or deleted by the user
-      // who owns the venue.
       match /schedules/{scheduleId} {
         allow get, list: if true;
-        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+        allow create, update, delete: if isVenueOwner(venueId);
       }
       
-      // Markers can be read by anyone.
-      // Markers can only be created, updated, or deleted by the user
-      // who owns the venue.
        match /markers/{markerId} {
         allow get, list: if true;
-        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+        allow create, update, delete: if isVenueOwner(venueId);
       }
        
-      // Maps can be read by anyone.
-      // Maps can only be created, updated, or deleted by the user
-      // who owns the venue.
        match /maps/{mapId} {
         allow get, list: if true;
-        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+        allow create, update, delete: if isVenueOwner(venueId);
       }
       
-      // External devices can be read by anyone.
-      // External devices can only be created, updated, or deleted by the user
-      // who owns the venue.
       match /externalDevices/{deviceId} {
         allow get, list: if true;
-        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+        allow create, update, delete: if isVenueOwner(venueId);
       }
 
-      // Roles can be read by anyone.
-      // Roles can only be created, updated, or deleted by the user
-      // who owns the venue.
        match /roles/{roleId} {
         allow get, list: if true;
-        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+        allow create, update, delete: if isVenueOwner(venueId);
       }
       
-      // Categories can be read by anyone and managed by the venue owner.
       match /categories/{categoryId} {
         allow get, list: if true;
-        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid;
+        allow create, update, delete: if isVenueOwner(venueId);
+      }
+
+      // Allow venue owners to manage schedule templates
+      match /scheduleTemplates/{templateId} {
+        allow get, list: if true;
+        allow create, update, delete: if isVenueOwner(venueId);
       }
     }
   }

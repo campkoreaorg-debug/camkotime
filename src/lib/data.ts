@@ -5,6 +5,7 @@ import { PlaceHolderImages } from './placeholder-images';
 
 const mapBg = PlaceHolderImages.find(p => p.id === 'map-background')?.imageUrl || '';
 
+// VenueData 타입에 맞게 Omit 수정
 export const initialData: Omit<VenueData, 'notification'> = {
   staff: [
     { id: 'staff-1', name: '이보람', avatar: PlaceHolderImages.find(p => p.id === 'avatar-1')?.imageUrl || '', role: { id: 'role-1', name: '보안팀', day: 0, time: '09:00' } },
@@ -33,5 +34,9 @@ export const initialData: Omit<VenueData, 'notification'> = {
     { id: 'day0-0900', day: 0, time: '09:00', mapImageUrl: mapBg },
     { id: 'day0-1000', day: 0, time: '10:00', mapImageUrl: mapBg },
     { id: 'day1-1030', day: 1, time: '10:30', mapImageUrl: mapBg },
+  ],
+  scheduleTemplates: [
+    { id: 'tpl-1', day: 0, time: '09:00', event: '기본 순찰 업무' },
+    { id: 'tpl-2', day: 0, time: '19:00', event: '야간 조명 점검' },
   ],
 };
