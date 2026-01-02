@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useDrop, useDrag, DropTargetMonitor } from 'react-dnd';
 import { Input } from '../ui/input';
+import { useBroadcastChannel } from '@/hooks/use-broadcast-channel';
 
 interface PendingStaff {
     key: string;
@@ -63,15 +64,25 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
+    const { postMessage } = useBroadcastChannel('venue-sync');
 
-    const [{ isDragging: isDraggingStaff }, dragStaff] = useDrag(() => ({
+    const [{ isDragging: isDraggingStaff }, dragStaff, dragPreview] = useDrag(() => ({
         type: ItemTypes.STAFF,
         item: { staffId: staff.id },
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
         }),
-    }), [staff.id]);
+        begin: (monitor) => {
+            postMessage({ type: 'staff-drag-start', staff: { id: staff.id, name: staff.name, avatar: staff.avatar }, x: monitor.getClientOffset()?.x, y: monitor.getClientOffset()?.y });
+        },
+        end: () => {
+            postMessage({ type: 'staff-drag-end' });
+        }
+    }), [staff.id, staff.name, staff.avatar, postMessage]);
 
+    const handleExternalDrag = (e: React.DragEvent) => {
+      postMessage({ type: 'staff-drag-move', x: e.clientX, y: e.clientY });
+    }
 
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.TASK_BUNDLE,
@@ -108,7 +119,12 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
     
     return (
         <div 
-            ref={(node) => dragStaff(drop(node))}
+            ref={(node) => {
+                dragStaff(node);
+                drop(node);
+            }}
+            draggable="true"
+            onDrag={handleExternalDrag}
             className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all cursor-pointer hover:bg-muted/50",
                 isOver && canDrop && "ring-2 ring-primary bg-primary/10",
                 isOver && !canDrop && "ring-2 ring-destructive bg-destructive/10",
