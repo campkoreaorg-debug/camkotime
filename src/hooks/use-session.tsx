@@ -3,7 +3,7 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, writeBatch, getDocs } from 'firebase/firestore';
 import type { Session } from '@/lib/types';
 import { useToast } from './use-toast';
 
@@ -13,6 +13,7 @@ interface SessionContextType {
   setSessionId: (id: string) => void;
   isLoading: boolean;
   updateSessionName: (id: string, newName: string) => void;
+  importDataFromSession: (sourceSessionId: string) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -36,13 +37,11 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   });
 
   useEffect(() => {
-    // If there's no session ID, but sessions have loaded, default to the first one.
     if (!sessionId && sessions && sessions.length > 0) {
       const firstId = sessions[0].id;
       setSessionIdState(firstId);
       localStorage.setItem('activeSessionId', firstId);
     }
-     // If the selected session ID is no longer valid, reset it.
     if (sessionId && sessions && !sessions.some(s => s.id === sessionId)) {
         const firstId = sessions.length > 0 ? sessions[0].id : null;
         setSessionIdState(firstId);
@@ -58,7 +57,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const setSessionId = (id: string) => {
     setSessionIdState(id);
     localStorage.setItem('activeSessionId', id);
-    // Reload to ensure all components refetch data with the new session ID
     window.location.reload(); 
   };
 
@@ -72,12 +70,38 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: '성공', description: '차수 이름이 업데이트되었습니다.'});
   };
 
+  const importDataFromSession = async (sourceSessionId: string) => {
+    if (!firestore || !sessionId || !sourceSessionId) return;
+
+    const collectionsToCopy = ['venue', 'staff', 'roles', 'schedules', 'maps', 'markers'];
+    const batch = writeBatch(firestore);
+
+    for (const collectionName of collectionsToCopy) {
+      const sourceColRef = collection(firestore, 'sessions', sourceSessionId, collectionName);
+      const targetColRef = collection(firestore, 'sessions', sessionId, collectionName);
+
+      // Clear target collection first
+      const existingDocs = await getDocs(targetColRef);
+      existingDocs.forEach(doc => batch.delete(doc.ref));
+
+      // Copy from source to target
+      const sourceDocs = await getDocs(sourceColRef);
+      sourceDocs.forEach(d => {
+        const newDocRef = doc(targetColRef, d.id);
+        batch.set(newDocRef, d.data());
+      });
+    }
+
+    await batch.commit();
+  };
+
+
   const sortedSessions = useMemo(() => {
     return sessions ? [...sessions].sort((a, b) => a.id.localeCompare(b.id)) : [];
   }, [sessions]);
 
   return (
-    <SessionContext.Provider value={{ sessions: sortedSessions, sessionId, setSessionId, isLoading: sessionsLoading, updateSessionName }}>
+    <SessionContext.Provider value={{ sessions: sortedSessions, sessionId, setSessionId, isLoading: sessionsLoading, updateSessionName, importDataFromSession }}>
       {children}
     </SessionContext.Provider>
   );
