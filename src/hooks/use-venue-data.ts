@@ -458,6 +458,25 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         deleteDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', templateId));
     }
 
+    const importScheduleTemplates = async (templates: {name: string, tasks: string}[]) => {
+        if (!firestore || !sessionId) return;
+        const batch = writeBatch(firestore);
+        
+        templates.forEach(template => {
+            const newId = `template-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const tasksArray = template.tasks.split(';').map(t => ({ event: t.trim() })).filter(t => t.event);
+            const newTemplate = {
+                id: newId,
+                name: template.name,
+                tasks: tasksArray,
+            };
+            const docRef = doc(firestore, 'sessions', sessionId, 'scheduleTemplates', newId);
+            batch.set(docRef, newTemplate);
+        });
+
+        await batch.commit();
+    };
+
 
   return {
     data: localData,
@@ -486,6 +505,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     addScheduleTemplate,
     updateScheduleTemplate,
     deleteScheduleTemplate,
+    importScheduleTemplates,
   };
 };
 

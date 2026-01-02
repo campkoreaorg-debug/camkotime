@@ -1,7 +1,8 @@
+
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Edit } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Plus, Trash2, Edit, Download, Upload } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
@@ -12,10 +13,12 @@ import { Label } from '../ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
 import { ScheduleTemplate } from '@/lib/types';
+import Papa from 'papaparse';
 
 export function AllRolesPanel() {
-    const { data, addScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate } = useVenueData();
+    const { data, addScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate, importScheduleTemplates } = useVenueData();
     const { toast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -94,6 +97,61 @@ export function AllRolesPanel() {
         setIsDeleteAlertOpen(false);
         setTemplateToDelete(null);
     };
+    
+    const handleDownload = () => {
+        if (!data?.scheduleTemplates || data.scheduleTemplates.length === 0) {
+            toast({ variant: 'destructive', title: '데이터 없음', description: '다운로드할 직책 템플릿이 없습니다.'});
+            return;
+        }
+
+        const csvData = data.scheduleTemplates.map(template => ({
+            name: template.name,
+            tasks: (template.tasks || []).map(t => t.event).join('; ')
+        }));
+
+        const csv = Papa.unparse(csvData);
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `직책_템플릿.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast({ title: '다운로드 완료', description: '직책 템플릿이 다운로드되었습니다.'});
+    };
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const requiredFields = ['name', 'tasks'];
+                const headers = results.meta.fields || [];
+                if (!requiredFields.every(field => headers.includes(field))) {
+                    toast({ variant: 'destructive', title: 'CSV 형식 오류', description: 'CSV 파일에 name과 tasks 컬럼이 모두 필요합니다.' });
+                    return;
+                }
+                
+                const templatesToImport = results.data as {name: string, tasks: string}[];
+                
+                try {
+                    await importScheduleTemplates(templatesToImport);
+                    toast({ title: '업로드 성공', description: `${templatesToImport.length}개의 직책이 성공적으로 추가/업데이트되었습니다.` });
+                } catch(e) {
+                    toast({ variant: 'destructive', title: '업로드 실패', description: '직책을 업로드하는 중 오류가 발생했습니다.'});
+                }
+            },
+            error: (error) => {
+                 toast({ variant: 'destructive', title: 'CSV 파싱 오류', description: error.message });
+            }
+        });
+
+        if(fileInputRef.current) fileInputRef.current.value = "";
+    };
 
     return (
         <Card>
@@ -104,7 +162,12 @@ export function AllRolesPanel() {
                         여기서 생성/수정한 직책은 모든 날짜에서 불러와 사용할 수 있는 템플릿입니다.
                     </CardDescription>
                 </div>
-                <Button variant="outline" onClick={handleOpenCreateModal}><Plus className="mr-2 h-4 w-4" />직책 생성</Button>
+                <div className="flex items-center gap-2">
+                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".csv" />
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>엑셀 업로드</Button>
+                    <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />엑셀 다운로드</Button>
+                    <Button variant="outline" onClick={handleOpenCreateModal}><Plus className="mr-2 h-4 w-4" />직책 생성</Button>
+                </div>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-72">
