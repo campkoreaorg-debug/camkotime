@@ -490,9 +490,11 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
             <Image
               src={finalMapImageUrl}
               alt="Venue Map"
-              fill
+              width={1600}
+              height={900}
               sizes="90vw" 
               className="object-contain pointer-events-none"
+              style={{ width: '100%', height: 'auto' }}
               priority
             />
           ) : (
@@ -514,5 +516,3 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     </div>
   );
 }
-
-    
