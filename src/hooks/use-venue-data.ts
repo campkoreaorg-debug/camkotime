@@ -15,6 +15,7 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
+  getDoc,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Session } from '@/lib/types';
@@ -347,11 +348,28 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       console.error("🔥 DB 업로드 중 에러 발생:", error);
   }
 }
+
+  const unassignRoleFromStaff = async (staffId: string, roleName: string, day: number, time: string) => {
+    if (!firestore || !sessionId) return;
+    const q = query(
+      collection(firestore, 'sessions', sessionId, 'schedules'),
+      where('day', '==', day),
+      where('time', '==', time),
+      where('roleName', '==', roleName),
+      where('staffIds', 'array-contains', staffId)
+    );
+    const scheduleSnapshot = await getDocs(q);
+    const batch = writeBatch(firestore);
+    scheduleSnapshot.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+  }
   
   const addTasksToRole = (roleId: string, tasks: ScheduleTemplate[]) => {
     if(!firestore || !sessionId) return;
     updateDoc(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
-        tasks: arrayUnion(...tasks)
+        tasks: arrayUnion(...tasks.map(t => ({...t, isCompleted: false})))
     });
   }
 
@@ -360,6 +378,21 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     updateDoc(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
         tasks: arrayRemove(task)
     });
+  };
+
+  const toggleTaskCompletion = async (roleId: string, task: ScheduleTemplate) => {
+      if(!firestore || !sessionId) return;
+      const roleRef = doc(firestore, 'sessions', sessionId, 'roles', roleId);
+      const roleSnap = await getDoc(roleRef);
+      if (roleSnap.exists()) {
+          const roleData = roleSnap.data() as Role;
+          const newTasks = roleData.tasks.map(t => 
+              t.event === task.event && t.location === task.location
+              ? { ...t, isCompleted: !t.isCompleted }
+              : t
+          );
+          await updateDoc(roleRef, { tasks: newTasks });
+      }
   }
 
   const updateMapImage = async (day: number, time: string, file: File): Promise<string | null> => {
@@ -440,8 +473,10 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     updateRoleOrder,
     importRolesFromOtherDays,
     assignTasksToStaff,
+    unassignRoleFromStaff,
     addTasksToRole,
     removeTaskFromRole,
+    toggleTaskCompletion,
     isLoading: isLoading, 
     updateMarkerPosition,
     addMarker,

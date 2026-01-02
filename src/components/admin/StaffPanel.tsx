@@ -52,15 +52,15 @@ interface StaffMemberCardProps {
   staff: StaffMember;
   index: number;
   isScheduled: boolean;
-  assignedRoleName: string | null;
+  assignedRoles: string[];
   selectedSlot: { day: number, time: string } | null;
   onStaffSelect: (staffId: string) => void;
   isSelected: boolean;
 }
 
 
-const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selectedSlot, onStaffSelect, isSelected }: StaffMemberCardProps) => {
-    const { deleteStaff, assignTasksToStaff } = useVenueData();
+const StaffMemberCard = ({ staff, index, isScheduled, assignedRoles, selectedSlot, onStaffSelect, isSelected }: StaffMemberCardProps) => {
+    const { deleteStaff, assignTasksToStaff, unassignRoleFromStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
 
@@ -104,6 +104,16 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
         })
       setIsAlertOpen(false);
     };
+
+    const handleUnassignRole = (e: React.MouseEvent, roleName: string) => {
+        e.stopPropagation();
+        if (!selectedSlot) return;
+        unassignRoleFromStaff(staff.id, roleName, selectedSlot.day, selectedSlot.time);
+         toast({
+            title: "직책 배정 취소",
+            description: `${staff.name}님의 '${roleName}' 직책이 취소되었습니다.`
+        });
+    }
     
     return (
         <div 
@@ -127,13 +137,18 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
                 <AvatarImage src={staff.avatar} alt={staff.name} />
                 <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
             </Avatar>
-            <div className='flex-1'>
+            <div className='flex-1 flex flex-col items-center'>
                 <p className="font-semibold text-sm">{staff.name}</p>
-                 {assignedRoleName ? (
-                    <Badge variant="secondary" className="mt-1 font-normal">{assignedRoleName}</Badge>
-                 ) : (
-                    <div className='h-6 mt-1'/> 
-                 )}
+                 <div className='mt-1 space-y-1 flex flex-col items-center min-h-[24px]'>
+                     {assignedRoles.map(roleName => (
+                         <Badge key={roleName} variant="secondary" className="font-normal group/badge relative">
+                             {roleName}
+                             <button onClick={(e) => handleUnassignRole(e, roleName)} className='absolute -right-1 -top-1 bg-muted-foreground text-background rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/badge:opacity-100'>
+                                 <X className='h-3 w-3' />
+                             </button>
+                         </Badge>
+                     ))}
+                 </div>
             </div>
             <Button
                 variant="ghost"
@@ -175,17 +190,20 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
   const [isGridOpen, setIsGridOpen] = useState(true);
 
   const scheduledStaffInfo = useMemo(() => {
-    if (!data || !selectedSlot) return { ids: new Set<string>(), roles: new Map<string, string>() };
+    if (!data || !selectedSlot) return { ids: new Set<string>(), roles: new Map<string, string[]>() };
     
     const ids = new Set<string>();
-    const roles = new Map<string, string>();
+    const roles = new Map<string, string[]>();
 
     (data.schedule || []).forEach(s => {
         if (s.day === selectedSlot.day && s.time === selectedSlot.time) {
             (s.staffIds || []).forEach(staffId => {
                 ids.add(staffId);
-                if (s.roleName && !roles.has(staffId)) {
-                    roles.set(staffId, s.roleName);
+                if (s.roleName) {
+                    const currentRoles = roles.get(staffId) || [];
+                    if (!currentRoles.includes(s.roleName)) {
+                        roles.set(staffId, [...currentRoles, s.roleName]);
+                    }
                 }
             });
         }
@@ -395,7 +413,7 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
                             staff={s} 
                             index={index} 
                             isScheduled={scheduledStaffInfo.ids.has(s.id)}
-                            assignedRoleName={scheduledStaffInfo.roles.get(s.id) || null}
+                            assignedRoles={scheduledStaffInfo.roles.get(s.id) || []}
                             selectedSlot={selectedSlot}
                             onStaffSelect={onStaffSelect}
                             isSelected={selectedStaffId === s.id}

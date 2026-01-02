@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download, ArrowDown, ArrowUp } from 'lucide-react';
+import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download, ArrowDown, ArrowUp, CheckCircle2 } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -112,7 +112,7 @@ interface RolePanelProps {
 }
 
 function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePanelProps) {
-    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles, updateRoleOrder, importRolesFromOtherDays } = useVenueData();
+    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles, updateRoleOrder, importRolesFromOtherDays, toggleTaskCompletion } = useVenueData();
     const { toast } = useToast();
 
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
@@ -178,7 +178,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
             if (exists) {
                 return prev.filter(t => t.event !== task.event);
             } else {
-                return [...prev, task];
+                return [...prev, { ...task }];
             }
         });
     };
@@ -210,6 +210,11 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
         if (!selectedRole) return;
         removeTaskFromRole(selectedRole.id, task);
     };
+
+    const handleToggleCompletion = (task: ScheduleTemplate) => {
+        if (!selectedRole || !selectedSlot) return;
+        toggleTaskCompletion(selectedRole.id, task);
+    }
     
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -430,13 +435,23 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                                                         >
                                                             <div className="flex items-center gap-2">
                                                                 <Checkbox checked={isSelected} className='shrink-0'/>
-                                                                <div>
+                                                                <div className={cn(task.isCompleted && 'line-through text-muted-foreground')}>
                                                                     <span>{task.event}</span> {task.location && `(${task.location})`}
                                                                 </div>
                                                             </div>
-                                                            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleRemoveTask(task);}}>
-                                                                <Trash className="h-3 w-3" />
-                                                            </Button>
+                                                            <div className="flex items-center gap-1">
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    variant={task.isCompleted ? "secondary" : "outline"} 
+                                                                    className="h-6 px-2 text-xs"
+                                                                    onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task); }}
+                                                                >
+                                                                    {task.isCompleted ? '완료취소' : '완료'}
+                                                                </Button>
+                                                                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleRemoveTask(task);}}>
+                                                                    <Trash className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
                                                         </div>
                                                     )
                                                 })}

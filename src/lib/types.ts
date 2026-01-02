@@ -8,6 +8,7 @@ export interface Session {
 export interface ScheduleTemplate {
   event: string;
   location?: string;
+  isCompleted?: boolean;
 }
 
 export interface Role {
