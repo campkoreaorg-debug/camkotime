@@ -13,11 +13,20 @@ import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { timeSlots, useVenueData } from '@/hooks/use-venue-data';
+import { useVenueData } from '@/hooks/use-venue-data';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
 const days = [0, 1, 2, 3];
+export const timeSlots = (() => {
+  const slots = [];
+  for (let h = 7; h < 24; h++) {
+    slots.push(`${String(h).padStart(2, '0')}:00`);
+    slots.push(`${String(h).padStart(2, '0')}:30`);
+  }
+  slots.push('00:00');
+  return slots;
+})();
 
 export default function AdminPage() {
   const router = useRouter();
@@ -177,3 +186,5 @@ export default function AdminPage() {
     </DndProvider>
   );
 }
+
+    

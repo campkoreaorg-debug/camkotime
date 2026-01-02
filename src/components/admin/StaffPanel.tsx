@@ -27,6 +27,7 @@ import {
   } from "@/components/ui/collapsible"
 import { cn } from '@/lib/utils';
 import { useDrop, DropTargetMonitor } from 'react-dnd';
+import { Input } from '../ui/input';
 
 interface PendingStaff {
     key: string;
@@ -113,7 +114,7 @@ const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                     <AlertDialogCancel>취소</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className='bg-destructive hover:bg-destructive/90'>삭제</AlertDialogAction>
+                    <AlertDialogAction onClick={handleDelete} variant="destructive">삭제</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -255,7 +256,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
             <div className='space-y-1.5'>
                 <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
                 <CardDescription>
-                    총 <Badge variant="secondary">{data?.staff.length || 0}</Badge>명의 스태프. 직책에서 업무를 드래그하여 할당하세요.
+                    총 <Badge variant="secondary">{data?.staff.length || 0}</Badge>명의 스태프.
                 </CardDescription>
             </div>
             <div className='flex items-center gap-2'>
@@ -334,3 +335,6 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
     </Card>
   );
 }
+
+
+    

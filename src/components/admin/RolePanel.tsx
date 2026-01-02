@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useMemo, useRef } from 'react';
-import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -13,7 +13,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
-import { ScheduleTemplate, Role } from '@/lib/types';
+import { Role, ScheduleTemplate } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
 import { useDrag } from 'react-dnd';
 import { ItemTypes } from './StaffPanel';
@@ -55,12 +55,11 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
 
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
     const [isDeleteRoleAlertOpen, setIsDeleteRoleAlertOpen] = useState(false);
-    const [isTaskSelectorOpen, setIsTaskSelectorOpen] = useState(false);
     
     const [newRoleName, setNewRoleName] = useState('');
     const [manualTask, setManualTask] = useState('');
     
-    const [roleToModify, setRoleToModify] = useState<Role | null>(null);
+    const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
     const [selectedTasks, setSelectedTasks] = useState<ScheduleTemplate[]>([]);
 
@@ -77,11 +76,15 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
         setManualTask('');
     };
 
-    const handleOpenTaskSelector = (role: Role) => {
-        setRoleToModify(role);
-        setSelectedTasks([]);
-        setIsTaskSelectorOpen(true);
-    };
+    const handleSelectRole = (role: Role) => {
+        if(selectedRole?.id === role.id){
+            setSelectedRole(null);
+            setSelectedTasks([]);
+        } else {
+            setSelectedRole(role);
+            setSelectedTasks([]);
+        }
+    }
 
     const handleToggleTask = (task: ScheduleTemplate) => {
         setSelectedTasks(prev => {
@@ -101,6 +104,10 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
 
     const handleDeleteRole = () => {
         if (roleToDelete) {
+            if (selectedRole?.id === roleToDelete.id) {
+                setSelectedRole(null);
+                setSelectedTasks([]);
+            }
             deleteRole(roleToDelete.id);
             toast({ title: '삭제 완료', description: `'${roleToDelete.name}' 직책이 삭제되었습니다.` });
         }
@@ -109,14 +116,14 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
     };
 
     const handleAddTask = () => {
-        if (!manualTask.trim() || !roleToModify) return;
-        addTasksToRole(roleToModify.id, [{ event: manualTask }]);
+        if (!manualTask.trim() || !selectedRole) return;
+        addTasksToRole(selectedRole.id, [{ event: manualTask }]);
         setManualTask('');
     };
 
     const handleRemoveTask = (task: ScheduleTemplate) => {
-        if (!roleToModify) return;
-        removeTaskFromRole(roleToModify.id, task);
+        if (!selectedRole) return;
+        removeTaskFromRole(selectedRole.id, task);
     };
 
     if (!data) {
@@ -133,12 +140,12 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
     }
 
     return (
-        <Card>
+        <Card className='xl:col-span-2'>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                    <CardTitle className="font-headline text-xl font-semibold">직책 관리</CardTitle>
+                    <CardTitle className="font-headline text-xl font-semibold">직책 및 업무 할당</CardTitle>
                     <CardDescription>
-                        총 <Badge variant="secondary">{data.roles?.length || 0}</Badge>개의 직책. 클릭하여 업무를 선택하고 할당하세요.
+                        직책을 선택하여 업무를 할당하세요. 총 <Badge variant="secondary">{data.roles?.length || 0}</Badge>개의 직책.
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -146,33 +153,118 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
                 </div>
             </CardHeader>
             <CardContent>
-                {data.roles && data.roles.length > 0 ? (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-                        {data.roles.map(role => (
-                            <div key={role.id}
-                                 className="group p-3 rounded-md border bg-card flex flex-col justify-between cursor-pointer min-h-[100px] hover:shadow-md hover:border-primary"
-                                 onClick={() => handleOpenTaskSelector(role)}
-                            >
-                                <div className="flex justify-between items-start">
-                                    <div className="flex items-start gap-3 flex-1">
-                                        <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-                                        <div className="flex-1">
-                                            <p className="font-semibold text-sm truncate">{role.name}</p>
-                                            <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left Column: Role List */}
+                    <div>
+                        <h3 className="font-semibold text-md mb-2">1. 직책 선택</h3>
+                        {data.roles && data.roles.length > 0 ? (
+                             <ScrollArea className="h-96 pr-4">
+                                <div className="space-y-2">
+                                    {data.roles.map(role => (
+                                        <div key={role.id}
+                                            className={cn(
+                                                "group p-3 rounded-md border bg-card flex justify-between items-start cursor-pointer transition-all hover:shadow-md",
+                                                selectedRole?.id === role.id ? "border-primary shadow-md" : "hover:border-primary/50"
+                                            )}
+                                            onClick={() => handleSelectRole(role)}
+                                        >
+                                            <div className="flex items-start gap-3 flex-1">
+                                                <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                                                <div className="flex-1">
+                                                    <p className="font-semibold text-sm truncate">{role.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
+                                                </div>
+                                            </div>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer shrink-0" onClick={(e) => {e.stopPropagation(); openDeleteRoleDialog(role)}}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
                                         </div>
-                                    </div>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 cursor-pointer shrink-0" onClick={(e) => {e.stopPropagation(); openDeleteRoleDialog(role)}}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    ))}
                                 </div>
+                            </ScrollArea>
+                        ) : (
+                            <div className="text-center text-muted-foreground py-10 border rounded-lg">
+                                <p>생성된 직책이 없습니다.</p>
                             </div>
-                        ))}
+                        )}
                     </div>
-                ) : (
-                    <div className="text-center text-muted-foreground py-10">
-                        <p>생성된 직책이 없습니다.</p>
+                    
+                    {/* Right Column: Task List & Draggable Bundle */}
+                    <div>
+                        <h3 className="font-semibold text-md mb-2">2. 업무 선택 후 스태프에게 드래그</h3>
+                         <div className="p-4 border rounded-lg h-96 flex flex-col">
+                            {selectedRole ? (
+                                <div className='space-y-4 h-full flex flex-col'>
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="font-bold text-primary">{selectedRole.name}</h4>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedRole(null)}>
+                                            <X className="h-4 w-4"/>
+                                        </Button>
+                                    </div>
+                                    <div className="flex gap-2 items-center">
+                                        <Input 
+                                            placeholder="새 업무 추가 (Enter로 등록)" 
+                                            value={manualTask}
+                                            onChange={(e) => setManualTask(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    handleAddTask();
+                                                }
+                                            }}
+                                        />
+                                        <Button size="icon" variant="ghost" onClick={handleAddTask}>
+                                            <PlusCircle className="h-5 w-5" />
+                                        </Button>
+                                    </div>
+                                    <ScrollArea className="flex-grow pr-2">
+                                        {selectedRole.tasks && selectedRole.tasks.length > 0 ? (
+                                            <div className="space-y-1">
+                                                {selectedRole.tasks.map((task, index) => {
+                                                    const isSelected = selectedTasks.some(t => t.event === task.event);
+                                                    return (
+                                                        <div 
+                                                            key={index}
+                                                            className={cn(
+                                                                "p-1.5 border rounded-md text-xs cursor-pointer flex items-center justify-between gap-2",
+                                                                isSelected ? 'bg-primary/20 border-primary' : 'bg-background'
+                                                            )}
+                                                            onClick={() => handleToggleTask(task)}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <Checkbox checked={isSelected} className='shrink-0'/>
+                                                                <div>
+                                                                    <span>{task.event}</span> {task.location && `(${task.location})`}
+                                                                </div>
+                                                            </div>
+                                                            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleRemoveTask(task);}}>
+                                                                <Trash className="h-3 w-3" />
+                                                            </Button>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-center h-full text-muted-foreground">
+                                                <p>추가된 업무가 없습니다.</p>
+                                            </div>
+                                        )}
+                                    </ScrollArea>
+                                    
+                                    {selectedRole && selectedTasks.length > 0 && (
+                                        <div className='flex flex-col items-center gap-2 pt-2 border-t'>
+                                            <DraggableTaskBundle role={selectedRole} selectedTasks={selectedTasks} />
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                                    <p className="text-sm">왼쪽에서 직책을 선택하여<br/>업무를 할당하세요.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                )}
+                </div>
             </CardContent>
 
             <Dialog open={isCreateRoleModalOpen} onOpenChange={setIsCreateRoleModalOpen}>
@@ -200,75 +292,6 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isTaskSelectorOpen} onOpenChange={setIsTaskSelectorOpen}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>{roleToModify?.name} 업무 선택</DialogTitle>
-                        <DialogDescription>
-                            현재 시간대({selectedSlot ? `Day ${selectedSlot.day} ${selectedSlot.time}` : '시간대 미선택'})에 할당할 업무를 선택하고, 아래 카드를 스태프에게 드래그하세요.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className='py-4 space-y-4'>
-                        <div className="flex gap-2 items-center p-2 border rounded-md">
-                            <Input 
-                                placeholder="새 업무 추가 (Enter로 등록)" 
-                                value={manualTask}
-                                onChange={(e) => setManualTask(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleAddTask();
-                                    }
-                                }}
-                            />
-                            <Button size="icon" variant="ghost" onClick={handleAddTask}>
-                                <PlusCircle className="h-5 w-5" />
-                            </Button>
-                        </div>
-                        <ScrollArea className="h-[220px] border rounded-lg p-2">
-                             {roleToModify && roleToModify.tasks && roleToModify.tasks.length > 0 ? (
-                                <div className="space-y-1">
-                                    {roleToModify.tasks.map((task, index) => {
-                                        const isSelected = selectedTasks.some(t => t.event === task.event);
-                                        return (
-                                            <div 
-                                                key={index}
-                                                className={cn(
-                                                    "p-1.5 border rounded-md text-xs cursor-pointer flex items-center justify-between gap-2",
-                                                    isSelected ? 'bg-primary/20 border-primary' : 'bg-background'
-                                                )}
-                                                onClick={() => handleToggleTask(task)}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <Checkbox checked={isSelected} className='shrink-0'/>
-                                                    <div>
-                                                        <span>{task.event}</span> {task.location && `(${task.location})`}
-                                                    </div>
-                                                </div>
-                                                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleRemoveTask(task);}}>
-                                                    <Trash className="h-3 w-3" />
-                                                </Button>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    <p>추가된 업무가 없습니다.</p>
-                                </div>
-                            )}
-                        </ScrollArea>
-                        
-                        {roleToModify && selectedTasks.length > 0 && (
-                            <div className='flex flex-col items-center gap-2'>
-                                <p className='text-sm text-muted-foreground'>아래 카드를 스태프 위로 드래그하여 업무를 할당하세요.</p>
-                                <DraggableTaskBundle role={roleToModify} selectedTasks={selectedTasks} />
-                            </div>
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
-
             <AlertDialog open={isDeleteRoleAlertOpen} onOpenChange={setIsDeleteRoleAlertOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -286,5 +309,7 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
         </Card>
     );
 }
+
+    
 
     
