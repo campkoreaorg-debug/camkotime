@@ -13,7 +13,6 @@ import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useVenueData } from '@/hooks/use-venue-data';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
@@ -32,7 +31,6 @@ export default function AdminPage() {
   const router = useRouter();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
-  const { setSelectedSlot: setGlobalSlot } = useVenueData();
 
   const [isLinked, setIsLinked] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
@@ -51,9 +49,8 @@ export default function AdminPage() {
     const slotToSave = selectedSlot;
     if (slotToSave) {
       localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(slotToSave));
-      setGlobalSlot(slotToSave);
     }
-  }, [selectedSlot, setGlobalSlot]);
+  }, [selectedSlot]);
 
   useEffect(() => {
     const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
@@ -186,5 +183,3 @@ export default function AdminPage() {
     </DndProvider>
   );
 }
-
-    

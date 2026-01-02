@@ -33,7 +33,6 @@ export const useVenueData = () => {
 
   const [localData, setLocalData] = useState<VenueData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedSlot, setSelectedSlot] = useState<{ day: number, time: string} | null>(null);
 
   const venueRef = useMemoFirebase(() => (firestore ? doc(firestore, 'venues', VENUE_ID) : null), [firestore]);
   const staffColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'staff') : null), [firestore]);
@@ -194,25 +193,54 @@ export const useVenueData = () => {
     deleteDoc(doc(firestore, 'venues', VENUE_ID, 'roles', roleId));
   };
 
-  const assignTasksToStaff = (staffId: string, tasks: ScheduleTemplate[]) => {
-    if (!firestore || !selectedSlot) return;
+ const assignTasksToStaff = async (
+  staffId: string,
+  tasks: ScheduleTemplate[], 
+  day: number,
+  time: string
+) => {
+  if (!firestore) return;
 
-    const { day, time } = selectedSlot;
-    const batch = writeBatch(firestore);
-    tasks.forEach(task => {
-        const newScheduleId = `sch-${staffId}-${day}-${time}-${Math.random().toString(36).substr(2, 5)}`;
-        const scheduleItem: ScheduleItem = {
-            id: newScheduleId,
-            day,
-            time,
-            event: task.event,
-            location: task.location || '',
-            staffIds: [staffId]
-        };
-        batch.set(doc(firestore, 'venues', VENUE_ID, 'schedules', newScheduleId), scheduleItem);
-    });
-    batch.commit();
+  // 1. 필수 값 검증
+  if (!staffId) {
+      console.error("⛔ [배정 실패] Staff ID가 누락되었습니다. 누구에게 배정할지 모릅니다.");
+      return; 
   }
+
+  if (day === undefined || !time) {
+      console.error("⛔ [배정 실패] 날짜(Day) 또는 시간(Time)이 누락되었습니다.");
+      return;
+  }
+
+  // 2. 들어오는 데이터 확인 (개발자 도구 콘솔 확인용)
+  console.log(`🚀 배정 시작: Staff[${staffId}]에게 ${tasks.length}개의 업무를 Day[${day}] Time[${time}]에 배정합니다.`);
+
+  try {
+      const batch = writeBatch(firestore);
+      
+      tasks.forEach(task => {
+          const newScheduleId = `sch-${staffId}-${day}-${time.replace(':','')}-${Math.random().toString(36).substr(2, 5)}`;
+          
+          const scheduleItem: ScheduleItem = {
+              id: newScheduleId,
+              day,
+              time,
+              event: task.event,
+              location: task.location || '',
+              staffIds: [staffId]
+          };
+
+          const docRef = doc(firestore, 'venues', VENUE_ID, 'schedules', newScheduleId);
+          batch.set(docRef, scheduleItem);
+      });
+      
+      await batch.commit();
+      console.log("✅ DB 업로드 성공!");
+      
+  } catch (error) {
+      console.error("🔥 DB 업로드 중 에러 발생:", error);
+  }
+}
   
   const addTasksToRole = (roleId: string, tasks: ScheduleTemplate[]) => {
     if(!firestore) return;
@@ -309,7 +337,6 @@ export const useVenueData = () => {
     addMarker,
     deleteMarker,
     updateNotification,
-    setSelectedSlot
   };
 };
 

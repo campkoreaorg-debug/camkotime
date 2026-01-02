@@ -46,8 +46,15 @@ interface TaskBundle {
     tasks: ScheduleTemplate[];
 }
 
+interface StaffMemberCardProps {
+  staff: StaffMember;
+  index: number;
+  isScheduled: boolean;
+  selectedSlot: { day: number; time: string };
+}
 
-const StaffMemberCard = ({ staff, index, isScheduled }: { staff: StaffMember, index: number, isScheduled: boolean }) => {
+
+const StaffMemberCard = ({ staff, index, isScheduled, selectedSlot }: StaffMemberCardProps) => {
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -55,17 +62,25 @@ const StaffMemberCard = ({ staff, index, isScheduled }: { staff: StaffMember, in
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.TASK_BUNDLE,
         drop: (item: TaskBundle) => {
-            assignTasksToStaff(staff.id, item.tasks);
-            toast({
-                title: '업무 할당됨',
-                description: `${staff.name}님에게 '${item.roleName}' 직책의 ${item.tasks.length}개 업무가 할당되었습니다.`,
-            });
+            if (selectedSlot) {
+                assignTasksToStaff(staff.id, item.tasks, selectedSlot.day, selectedSlot.time);
+                toast({
+                    title: '업무 할당됨',
+                    description: `${staff.name}님에게 '${item.roleName}' 직책의 ${item.tasks.length}개 업무가 할당되었습니다.`,
+                });
+            } else {
+                 toast({
+                    variant: 'destructive',
+                    title: '시간대 오류',
+                    description: `시간대가 선택되지 않아 업무를 할당할 수 없습니다.`,
+                });
+            }
         },
         collect: (monitor: DropTargetMonitor) => ({
             isOver: !!monitor.isOver(),
             canDrop: !!monitor.canDrop(),
         }),
-    }), [staff.id]);
+    }), [staff.id, selectedSlot, assignTasksToStaff, toast]);
 
 
     const handleDelete = () => {
@@ -137,7 +152,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
   const scheduledStaffIds = useMemo(() => {
     if (!data || !selectedSlot) return new Set();
     return new Set(
-        data.schedule
+        (data.schedule || [])
             .filter(s => s.day === selectedSlot.day && s.time === selectedSlot.time)
             .flatMap(s => s.staffIds)
     );
@@ -247,7 +262,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
 
   const canRegister = pendingStaff.length > 0 && pendingStaff.every(p => p.name.trim() !== '');
 
-  if (isLoading || !data) {
+  if (isLoading || !data || !selectedSlot) {
     return (
         <Card>
             <CardHeader>
@@ -329,7 +344,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
                 {data && data.staff.length > 0 ? (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.28),1fr))] gap-4 p-1">
                     {data.staff.map((s, index) => (
-                        <StaffMemberCard key={s.id} staff={s} index={index} isScheduled={scheduledStaffIds.has(s.id)} />
+                        <StaffMemberCard key={s.id} staff={s} index={index} isScheduled={scheduledStaffIds.has(s.id)} selectedSlot={selectedSlot} />
                     ))}
                     </div>
                 ) : (
