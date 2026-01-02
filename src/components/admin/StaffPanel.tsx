@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { StaffMember, ScheduleTemplate, ScheduleItem } from '@/lib/types';
+import type { StaffMember, ScheduleTemplate } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -56,7 +56,7 @@ interface StaffMemberCardProps {
 }
 
 
-const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName }: StaffMemberCardProps) => {
+const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selectedSlot }: StaffMemberCardProps) => {
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
