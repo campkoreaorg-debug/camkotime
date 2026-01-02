@@ -3,87 +3,78 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense, useCallback } from 'react';
-import { timeSlots as defaultTimeSlots } from '@/hooks/use-venue-data';
-import { Loader2, Database, Link as LinkIcon } from 'lucide-react';
+import { Loader2, Database, Link as LinkIcon, User } from 'lucide-react';
 import { useUser } from '@/firebase';
-import { DndProvider } from 'react-dnd';
+import { DndProvider, useDrag } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { MapPanel } from '@/components/admin/MapPanel';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { SessionProvider, useSession } from '@/hooks/use-session';
-import { useBroadcastChannel } from '@/hooks/use-broadcast-channel';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import type { StaffMember } from '@/lib/types';
+import { ItemTypes } from '@/components/admin/StaffPanel';
 
-interface DragState {
-  staff: { id: string; name: string; avatar: string; };
-  x: number;
-  y: number;
-}
+const DraggableStaffItem = ({ staff }: { staff: StaffMember }) => {
+    const [{ isDragging }, drag] = useDrag(() => ({
+        type: ItemTypes.STAFF,
+        item: { staffId: staff.id },
+        collect: (monitor) => ({
+            isDragging: !!monitor.isDragging(),
+        }),
+    }));
+
+    return (
+        <div
+            ref={drag}
+            className={cn(
+                "flex flex-col items-center gap-1 p-2 rounded-md border bg-card cursor-grab",
+                isDragging && "opacity-50"
+            )}
+        >
+            <Avatar className="h-10 w-10">
+                <AvatarImage src={staff.avatar} alt={staff.name} />
+                <AvatarFallback><User className="h-5 w-5" /></AvatarFallback>
+            </Avatar>
+            <p className="text-xs font-medium truncate">{staff.name}</p>
+        </div>
+    );
+};
+
 
 function MapContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sid = searchParams.get('sid');
   
-  const { data, isLoading, addMarker } = useVenueData(sid); 
+  const { data, isLoading } = useVenueData(sid); 
   const { user, isUserLoading } = useUser();
 
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
   const [isLinked, setIsLinked] = useState(true);
-  const [dragState, setDragState] = useState<DragState | null>(null);
-
-
-  const handleMessage = useCallback((message: any) => {
-    if (message.type === 'staff-drag-start') {
-      setDragState({ staff: message.staff, x: message.x, y: message.y });
-    } else if (message.type === 'staff-drag-move') {
-      if (dragState) {
-        setDragState(prev => prev ? { ...prev, x: message.x, y: message.y } : null);
-      }
-    } else if (message.type === 'staff-drag-end') {
-      setDragState(null);
-    }
-  }, [dragState]);
-
-  useBroadcastChannel('venue-sync', handleMessage);
-  
-  const handleDrop = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    if (dragState && selectedSlot) {
-      const mapElement = document.getElementById('map-container-droppable');
-      if (mapElement) {
-        const rect = mapElement.getBoundingClientRect();
-        const x = ((e.clientX - rect.left) / rect.width) * 100;
-        const y = ((e.clientY - rect.top) / rect.height) * 100;
-
-        addMarker(dragState.staff.id, selectedSlot.day, selectedSlot.time, x, y);
-      }
-    }
-    setDragState(null);
-  }, [dragState, selectedSlot, addMarker]);
-  
-  useEffect(() => {
-    window.addEventListener('dragover', e => e.preventDefault());
-    window.addEventListener('drop', handleDrop);
-    return () => {
-      window.removeEventListener('dragover', e => e.preventDefault());
-      window.removeEventListener('drop', handleDrop);
-    };
-  }, [handleDrop]);
-
 
   const updateSlotFromStorage = useCallback(() => {
     const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
     if (storedSlot) {
-        const parsedSlot = JSON.parse(storedSlot);
-        if (JSON.stringify(parsedSlot) !== JSON.stringify(selectedSlot)) {
-            setSelectedSlot(parsedSlot);
+        try {
+            const parsedSlot = JSON.parse(storedSlot);
+            if (JSON.stringify(parsedSlot) !== JSON.stringify(selectedSlot)) {
+                setSelectedSlot(parsedSlot);
+            }
+        } catch (e) {
+            console.error("Failed to parse selected slot from localStorage", e);
+            localStorage.removeItem('venueSyncSelectedSlot');
         }
+    } else if (selectedSlot === null) {
+        // Set a default if nothing is in storage and it's the initial load
+        setSelectedSlot({ day: 0, time: '07:00' });
     }
   }, [selectedSlot]);
+
 
   useEffect(() => {
       updateSlotFromStorage(); // Initial check
@@ -138,39 +129,43 @@ function MapContent() {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      {dragState && (
-        <div 
-          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2" 
-          style={{ left: dragState.x, top: dragState.y }}
-        >
-          <div className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all bg-primary/90 text-primary-foreground shadow-2xl scale-110")}>
-             <Avatar className={cn('h-12 w-12')}>
-                <AvatarImage src={dragState.staff.avatar} alt={dragState.staff.name} />
-                <AvatarFallback>{dragState.staff.name.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div className='flex-1'>
-                <p className="font-semibold text-sm">{dragState.staff.name}</p>
+      <div className="p-4 md:p-8 space-y-6 flex flex-col h-screen">
+        <header className="flex-shrink-0">
+            <div className="flex items-center justify-between mb-4">
+                <h1 className='font-headline text-2xl font-bold text-primary'>
+                    VenueSync 지도
+                </h1>
+                <div className="flex items-center space-x-2">
+                    <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
+                    <Label htmlFor="link-panels" className='flex items-center gap-2'>
+                        <LinkIcon className='h-4 w-4'/>
+                        관리자 페이지와 시간 연동
+                    </Label>
+                </div>
             </div>
-          </div>
-        </div>
-      )}
-      <div className="p-4 md:p-8 space-y-6">
-        <div className="flex items-center justify-end">
-            <div className="flex items-center space-x-2">
-                <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
-                <Label htmlFor="link-panels" className='flex items-center gap-2'>
-                    <LinkIcon className='h-4 w-4'/>
-                    관리자 페이지와 시간 연동
-                </Label>
-            </div>
-        </div>
-        <div id="map-container-droppable">
+             <Card>
+                <CardHeader>
+                    <CardTitle className="text-lg">스태프 목록</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <ScrollArea className="h-40">
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.20),1fr))] gap-3 p-1">
+                            {data.staff.map(staff => (
+                                <DraggableStaffItem key={staff.id} staff={staff} />
+                            ))}
+                        </div>
+                    </ScrollArea>
+                </CardContent>
+            </Card>
+        </header>
+
+        <main className="flex-grow min-h-0">
             <MapPanel
-            selectedSlot={selectedSlot}
-            onSlotChange={handleSlotChange}
-            isLinked={isLinked}
+                selectedSlot={selectedSlot}
+                onSlotChange={handleSlotChange}
+                isLinked={isLinked}
             />
-        </div>
+        </main>
       </div>
     </DndProvider>
   );

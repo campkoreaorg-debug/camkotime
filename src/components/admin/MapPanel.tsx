@@ -10,7 +10,7 @@ import { Button } from '../ui/button';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Input } from '../ui/input';
-import { Megaphone, MousePointerSquareDashed, ExternalLink } from 'lucide-react';
+import { Megaphone, MousePointerSquareDashed } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useDrop } from 'react-dnd';
 import { ItemTypes } from './StaffPanel';
@@ -107,7 +107,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked, children }: Map
 
     if (!data) {
         return (
-             <Card className='lg:col-span-1'>
+             <Card className='lg:col-span-1 h-full'>
                 <CardHeader>
                     <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
                 </CardHeader>
@@ -119,7 +119,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked, children }: Map
     }
 
     return (
-        <Card ref={drop} className='lg:col-span-1 relative'>
+        <Card ref={drop} className='lg:col-span-1 relative h-full flex flex-col'>
             {children ? children : (
                 <CardHeader>
                     <div className="flex justify-between items-start">
@@ -135,7 +135,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked, children }: Map
                     </div>
                 </CardHeader>
             )}
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-grow flex flex-col">
                 <div className="flex w-full items-center space-x-2">
                     <Input
                         type="text"
@@ -177,7 +177,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked, children }: Map
                     </Tabs>
                 )}
 
-                <div ref={mapRef}>
+                <div ref={mapRef} className="flex-grow min-h-0">
                     <VenueMap
                         allMarkers={data.markers}
                         allMaps={data.maps}

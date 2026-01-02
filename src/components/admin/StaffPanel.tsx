@@ -28,7 +28,6 @@ import {
 import { cn } from '@/lib/utils';
 import { useDrop, useDrag, DropTargetMonitor } from 'react-dnd';
 import { Input } from '../ui/input';
-import { useBroadcastChannel } from '@/hooks/use-broadcast-channel';
 
 interface PendingStaff {
     key: string;
@@ -64,35 +63,14 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
-    const { postMessage } = useBroadcastChannel('venue-sync');
 
     const [{ isDragging: isDraggingStaff }, dragStaff] = useDrag(() => ({
         type: ItemTypes.STAFF,
-        item: { 
-            staffId: staff.id, 
-            name: staff.name, 
-            avatar: staff.avatar 
-        },
-        end: (item, monitor) => {
-            postMessage({ type: 'staff-drag-start', staff: { id: staff.id, name: staff.name, avatar: staff.avatar } });
-            
-            const handleMouseMove = (e: MouseEvent) => {
-                postMessage({ type: 'staff-drag-move', x: e.clientX, y: e.clientY });
-            };
-            
-            const handleMouseUp = () => {
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
-                postMessage({ type: 'staff-drag-end' });
-            };
-
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        },
+        item: { staffId: staff.id },
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
         }),
-    }), [staff.id, staff.name, staff.avatar, postMessage]);
+    }), [staff.id]);
 
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemTypes.TASK_BUNDLE,
