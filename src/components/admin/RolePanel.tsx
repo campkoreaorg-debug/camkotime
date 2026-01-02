@@ -612,7 +612,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     </DialogHeader>
                     <ScrollArea className="h-96 my-4">
                          <div className='grid grid-cols-2 gap-2 p-2'>
-                            {(data.scheduleTemplates || []).map(template => (
+                            {(data?.scheduleTemplates || []).map(template => (
                                 <div key={template.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted">
                                     <Checkbox
                                         id={`template-${template.id}`}
@@ -705,3 +705,5 @@ export function RolePanel(props: RolePanelProps) {
         </DndProvider>
     )
 }
+
+    
