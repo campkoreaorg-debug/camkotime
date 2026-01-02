@@ -20,7 +20,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Session } from '@/lib/types';
-import { initialData, initialSessions } from '@/lib/data';
+import { initialData } from '@/lib/data';
 import { useCallback, useState, useEffect } from 'react';
 import { useSession } from './use-session';
 
@@ -120,6 +120,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         const newSessionRef = doc(collection(firestore, 'sessions'));
         await setDoc(newSessionRef, { name: '1차', ownerId: user.uid, id: newSessionRef.id });
         currentSessionId = newSessionRef.id;
+        window.location.reload();
     }
     
     const batch = writeBatch(firestore);
@@ -137,7 +138,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     initialData.scheduleTemplates.forEach((template) => batch.set(doc(sessionRef, 'scheduleTemplates', template.id), template));
     
     await batch.commit();
-    window.location.reload();
 
   }, [firestore, user, sessionId]);
 
@@ -242,63 +242,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         const newId = `sch-paste-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
         batch.set(doc(firestore, 'sessions', sessionId, 'schedules', newId), {
             id: newId, day, time, event: item.event, location: item.location, staffIds: item.staffIds || [], isCompleted: false
-        });
-    });
-    batch.commit();
-  };
-
-  const addRole = (name: string, tasks: ScheduleTemplate[], day: number) => {
-    if (!firestore || !sessionId) return;
-    const newId = `role-${Date.now()}`;
-    const newRole = { id: newId, name, tasks };
-    
-    // Roles are now templates, so they go into 'scheduleTemplates'
-    const templateRef = doc(firestore, 'sessions', sessionId, 'scheduleTemplates', newId);
-    setDoc(templateRef, newRole);
-};
-
-  const uploadRoles = (roles: Role[], day: number) => {
-    if (!firestore || !sessionId) return;
-    const batch = writeBatch(firestore);
-    roles.forEach(role => {
-        const sanitizedName = role.name.replace(/[\/\s#$.\[\]]/g, '');
-        const roleId = `role-csv-${sanitizedName}-${Date.now()}`;
-        batch.set(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
-            id: roleId,
-            name: role.name,
-            tasks: role.tasks || [],
-            day
-        });
-    });
-    batch.commit();
-  }
-
-  const deleteRole = (roleId: string) => {
-    if (!firestore || !sessionId) return;
-    deleteDoc(doc(firestore, 'sessions', sessionId, 'roles', roleId));
-  };
-  
-  const updateRoleOrder = (roleIds: string[]) => {
-    if (!firestore || !sessionId) return;
-    const batch = writeBatch(firestore);
-    roleIds.forEach((id, index) => {
-        const docRef = doc(firestore, 'sessions', sessionId, 'roles', id);
-        batch.update(docRef, { order: index });
-    });
-    batch.commit();
-  };
-
-  const importRolesFromOtherDays = (roleIds: string[], targetDay: number) => {
-    if (!firestore || !sessionId || !localData?.allRoles) return;
-    const rolesToImport = localData.allRoles.filter(r => roleIds.includes(r.id));
-    const batch = writeBatch(firestore);
-    rolesToImport.forEach(role => {
-        const newId = `role-import-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-        batch.set(doc(firestore, 'sessions', sessionId, 'roles', newId), {
-            ...role,
-            id: newId,
-            day: targetDay,
-            order: (localData.roles?.length || 0) + 1,
         });
     });
     batch.commit();
@@ -466,41 +409,54 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       if(venueRef) updateDoc(venueRef, { notification: text });
   }
 
-    const addScheduleTemplatesToSlot = async (templateIds: string[], day: number, time: string) => {
+    const addScheduleTemplatesToSlot = async (templateIds: string[], day: number) => {
         if (!firestore || !sessionId || !localData?.scheduleTemplates) return;
 
-        const templates = localData.scheduleTemplates.filter(t => templateIds.includes(t.id));
+        const templatesToAssign = localData.scheduleTemplates.filter(t => templateIds.includes(t.id));
+        const templateNamesToAssign = new Set(templatesToAssign.map(t => t.name));
 
-        const batch = writeBatch(firestore);
-
-        // First, clear existing roles for this day that are not in the new selection
         const rolesForDayQuery = query(collection(firestore, 'sessions', sessionId, 'roles'), where('day', '==', day));
         const existingRolesSnap = await getDocs(rolesForDayQuery);
         
-        const newRoleNames = new Set(templates.map(t => t.name));
+        const batch = writeBatch(firestore);
 
+        // Delete roles for the day that are not in the new selection
         existingRolesSnap.forEach(roleDoc => {
-            if (!newRoleNames.has(roleDoc.data().name)) {
-                // This logic needs refinement: should we delete roles if they are not selected for THIS timeslot?
-                // The current data model links roles to a `day`, not a `time`.
-                // A safer approach for now is to only add, not delete.
+            if (!templateNamesToAssign.has(roleDoc.data().name)) {
+                batch.delete(roleDoc.ref);
             }
         });
 
-        // Add selected templates as roles for the current day
-        templates.forEach((template, index) => {
+        // Add or update roles for the day from selected templates
+        templatesToAssign.forEach((template, index) => {
             const role: Role = {
-                ...template, // Includes name, tasks
-                id: `role-slot-${day}-${time.replace(':','')}-${template.id}`, // Make it unique per timeslot
+                ...template, 
+                id: `role-day-${day}-${template.id}`,
                 day: day,
                 order: index
             };
             const roleRef = doc(firestore, 'sessions', sessionId, 'roles', role.id);
-            batch.set(roleRef, role, { merge: true }); // Use set with merge to create or overwrite
+            batch.set(roleRef, role, { merge: true });
         });
 
         await batch.commit();
     };
+
+    const addScheduleTemplate = (name: string, tasks: {event: string}[]) => {
+        if (!firestore || !sessionId) return;
+        const newId = `template-${Date.now()}`;
+        setDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', newId), { id: newId, name, tasks });
+    }
+
+    const updateScheduleTemplate = (templateId: string, data: Partial<ScheduleTemplate>) => {
+        if (!firestore || !sessionId) return;
+        updateDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', templateId), data);
+    }
+    
+    const deleteScheduleTemplate = (templateId: string) => {
+        if (!firestore || !sessionId) return;
+        deleteDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', templateId));
+    }
 
 
   return {
@@ -515,11 +471,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     pasteSchedules,
     updateMapImage,
     initializeFirestoreData,
-    addRole,
-    uploadRoles,
-    deleteRole,
-    updateRoleOrder,
-    importRolesFromOtherDays,
     assignTasksToStaff,
     unassignRoleFromStaff,
     addTasksToRole,
@@ -532,6 +483,9 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     addMarker,
     deleteMarker,
     updateNotification,
+    addScheduleTemplate,
+    updateScheduleTemplate,
+    deleteScheduleTemplate,
   };
 };
 

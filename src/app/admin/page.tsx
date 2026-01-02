@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import { RolePanel } from '@/components/admin/RolePanel';
+import { AllRolesPanel } from '@/components/admin/AllRolesPanel';
 import { MapPanel } from '@/components/admin/MapPanel';
 import { Loader2, Link as LinkIcon, Database, ExternalLink } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
@@ -242,6 +243,7 @@ export default function AdminPage() {
               onStaffSelect={setSelectedStaffId}
               selectedStaffId={selectedStaffId}
             />
+            <AllRolesPanel />
             <RolePanel 
               selectedSlot={selectedSlot}
               selectedRole={selectedRole}
@@ -284,5 +286,3 @@ export default function AdminPage() {
     </DndProvider>
   );
 }
-
-    
