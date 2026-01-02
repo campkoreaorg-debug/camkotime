@@ -66,17 +66,24 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
     const [isAlertOpen, setIsAlertOpen] = useState(false);
     const { postMessage } = useBroadcastChannel('venue-sync');
 
-    const [{ isDragging: isDraggingStaff }, dragStaff, dragPreview] = useDrag(() => ({
+    const [{ isDragging: isDraggingStaff }, dragStaff] = useDrag(() => ({
         type: ItemTypes.STAFF,
-        item: { staffId: staff.id },
+        item: { 
+            staffId: staff.id, 
+            name: staff.name, 
+            avatar: staff.avatar 
+        },
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
         }),
-        begin: (monitor) => {
-            postMessage({ type: 'staff-drag-start', staff: { id: staff.id, name: staff.name, avatar: staff.avatar }, x: monitor.getClientOffset()?.x, y: monitor.getClientOffset()?.y });
-        },
-        end: () => {
-            postMessage({ type: 'staff-drag-end' });
+        end: (item, monitor) => {
+            const clientOffset = monitor.getClientOffset();
+            if (clientOffset) {
+                // We send the start message on end, because `item` is only calculated once on drag start.
+                // This ensures the other window knows which staff member is being dragged.
+                postMessage({ type: 'staff-drag-start', staff: { id: item.staffId, name: item.name, avatar: item.avatar }, x: clientOffset.x, y: clientOffset.y });
+            }
+             postMessage({ type: 'staff-drag-end' });
         }
     }), [staff.id, staff.name, staff.avatar, postMessage]);
 
