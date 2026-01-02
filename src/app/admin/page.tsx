@@ -83,39 +83,45 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    // 1. 데이터가 아직 로드되지 않았으면 아무것도 하지 않음
-    if (!data?.roles || !data.schedule) { 
+    // 데이터가 없으면 리턴
+    if (!data?.roles || !data?.schedule) { 
         return;
     }
 
-    // 🔴 [핵심 수정] 스태프가 선택되지 않았을 때는 이 로직을 실행하지 않음!
-    // 스태프 선택 없이 '직책'만 클릭해서 수정 중일 때, 
-    // 데이터가 바뀌어도 직책 선택이 유지되도록 함.
-    if (!selectedStaffId) {
+    // 1. [핵심 수정] 현재 사용자가 '직책'을 선택해서 보고 있는 경우
+    // 데이터(업무 등)가 바뀌면, 선택된 직책의 정보도 최신으로 갈아끼워줘야 합니다.
+    if (selectedRole) {
+        const updatedRole = data.roles.find(r => r.id === selectedRole.id);
+        
+        // 데이터가 실제로 변했을 때만 업데이트 (무한 렌더링 방지)
+        if (updatedRole && JSON.stringify(updatedRole) !== JSON.stringify(selectedRole)) {
+            setSelectedRole(updatedRole);
+        }
+        // 직책을 보고 있을 때는 스태프 자동 연동 로직을 실행하지 않고 여기서 끝냅니다.
         return;
     }
 
-    // 2. 시간대 정보가 없으면 리턴
-    if (!selectedSlot) {
-        return;
-    }
-    
-    // 3. 선택된 스태프의 현재 시간대 스케줄 찾기
-    const staffSchedule = data.schedule.find(s => 
-        s.staffIds?.includes(selectedStaffId) && 
-        s.day === selectedSlot.day && 
-        s.time === selectedSlot.time
-    );
+    // 2. 직책을 선택하지 않은 상태라면? -> 스태프 선택에 따라 자동으로 직책을 찾아줍니다.
+    if (selectedStaffId && selectedSlot) {
+        const staffSchedule = data.schedule.find(s => 
+            s.staffIds?.includes(selectedStaffId) && 
+            s.day === selectedSlot.day && 
+            s.time === selectedSlot.time
+        );
 
-    // 4. 스태프에게 배정된 역할이 있으면 그 역할을 자동 선택, 없으면 선택 해제
-    if (staffSchedule && staffSchedule.roleName) {
-        const role = data.roles.find(r => r.name === staffSchedule.roleName);
-        setSelectedRole(role || null);
-    } else {
-        setSelectedRole(null);
+        if (staffSchedule && staffSchedule.roleName) {
+            const role = data.roles.find(r => r.name === staffSchedule.roleName);
+            // 역할이 실제로 다를 때만 업데이트
+            if (!selectedRole || selectedRole.name !== role?.name) {
+                setSelectedRole(role || null);
+            }
+        } else {
+           // 스태프에게 할당된 역할이 없으면 선택 해제
+           if (selectedRole) setSelectedRole(null);
+        }
     }
 
-}, [selectedStaffId, selectedSlot, data?.schedule, data?.roles]);
+}, [selectedStaffId, selectedSlot, data?.schedule, data?.roles, selectedRole]);
   
   const handleSlotChange = (day: number, time: string) => {
     const newSlot = { day, time };

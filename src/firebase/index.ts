@@ -1,4 +1,3 @@
-
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
@@ -35,16 +34,18 @@ export function getSdks(firebaseApp: FirebaseApp) {
     firebaseApp,
     auth: getAuth(firebaseApp),
     firestore: firestore,
-    storage: getStorage(firebaseApp) // Storage SDK 추가
+    storage: getStorage(firebaseApp) // Storage SDK
   };
 }
+
+// 🔴 [핵심 수정] 여기서 앱을 초기화하고, 생성된 객체들(storage 포함)을 export 합니다.
+// 이 부분이 있어야 다른 파일에서 import { storage } from '@/firebase'가 가능해집니다.
+const { firebaseApp, auth, firestore, storage } = initializeFirebase();
+export { firebaseApp, auth, firestore, storage };
 
 export * from './provider';
 export * from './client-provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
-// non-blocking-updates와 login은 이제 사용되지 않으므로 주석 처리하거나 삭제할 수 있습니다.
-// export * from './non-blocking-updates';
-// export * from './non-blocking-login';
 export * from './errors';
 export * from './error-emitter';

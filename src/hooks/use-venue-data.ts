@@ -1,12 +1,7 @@
 
 "use client";
 
-import {
-  useCollection,
-  useDoc,
-  useFirestore,
-  useMemoFirebase,
-  useUser,
+import {useCollection,useDoc,useFirestore,useMemoFirebase,useUser,storage 
 } from '@/firebase';
 import {
   collection,
@@ -21,11 +16,12 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
+// 🔴 [추가] Storage 관련 함수 import
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Session } from '@/lib/types';
 import { initialData, initialSessions } from '@/lib/data';
 import { useCallback, useState, useEffect } from 'react';
 import { useSession } from './use-session';
-import { uploadFile } from '@/firebase/storage';
 
 const VENUE_ID = 'main-venue';
 
@@ -106,7 +102,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     let currentSessionId = sessionId;
     if (!currentSessionId) {
         const newSessionRef = doc(collection(firestore, 'sessions'));
-        await setDoc(newSessionRef, { name: '1차', ownerId: user.uid });
+        await setDoc(newSessionRef, { name: '1차', ownerId: user.uid, id: newSessionRef.id });
         currentSessionId = newSessionRef.id;
     }
     
@@ -131,19 +127,40 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   }, [firestore, user, sessionId]);
 
   const addStaffBatch = async (newStaffMembers: { name: string; file: File }[]) => {
-    if (!firestore || !sessionId) return;
-    const batch = writeBatch(firestore);
-    
-    for (const member of newStaffMembers) {
-      const staffId = `staff-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const filePath = `sessions/${sessionId}/staff_avatars/${staffId}-${member.file.name}`;
-      const avatarUrl = await uploadFile(member.file, filePath);
-      
-      batch.set(doc(firestore, 'sessions', sessionId, 'staff', staffId), {
-        id: staffId, name: member.name, avatar: avatarUrl
-      });
+    if (!firestore || !sessionId || !storage) {
+        console.error("Firebase resources missing:", { firestore: !!firestore, sessionId, storage: !!storage });
+        return;
     }
-    await batch.commit();
+
+    try {
+        const uploadPromises = newStaffMembers.map(async (member) => {
+            const staffId = `staff-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+            const fileRef = ref(storage, `sessions/${sessionId}/staff_avatars/${staffId}_${member.file.name}`);
+            
+            const snapshot = await uploadBytes(fileRef, member.file);
+            const avatarUrl = await getDownloadURL(snapshot.ref);
+
+            return {
+                id: staffId,
+                name: member.name,
+                avatar: avatarUrl,
+            };
+        });
+
+        const uploadedStaffData = await Promise.all(uploadPromises);
+
+        const batch = writeBatch(firestore);
+        uploadedStaffData.forEach((staffData) => {
+            const staffDocRef = doc(firestore, 'sessions', sessionId, 'staff', staffData.id);
+            batch.set(staffDocRef, staffData);
+        });
+
+        await batch.commit();
+        
+    } catch (error) {
+        console.error("Error in addStaffBatch:", error);
+        throw error;
+    }
   };
 
   const deleteStaff = (staffId: string) => {
@@ -329,15 +346,23 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   }
 
   const updateMapImage = async (day: number, time: string, file: File): Promise<string | null> => {
-    if (!firestore || !sessionId) return null;
+    if (!firestore || !sessionId || !storage) return null;
     const mapId = `day${day}-${time.replace(':', '')}`;
     const filePath = `sessions/${sessionId}/map_backgrounds/${mapId}-${file.name}`;
-    const mapImageUrl = await uploadFile(file, filePath);
+    
+    try {
+        const fileRef = ref(storage, filePath);
+        const snapshot = await uploadBytes(fileRef, file);
+        const mapImageUrl = await getDownloadURL(snapshot.ref);
 
-    if (mapImageUrl) {
-        await setDoc(doc(firestore, 'sessions', sessionId, 'maps', mapId), { day, time, mapImageUrl }, { merge: true });
-        return mapImageUrl;
+        if (mapImageUrl) {
+            await setDoc(doc(firestore, 'sessions', sessionId, 'maps', mapId), { day, time, mapImageUrl }, { merge: true });
+            return mapImageUrl;
+        }
+    } catch(e) {
+        console.error("Failed to upload map image:", e)
     }
+
     return null;
   };
 
@@ -417,5 +442,7 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    
 
     
