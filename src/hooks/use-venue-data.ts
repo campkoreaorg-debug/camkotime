@@ -36,6 +36,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const sessionContext = useSession(); 
   const contextSessionId = sessionContext?.sessionId;
 
+  // Prioritize URL param, then context, then null
   const sessionId = overrideSessionId || contextSessionId;
 
   const [localData, setLocalData] = useState<VenueData | null>(null);
@@ -69,20 +70,15 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
-      if (!venueDoc && !staff && !schedule) {
-        setLocalData(null);
-      } else {
-        const scheduleData = schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [];
-        setLocalData({
-          staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
-          roles: (roles || []).sort((a, b) => a.name.localeCompare(b.name)),
-          schedule: scheduleData,
-          markers: markers || [],
-          maps: maps || [],
-          notification: venueDoc?.notification || '',
-          scheduleTemplates: scheduleTemplates || [],
-        });
-      }
+      setLocalData({
+        staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
+        roles: (roles || []).sort((a, b) => a.name.localeCompare(b.name)),
+        schedule: (schedule || []).sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
+        markers: markers || [],
+        maps: maps || [],
+        notification: venueDoc?.notification || '',
+        scheduleTemplates: scheduleTemplates || [],
+      });
     }
   }, [
     sessionId, venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates,
@@ -90,24 +86,34 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   ]);
 
   const initializeFirestoreData = useCallback(async () => {
-    if (!firestore || !user || !sessionId ) return;
+    if (!firestore || !user ) return;
+    
+    // Create a new session if one doesn't exist
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+        const newSessionRef = doc(collection(firestore, 'sessions'));
+        await setDoc(newSessionRef, { name: '1차', ownerId: user.uid });
+        currentSessionId = newSessionRef.id;
+    }
+    
     const batch = writeBatch(firestore);
-
-    initialSessions.forEach((session) => {
-        const sessionRef = doc(firestore, 'sessions', session.id);
-        batch.set(sessionRef, { name: session.name, ownerId: user.uid });
-
-        const venueDocRef = doc(sessionRef, 'venue', VENUE_ID);
-        batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid, notification: '' });
-        
-        initialData.staff.forEach((s) => batch.set(doc(sessionRef, 'staff', s.id), s));
-        initialData.roles.forEach((r) => batch.set(doc(sessionRef, 'roles', r.id), r));
-        initialData.schedule.forEach((item) => batch.set(doc(sessionRef, 'schedules', item.id), item));
-        initialData.markers.forEach((m) => batch.set(doc(sessionRef, 'markers', m.id), m));
-        initialData.maps.forEach((map) => batch.set(doc(sessionRef, 'maps', map.id), map));
-    });
+    
+    const sessionRef = doc(firestore, 'sessions', currentSessionId);
+    
+    const venueDocRef = doc(sessionRef, 'venue', VENUE_ID);
+    batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid, notification: '' });
+    
+    initialData.staff.forEach((s) => batch.set(doc(sessionRef, 'staff', s.id), s));
+    initialData.roles.forEach((r) => batch.set(doc(sessionRef, 'roles', r.id), r));
+    initialData.schedule.forEach((item) => batch.set(doc(sessionRef, 'schedules', item.id), item));
+    initialData.markers.forEach((m) => batch.set(doc(sessionRef, 'markers', m.id), m));
+    initialData.maps.forEach((map) => batch.set(doc(sessionRef, 'maps', map.id), map));
     
     await batch.commit();
+
+    // Reload to apply the new session
+    window.location.reload();
+
   }, [firestore, user, sessionId]);
 
   const addStaffBatch = async (newStaffMembers: { name: string; file: File }[]) => {
@@ -298,7 +304,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     if (!firestore || !sessionId) return;
     const sessionRef = doc(firestore, 'sessions', sessionId);
     if (markerId.startsWith('default-marker-') && staffIds && day !== undefined && time) {
-      setDoc(doc(sessionRef, 'markers', `marker-${staffIds[0]}-${day}-${time.replace(':', '')}`), { staffIds: [staffIds[0]], day, time, x, y }, { merge: true });
+      setDoc(doc(sessionRef, 'markers', `marker-${staffIds[0]}-${day}-${time.replace(':', '')}`), { id: `marker-${staffIds[0]}-${day}-${time.replace(':', '')}`, staffIds: [staffIds[0]], day, time, x, y }, { merge: true });
     } else {
       updateDoc(doc(sessionRef, 'markers', markerId), { x, y });
     }

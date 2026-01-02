@@ -14,6 +14,7 @@ import { Megaphone, MousePointerSquareDashed, ExternalLink } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { useDrop } from 'react-dnd';
 import { ItemTypes } from './StaffPanel';
+import { useSession } from '@/hooks/use-session';
 
 interface MapPanelProps {
     selectedSlot: { day: number, time: string } | null;
@@ -24,6 +25,7 @@ interface MapPanelProps {
 const days = [0, 1, 2, 3];
 
 export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps) {
+    const { sessionId } = useSession();
     const { data, updateNotification, addMarker } = useVenueData();
     const { toast } = useToast();
     
@@ -105,7 +107,11 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
     }
 
     const openMapWindow = () => {
-        window.open('/map', '_blank', 'width=1280,height=800,resizable=yes,scrollbars=yes');
+        if (!sessionId) {
+            alert("먼저 차수(Session)를 선택해주세요.");
+            return;
+        }
+        window.open(`/map?sid=${sessionId}`, '_blank', 'width=1280,height=800,resizable=yes,scrollbars=yes');
     };
 
     if (!data) {

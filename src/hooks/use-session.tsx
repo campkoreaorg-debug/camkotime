@@ -2,7 +2,7 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, updateDoc, writeBatch, getDocs } from 'firebase/firestore';
+import { collection, doc, updateDoc, writeBatch, getDocs, query, where } from 'firebase/firestore';
 import type { Session } from '@/lib/types';
 import { useToast } from './use-toast';
 
@@ -22,11 +22,12 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useUser();
   const { toast } = useToast();
 
-  const sessionsColRef = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'sessions') : null),
-    [firestore]
+  const sessionsQuery = useMemoFirebase(
+    () => (firestore && user ? query(collection(firestore, 'sessions'), where('ownerId', '==', user.uid)) : null),
+    [firestore, user]
   );
-  const { data: sessions, isLoading: sessionsLoading } = useCollection<Session>(sessionsColRef);
+  
+  const { data: sessions, isLoading: sessionsLoading } = useCollection<Session>(sessionsQuery);
   
   const [sessionId, setSessionIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -36,22 +37,21 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   });
 
   useEffect(() => {
-    if (!sessionId && sessions && sessions.length > 0) {
-      const firstId = sessions[0].id;
-      setSessionIdState(firstId);
-      localStorage.setItem('activeSessionId', firstId);
-    }
-    if (sessionId && sessions && !sessions.some(s => s.id === sessionId)) {
-        const firstId = sessions.length > 0 ? sessions[0].id : null;
+    const activeId = localStorage.getItem('activeSessionId');
+    if (sessions) {
+      const validSessionIds = sessions.map(s => s.id);
+      if (activeId && validSessionIds.includes(activeId)) {
+        setSessionIdState(activeId);
+      } else if (validSessionIds.length > 0) {
+        const firstId = validSessionIds[0];
         setSessionIdState(firstId);
-        if (firstId) {
-            localStorage.setItem('activeSessionId', firstId);
-        } else {
-            localStorage.removeItem('activeSessionId');
-        }
+        localStorage.setItem('activeSessionId', firstId);
+      } else {
+        setSessionIdState(null);
+        localStorage.removeItem('activeSessionId');
+      }
     }
-
-  }, [sessions, sessionId]);
+  }, [sessions]);
   
   const setSessionId = (id: string) => {
     setSessionIdState(id);
@@ -79,11 +79,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const sourceColRef = collection(firestore, 'sessions', sourceSessionId, collectionName);
       const targetColRef = collection(firestore, 'sessions', sessionId, collectionName);
 
-      // Clear target collection first
       const existingDocs = await getDocs(targetColRef);
       existingDocs.forEach(doc => batch.delete(doc.ref));
 
-      // Copy from source to target
       const sourceDocs = await getDocs(sourceColRef);
       sourceDocs.forEach(d => {
         const newDocRef = doc(targetColRef, d.id);
@@ -106,22 +104,20 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// 🔴 [핵심 수정] Provider가 없어도 에러를 내지 않도록 변경
 export const useSession = () => {
   const context = useContext(SessionContext);
-  
-  // 만약 Provider 없이 사용되었다면(예: 새 창 /map), 
-  // 에러를 던지는 대신 안전한 '빈 객체(Fallback)'를 반환합니다.
   if (context === undefined) {
+    // This allows the hook to be used in pages like /map
+    // which might not be wrapped in the provider, but can get the
+    // session ID from the URL.
     return {
         sessions: [],
-        sessionId: null, // ID가 없으므로 useVenueData는 URL의 sid를 사용하게 됨
+        sessionId: null,
         setSessionId: () => {},
         isLoading: false,
         updateSessionName: () => {},
         importDataFromSession: async () => {},
     };
   }
-  
   return context;
 };

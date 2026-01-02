@@ -16,7 +16,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Role } from '@/lib/types';
-// 🔴 [복구] 다시 가져옵니다!
 import { useSession } from '@/hooks/use-session';
 
 const days = [0, 1, 2, 3];
@@ -33,11 +32,10 @@ export const timeSlots = (() => {
 export default function AdminPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
+  
+  const { sessionId, isLoading: isSessionLoading } = useSession();
   const { data, isLoading: isDataLoading, initializeFirestoreData } = useVenueData();
   
-  // 🔴 [복구] 현재 선택된 차수 ID를 가져옵니다.
-  const { sessionId, isLoading: isSessionLoading } = useSession();
-
   const [isLinked, setIsLinked] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
   const [activeTab, setActiveTab] = useState('day-0');
@@ -132,8 +130,6 @@ export default function AdminPage() {
         alert("먼저 차수(Session)를 선택해주세요.");
         return;
     }
-    // 🔴 [핵심 수정] URL 뒤에 ID를 붙여서 보냅니다!
-    // 예: /map?sid=abc12345
     window.open(`/map?sid=${sessionId}`, '_blank', 'width=1200,height=800');
   };
 
@@ -145,7 +141,6 @@ export default function AdminPage() {
     );
   }
 
-  // sessionId 없으면 초기화 화면
   if (!sessionId) {
     return (
         <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
@@ -155,8 +150,21 @@ export default function AdminPage() {
         </div>
     )
   }
+  
+  if (!data) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
+          <Database className="h-12 w-12 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">선택된 차수에 데이터가 없습니다</h2>
+          <p className="text-muted-foreground">초기 데이터를 생성하여 시작하세요.</p>
+          <Button onClick={initializeFirestoreData}>
+              초기 데이터 생성
+          </Button>
+      </div>
+    )
+  }
 
-  if (!selectedSlot || !mapSlot || !data) {
+  if (!selectedSlot || !mapSlot) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -173,10 +181,6 @@ export default function AdminPage() {
                       <div className='flex justify-between items-center mb-4'>
                         <h2 className="font-headline text-xl font-semibold">시간대 설정</h2>
                         <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="sm" onClick={openMapWindow}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                따로 보기
-                            </Button>
                             <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
                             <Label htmlFor="link-panels" className='flex items-center gap-2'>
                                 <LinkIcon className='h-4 w-4'/>
