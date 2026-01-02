@@ -10,7 +10,7 @@ import { Button } from '../ui/button';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Input } from '../ui/input';
-import { Megaphone, MousePointerSquareDashed } from 'lucide-react';
+import { Megaphone, MousePointerSquareDashed, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useDrop } from 'react-dnd';
 import { ItemTypes } from './StaffPanel';
@@ -104,6 +104,10 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
         });
     }
 
+    const openMapWindow = () => {
+        window.open('/map', '_blank', 'width=1280,height=800,resizable=yes,scrollbars=yes');
+    };
+
     if (!data) {
         return (
              <Card className='lg:col-span-1'>
@@ -120,13 +124,21 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
     return (
         <Card ref={drop} className='lg:col-span-1 relative'>
             <CardHeader>
-                <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
-                <CardDescription>
-                {isLinked ? 
-                    '전역 시간대 설정과 연동된 지도입니다.' :
-                    selectedSlot ? `독립적으로 ${selectedSlot.day}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` : '시간대를 선택하여 지도를 확인하세요.'
-                }
-                </CardDescription>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
+                        <CardDescription>
+                        {isLinked ? 
+                            '전역 시간대 설정과 연동된 지도입니다.' :
+                            selectedSlot ? `독립적으로 ${selectedSlot.day}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` : '시간대를 선택하여 지도를 확인하세요.'
+                        }
+                        </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={openMapWindow}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        따로 보기
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex w-full items-center space-x-2">
@@ -191,5 +203,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
       </Card>
     );
 }
+
+    
 
     
