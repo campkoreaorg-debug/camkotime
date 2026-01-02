@@ -11,14 +11,16 @@ service cloud.firestore {
     match /{path=**}/roles/{roleId} {
       allow get, list: if request.auth != null;
     }
-
+    
     match /sessions/{sessionId}/{document=**} {
       allow read, write: if isSessionOwner(sessionId);
     }
-
+    
+    // Allow users to list only their own sessions.
     match /sessions/{sessionId} {
-       allow read, write: if isSessionOwner(sessionId);
+       allow get, write: if isSessionOwner(sessionId);
        allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+       allow list: if request.auth != null;
     }
 
      // Public read access for the 'venue' subcollection if `isPublic` is true
