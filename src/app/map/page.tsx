@@ -10,7 +10,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { MapPanel } from '@/components/admin/MapPanel';
 import { useVenueData } from '@/hooks/use-venue-data';
-import { SessionProvider } from '@/hooks/use-session';
+import { SessionProvider, useSession } from '@/hooks/use-session';
 
 function MapContent() {
   const router = useRouter();
@@ -75,11 +75,34 @@ function MapContent() {
   );
 }
 
+function MapPageWrapper() {
+  const searchParams = useSearchParams();
+  const sid = searchParams.get('sid');
+  const { setSessionId, sessionId: contextSessionId } = useSession();
+
+  useEffect(() => {
+    if (sid && sid !== contextSessionId) {
+      // This is a bit of a trick. We are in a new window, so we don't have a session.
+      // We manually set the session ID for this context from the URL.
+      // The localstorage will be updated too.
+      setSessionId(sid);
+    }
+  }, [sid, contextSessionId, setSessionId]);
+  
+  if (!contextSessionId && sid) {
+    // Session is being set, show a loader
+     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
+
+  return <MapContent />;
+}
+
+
 export default function MapPage() {
   return (
     <SessionProvider>
       <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
-        <MapContent />
+        <MapPageWrapper />
       </Suspense>
     </SessionProvider>
   )

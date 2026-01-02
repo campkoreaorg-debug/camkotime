@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext, ReactNode, useMemo } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, updateDoc, writeBatch, getDocs, query, where } from 'firebase/firestore';
 import type { Session } from '@/lib/types';
@@ -41,23 +41,27 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     if (sessions) {
       const validSessionIds = sessions.map(s => s.id);
       if (activeId && validSessionIds.includes(activeId)) {
-        setSessionIdState(activeId);
+        if (sessionId !== activeId) {
+          setSessionIdState(activeId);
+        }
       } else if (validSessionIds.length > 0) {
         const firstId = validSessionIds[0];
         setSessionIdState(firstId);
         localStorage.setItem('activeSessionId', firstId);
-      } else {
+      } else if (sessionId !== null) { // Only update if it needs changing
         setSessionIdState(null);
         localStorage.removeItem('activeSessionId');
       }
     }
-  }, [sessions]);
+  }, [sessions, sessionId]);
   
-  const setSessionId = (id: string) => {
+  const setSessionId = useCallback((id: string) => {
     setSessionIdState(id);
     localStorage.setItem('activeSessionId', id);
-    window.location.reload(); 
-  };
+    if (!window.location.search.includes('sid=')) {
+        window.location.reload();
+    }
+  }, []);
 
   const updateSessionName = async (id: string, newName: string) => {
     if (!firestore || !newName.trim()) {
@@ -109,17 +113,22 @@ export const useSession = () => {
   if (context === undefined) {
     const [isLoading, setIsLoading] = useState(true);
     useEffect(() => {
-        // This is a workaround for pages that are not wrapped in the provider
-        // but still need the hook to not throw an error.
-        // The loading state gives time for other hooks to get the session ID from the URL.
         const timer = setTimeout(() => setIsLoading(false), 100);
         return () => clearTimeout(timer);
     }, []);
 
+    // Return a default non-functional object for pages outside the provider
+    // This helps avoid throwing an error, especially for the map page logic
     return {
         sessions: [],
         sessionId: null,
-        setSessionId: () => {},
+        setSessionId: (id: string) => {
+            // This is a dummy function for pages outside the main provider
+            // It allows the map page to set its session ID locally
+             if (typeof window !== 'undefined') {
+                localStorage.setItem('activeSessionId', id);
+             }
+        },
         isLoading: isLoading,
         updateSessionName: () => {},
         importDataFromSession: async () => {},
