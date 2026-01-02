@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -14,10 +15,11 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
 import { Role, ScheduleTemplate } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
-import { useDrop, DndProvider } from 'react-dnd';
+import { useDrop, useDrag, DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ItemTypes } from './StaffPanel';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 
 interface DraggableTaskBundleProps {
@@ -204,6 +206,19 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
     
     const dayFilteredRoles = roles.filter(role => role.day === selectedSlot.day);
 
+    const assignedRoleNamesInSlot = useMemo(() => {
+        if (!data?.schedule || !selectedSlot) return new Set<string>();
+
+        const names = new Set<string>();
+        data.schedule.forEach(item => {
+            if (item.day === selectedSlot.day && item.time === selectedSlot.time && item.roleName) {
+                names.add(item.roleName);
+            }
+        });
+        return names;
+    }, [data?.schedule, selectedSlot]);
+
+
     return (
         <Card className='xl:col-span-2'>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -225,26 +240,30 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                         {dayFilteredRoles && dayFilteredRoles.length > 0 ? (
                              <ScrollArea className="h-96 pr-4">
                                 <div className="space-y-2">
-                                    {dayFilteredRoles.map((role) => (
-                                        <div
-                                            key={role.id}
-                                            className={cn(
-                                                "group p-3 rounded-md border bg-card flex justify-between items-start cursor-pointer transition-all hover:shadow-md",
-                                                selectedRole?.id === role.id ? "border-primary shadow-md" : "hover:border-primary/50"
-                                            )}
-                                            onClick={() => handleSelectRole(role)}
-                                        >
-                                            <div className="flex items-start gap-3 flex-1">
-                                                <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-                                                <div className="flex-1">
-                                                    <p className="font-semibold text-sm truncate flex items-center gap-2">
-                                                        {role.name}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
+                                    {dayFilteredRoles.map((role) => {
+                                        const isAssigned = assignedRoleNamesInSlot.has(role.name);
+                                        return (
+                                            <div
+                                                key={role.id}
+                                                className={cn(
+                                                    "group p-3 rounded-md border bg-card flex justify-between items-start cursor-pointer transition-all hover:shadow-md",
+                                                    selectedRole?.id === role.id ? "border-primary shadow-md" : "hover:border-primary/50"
+                                                )}
+                                                onClick={() => handleSelectRole(role)}
+                                            >
+                                                <div className="flex items-start gap-3 flex-1">
+                                                    <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                                                    <div className="flex-1">
+                                                        <p className="font-semibold text-sm truncate flex items-center gap-2">
+                                                            {role.name}
+                                                            {isAssigned && <span className="text-destructive text-xs font-medium">(배정됨)</span>}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             </ScrollArea>
                         ) : (
@@ -305,17 +324,36 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-1">
-                                                                <Button 
-                                                                    size="sm" 
-                                                                    variant={isCompleted ? "secondary" : "outline"} 
-                                                                    className="h-6 px-2 text-xs"
-                                                                    onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task); }}
-                                                                >
-                                                                    {isCompleted ? '완료취소' : '완료'}
-                                                                </Button>
-                                                                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleRemoveTask(task);}}>
-                                                                    <Trash className="h-3 w-3" />
-                                                                </Button>
+                                                                 <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <Button 
+                                                                                size="sm" 
+                                                                                variant={isCompleted ? "secondary" : "outline"} 
+                                                                                className="h-6 px-2 text-xs"
+                                                                                onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task); }}
+                                                                            >
+                                                                                {isCompleted ? <CheckCircle2 className='h-3 w-3'/> : <Circle className='h-3 w-3'/>}
+                                                                            </Button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>{isCompleted ? '완료 취소' : '완료 처리'}</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
+
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleRemoveTask(task);}}>
+                                                                                <Trash className="h-3 w-3" />
+                                                                            </Button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>업무 삭제</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
                                                             </div>
                                                         </div>
                                                     )
@@ -390,3 +428,5 @@ export function RolePanel(props: RolePanelProps) {
         </DndProvider>
     )
 }
+
+    
