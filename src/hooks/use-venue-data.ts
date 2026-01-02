@@ -68,16 +68,21 @@ export const useVenueData = () => {
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
-      const scheduleData = schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [];
-      setLocalData({
-        staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
-        roles: (roles || []).sort((a, b) => a.name.localeCompare(b.name)),
-        schedule: scheduleData,
-        markers: markers || [],
-        maps: maps || [],
-        notification: venueDoc?.notification || '',
-        scheduleTemplates: scheduleTemplates || [],
-      });
+      // Check if essential data is missing to consider it "uninitialized"
+      if (!venueDoc && !staff && !schedule) {
+        setLocalData(null);
+      } else {
+        const scheduleData = schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [];
+        setLocalData({
+          staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
+          roles: (roles || []).sort((a, b) => a.name.localeCompare(b.name)),
+          schedule: scheduleData,
+          markers: markers || [],
+          maps: maps || [],
+          notification: venueDoc?.notification || '',
+          scheduleTemplates: scheduleTemplates || [],
+        });
+      }
     }
   }, [
     sessionId, venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates,
@@ -336,7 +341,7 @@ export const useVenueData = () => {
     assignTasksToStaff,
     addTasksToRole,
     removeTaskFromRole,
-    isLoading: isLoading || !sessionId,
+    isLoading: isLoading, // Return the hook's own loading state
     updateMarkerPosition,
     addMarker,
     deleteMarker,
@@ -353,3 +358,5 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    

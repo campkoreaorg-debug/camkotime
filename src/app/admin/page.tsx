@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import { RolePanel } from '@/components/admin/RolePanel';
+import { MapPanel } from '@/components/admin/MapPanel';
 import { Loader2, ExternalLink, Link as LinkIcon, Database } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
@@ -16,7 +17,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Role } from '@/lib/types';
-import { MapPanel } from '@/components/admin/MapPanel';
 import { useSession } from '@/hooks/use-session';
 
 const days = [0, 1, 2, 3];
@@ -125,7 +125,7 @@ export default function AdminPage() {
     window.open('/map', '_blank', 'width=1200,height=800');
   };
 
-  if (isUserLoading || isDataLoading || isSessionLoading || !sessionId) {
+  if (isUserLoading || isDataLoading || isSessionLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -133,8 +133,8 @@ export default function AdminPage() {
     );
   }
 
-  if (!data) {
-     return (
+  if (!sessionId) {
+    return (
         <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
             <Database className="h-12 w-12 text-muted-foreground" />
             <h2 className="text-xl font-semibold">데이터베이스가 비어있습니다</h2>
@@ -153,7 +153,7 @@ export default function AdminPage() {
     )
   }
 
-  if (!selectedSlot || !mapSlot) {
+  if (!selectedSlot || !mapSlot || !data) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -232,3 +232,5 @@ export default function AdminPage() {
     </DndProvider>
   );
 }
+
+    
