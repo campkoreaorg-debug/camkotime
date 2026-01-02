@@ -7,14 +7,9 @@ service cloud.firestore {
       return request.auth != null && get(/databases/$(database)/documents/sessions/$(sessionId)).data.ownerId == request.auth.uid;
     }
 
-    match /sessions/{sessionId} {
-      allow read: if true;
+    match /sessions/{document=**} {
+      allow read, list: if true;
       allow write: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
-
-      match /{collection}/{documentId} {
-        allow read: if true;
-        allow write: if isSessionOwner(sessionId);
-      }
     }
   }
 }
