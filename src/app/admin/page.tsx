@@ -1,13 +1,12 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import { RolePanel } from '@/components/admin/RolePanel';
-import { MapPanel } from '@/components/admin/MapPanel';
 import { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
@@ -15,6 +14,9 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useVenueData } from '@/hooks/use-venue-data';
+import { Role } from '@/lib/types';
+
 
 const days = [0, 1, 2, 3];
 export const timeSlots = (() => {
@@ -31,12 +33,16 @@ export default function AdminPage() {
   const router = useRouter();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
+  const { data, isLoading: isDataLoading } = useVenueData();
 
   const [isLinked, setIsLinked] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
   const [activeTab, setActiveTab] = useState('day-0');
   
   const [mapSlot, setMapSlot] = useState<{ day: number; time: string } | null>(null);
+
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
 
   useEffect(() => {
@@ -66,10 +72,33 @@ export default function AdminPage() {
       setActiveTab('day-0');
     }
   }, []);
+
+  // When selected staff or time slot changes, find their role and select it.
+  useEffect(() => {
+      if (!selectedStaffId || !selectedSlot || !data?.schedule || !data?.roles) {
+          setSelectedRole(null);
+          return;
+      }
+      
+      const staffSchedule = data.schedule.find(s => 
+          s.staffIds.includes(selectedStaffId) && 
+          s.day === selectedSlot.day && 
+          s.time === selectedSlot.time
+      );
+
+      if (staffSchedule && staffSchedule.roleName) {
+          const role = data.roles.find(r => r.name === staffSchedule.roleName);
+          setSelectedRole(role || null);
+      } else {
+          setSelectedRole(null);
+      }
+
+  }, [selectedStaffId, selectedSlot, data]);
   
   const handleSlotChange = (day: number, time: string) => {
     const newSlot = { day, time };
     setSelectedSlot(newSlot);
+    setSelectedStaffId(null); // Clear staff selection on time change
     if (isLinked) {
       setMapSlot(newSlot);
     }
@@ -89,6 +118,7 @@ export default function AdminPage() {
       if (isLinked) {
         setSelectedSlot(newSlot);
         setActiveTab(`day-${day}`);
+        setSelectedStaffId(null); // Clear staff selection on time change
       }
   };
 
@@ -102,7 +132,7 @@ export default function AdminPage() {
     window.open('/map', '_blank', 'width=1200,height=800');
   };
 
-  if (isUserLoading || !user || !selectedSlot || !mapSlot) {
+  if (isUserLoading || isDataLoading || !user || !selectedSlot || !mapSlot) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -165,8 +195,16 @@ export default function AdminPage() {
 
           <main className="p-4 md:p-8 space-y-8">
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <StaffPanel selectedSlot={selectedSlot} />
-                <RolePanel selectedSlot={selectedSlot} />
+                <StaffPanel 
+                  selectedSlot={selectedSlot}
+                  onStaffSelect={setSelectedStaffId}
+                  selectedStaffId={selectedStaffId}
+                />
+                <RolePanel 
+                  selectedSlot={selectedSlot}
+                  selectedRole={selectedRole}
+                  onRoleSelect={setSelectedRole}
+                />
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <SchedulePanel 
@@ -183,3 +221,5 @@ export default function AdminPage() {
     </DndProvider>
   );
 }
+
+    

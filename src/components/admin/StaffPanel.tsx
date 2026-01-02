@@ -53,10 +53,12 @@ interface StaffMemberCardProps {
   isScheduled: boolean;
   assignedRoleName: string | null;
   selectedSlot: { day: number, time: string } | null;
+  onStaffSelect: (staffId: string) => void;
+  isSelected: boolean;
 }
 
 
-const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selectedSlot }: StaffMemberCardProps) => {
+const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selectedSlot, onStaffSelect, isSelected }: StaffMemberCardProps) => {
     const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -106,12 +108,14 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
     return (
         <div 
             ref={(node) => dragStaff(drop(node))}
-            className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all cursor-grab active:cursor-grabbing",
+            className={cn("relative group flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-all cursor-pointer hover:bg-muted/50",
                 isOver && canDrop && "ring-2 ring-primary bg-primary/10",
                 isOver && !canDrop && "ring-2 ring-destructive bg-destructive/10",
                 isScheduled && "border-destructive ring-1 ring-destructive",
-                isDraggingStaff && 'opacity-50'
+                isSelected && "ring-2 ring-blue-500 border-blue-500",
+                isDraggingStaff ? 'opacity-50 cursor-grabbing' : 'cursor-grab'
             )}
+            onClick={() => onStaffSelect(staff.id)}
         >
             <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
                 {index + 1}
@@ -132,7 +136,7 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
                 variant="ghost"
                 size="icon"
                 className="absolute top-1 right-1 h-7 w-7 text-destructive opacity-0 group-hover:opacity-100"
-                onClick={() => setIsAlertOpen(true)}
+                onClick={(e) => { e.stopPropagation(); setIsAlertOpen(true); }}
             >
                 <Trash2 className="h-4 w-4" />
             </Button>
@@ -156,9 +160,11 @@ const StaffMemberCard = ({ staff, index, isScheduled, assignedRoleName, selected
 
 interface StaffPanelProps {
     selectedSlot: { day: number, time: string } | null;
+    onStaffSelect: (staffId: string) => void;
+    selectedStaffId: string | null;
 }
 
-export function StaffPanel({ selectedSlot }: StaffPanelProps) {
+export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: StaffPanelProps) {
   const { data, addStaffBatch, isLoading } = useVenueData();
   const { toast } = useToast();
   const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
@@ -166,7 +172,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
   const [isGridOpen, setIsGridOpen] = useState(true);
 
   const scheduledStaffInfo = useMemo(() => {
-    if (!data || !selectedSlot) return { ids: new Set(), roles: new Map() };
+    if (!data || !selectedSlot) return { ids: new Set<string>(), roles: new Map<string, string>() };
     
     const ids = new Set<string>();
     const roles = new Map<string, string>();
@@ -309,7 +315,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
             <div className='space-y-1.5'>
                 <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
                 <CardDescription>
-                    총 <Badge variant="secondary">{data?.staff.length || 0}</Badge>명의 스태프.
+                    총 <Badge variant="secondary">{data?.staff.length || 0}</Badge>명의 스태프. 클릭하여 배정된 업무 확인
                 </CardDescription>
             </div>
             <div className='flex items-center gap-2'>
@@ -378,6 +384,8 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
                             isScheduled={scheduledStaffInfo.ids.has(s.id)}
                             assignedRoleName={scheduledStaffInfo.roles.get(s.id) || null}
                             selectedSlot={selectedSlot}
+                            onStaffSelect={onStaffSelect}
+                            isSelected={selectedStaffId === s.id}
                         />
                     ))}
                     </div>
@@ -396,3 +404,4 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
   );
 }
 
+    

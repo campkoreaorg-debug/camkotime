@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -51,7 +51,13 @@ const DraggableTaskBundle = ({ role, selectedTasks }: DraggableTaskBundleProps) 
     );
 };
 
-export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time: string } | null }) {
+interface RolePanelProps {
+    selectedSlot: { day: number, time: string } | null;
+    selectedRole: Role | null;
+    onRoleSelect: (role: Role | null) => void;
+}
+
+export function RolePanel({ selectedSlot, selectedRole, onRoleSelect }: RolePanelProps) {
     const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles } = useVenueData();
     const { toast } = useToast();
 
@@ -61,11 +67,15 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
     const [newRoleName, setNewRoleName] = useState('');
     const [manualTask, setManualTask] = useState('');
     
-    const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
     const [selectedTasks, setSelectedTasks] = useState<ScheduleTemplate[]>([]);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        // When selected role changes from parent, clear task selection
+        setSelectedTasks([]);
+    }, [selectedRole]);
 
 
     const handleCreateRole = () => {
@@ -83,11 +93,9 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
 
     const handleSelectRole = (role: Role) => {
         if(selectedRole?.id === role.id){
-            setSelectedRole(null);
-            setSelectedTasks([]);
+            onRoleSelect(null);
         } else {
-            setSelectedRole(role);
-            setSelectedTasks([]);
+            onRoleSelect(role);
         }
     }
 
@@ -110,8 +118,7 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
     const handleDeleteRole = () => {
         if (roleToDelete) {
             if (selectedRole?.id === roleToDelete.id) {
-                setSelectedRole(null);
-                setSelectedTasks([]);
+                onRoleSelect(null);
             }
             deleteRole(roleToDelete.id);
             toast({ title: '삭제 완료', description: `'${roleToDelete.name}' 직책이 삭제되었습니다.` });
@@ -275,7 +282,7 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
                                 <div className='space-y-4 h-full flex flex-col'>
                                     <div className="flex justify-between items-center">
                                         <h4 className="font-bold text-primary">{selectedRole.name}</h4>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedRole(null)}>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRoleSelect(null)}>
                                             <X className="h-4 w-4"/>
                                         </Button>
                                     </div>
@@ -337,7 +344,7 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
                                 </div>
                             ) : (
                                 <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                                    <p className="text-sm">왼쪽에서 직책을 선택하여<br/>업무를 할당하세요.</p>
+                                    <p className="text-sm">왼쪽에서 직책을 선택하거나<br/>스태프를 클릭하여 업무를 할당하세요.</p>
                                 </div>
                             )}
                         </div>
@@ -387,3 +394,5 @@ export function RolePanel({ selectedSlot }: { selectedSlot: { day: number, time:
         </Card>
     );
 }
+
+    
