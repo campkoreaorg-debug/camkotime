@@ -15,6 +15,14 @@ import { Loader2 } from "lucide-react";
 export function PublicSessionSelector() {
   const { sessions, publicSessionId, setPublicSession, isLoading } = useSession();
 
+  const handleValueChange = (value: string) => {
+    if (value === 'none') {
+      setPublicSession(null);
+    } else {
+      setPublicSession(value);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -26,12 +34,12 @@ export function PublicSessionSelector() {
 
   return (
     <div className="flex items-center gap-2">
-      <Label htmlFor="public-session-selector" className="text-sm font-medium text-muted-foreground">
+      <Label htmlFor="public-session-selector" className="text-sm font-medium text-muted-foreground shrink-0">
         뷰어 차수:
       </Label>
       <Select
-        value={publicSessionId ?? ""}
-        onValueChange={(value) => setPublicSession(value)}
+        value={publicSessionId ?? "none"}
+        onValueChange={handleValueChange}
       >
         <SelectTrigger id="public-session-selector" className="w-[180px]">
           <SelectValue placeholder="뷰어에게 보일 차수 선택..." />

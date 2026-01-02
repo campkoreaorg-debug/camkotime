@@ -14,8 +14,8 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { SessionProvider, useSession } from '@/hooks/use-session';
 
 function ViewerPageContent() {
-  const { publicSessionId, isLoading: isPublicSessionLoading } = useSession();
-  const { data, isLoading } = useVenueData(publicSessionId);
+  const { publicSessionId, isLoading: isSessionLoading } = useSession();
+  const { data, isLoading: isDataLoading } = useVenueData(publicSessionId);
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
@@ -44,7 +44,7 @@ function ViewerPageContent() {
     setSelectedSlot({ day, time });
   }
 
-  if(isUserLoading || isLoading || isPublicSessionLoading){
+  if(isUserLoading || isDataLoading || isSessionLoading){
     return (
         <div className="flex h-screen items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />

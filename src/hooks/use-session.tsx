@@ -54,11 +54,16 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     let foundPublic = false;
     for (const sessionDoc of sessionSnapshot.docs) {
         const venueRef = doc(firestore, 'sessions', sessionDoc.id, 'venue', VENUE_ID);
-        const venueSnap = await getDoc(venueRef);
-        if (venueSnap.exists() && venueSnap.data().isPublic) {
-            setPublicSessionId(sessionDoc.id);
-            foundPublic = true;
-            break;
+        try {
+            const venueSnap = await getDoc(venueRef);
+            if (venueSnap.exists() && venueSnap.data().isPublic) {
+                setPublicSessionId(sessionDoc.id);
+                foundPublic = true;
+                break;
+            }
+        } catch (e) {
+            // This can happen if rules are not set up yet, or document doesn't exist.
+            // We can ignore this error during the initial search.
         }
     }
     if (!foundPublic) {
@@ -137,17 +142,19 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
     const batch = writeBatch(firestore);
     
+    // Unset the old public session if it exists and is different
     if (publicSessionId && publicSessionId !== newPublicSessionId) {
         const oldVenueRef = doc(firestore, 'sessions', publicSessionId, 'venue', VENUE_ID);
         batch.update(oldVenueRef, { isPublic: false });
     }
 
+    // Set the new public session
     if (newPublicSessionId && newPublicSessionId !== 'none') {
         const newVenueRef = doc(firestore, 'sessions', newPublicSessionId, 'venue', VENUE_ID);
-        batch.update(newVenueRef, { isPublic: true });
+        batch.set(newVenueRef, { isPublic: true }, { merge: true }); // Use set with merge to create if not exists
         setPublicSessionId(newPublicSessionId);
         toast({ title: '공개 차수 변경됨', description: '뷰어에게 보여지는 차수가 업데이트되었습니다.'});
-    } else {
+    } else { // This handles 'none' or null
         setPublicSessionId(null);
         toast({ title: '공개 차수 없음', description: '뷰어에게 보여지는 차수가 없습니다.'});
     }
