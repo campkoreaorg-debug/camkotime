@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -17,7 +18,8 @@ import {
   deleteDoc,
   setDoc,
   updateDoc,
-  getDoc, // 🟢 [추가] 직접 조회를 위해 필요
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate } from '@/lib/types';
 import { initialData } from '@/lib/data';
@@ -31,52 +33,40 @@ export const useVenueData = () => {
 
   const [localData, setLocalData] = useState<VenueData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedSlot, setSelectedSlot] = useState<{ day: number, time: string} | null>(null);
 
-  // Firestore Refs
   const venueRef = useMemoFirebase(() => (firestore ? doc(firestore, 'venues', VENUE_ID) : null), [firestore]);
   const staffColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'staff') : null), [firestore]);
   const rolesColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'roles') : null), [firestore]);
   const scheduleColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'schedules') : null), [firestore]);
   const markersColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'markers') : null), [firestore]);
   const mapsColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'maps') : null), [firestore]);
-  const templatesColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'venues', VENUE_ID, 'scheduleTemplates') : null), [firestore]);
 
-  // Firestore Data Hooks
   const { data: venueDoc, isLoading: venueLoading } = useDoc<any>(venueRef);
   const { data: staff, isLoading: staffLoading } = useCollection<StaffMember>(staffColRef);
   const { data: roles, isLoading: rolesLoading } = useCollection<Role>(rolesColRef);
   const { data: schedule, isLoading: scheduleLoading } = useCollection<ScheduleItem>(scheduleColRef);
   const { data: markers, isLoading: markersLoading } = useCollection<MapMarker>(markersColRef);
   const { data: maps, isLoading: mapsLoading } = useCollection<MapInfo>(mapsColRef);
-  const { data: scheduleTemplates, isLoading: templatesLoading } = useCollection<ScheduleTemplate>(templatesColRef);
 
   useEffect(() => {
-    const isDataLoading = venueLoading || staffLoading || rolesLoading || scheduleLoading || markersLoading || mapsLoading || templatesLoading;
+    const isDataLoading = venueLoading || staffLoading || rolesLoading || scheduleLoading || markersLoading || mapsLoading;
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
-      const staffWithRoles = (staff || []).map(s => {
-        // role 매칭 로직 안전성 강화
-        const assignedRole = (roles || []).find(r => s.role && s.role.id === r.id);
-        return {
-          ...s,
-          role: assignedRole ? { ...assignedRole, ...s.role } : s.role,
-        };
-      });
-
       setLocalData({
-        staff: staffWithRoles.sort((a,b) => a.id.localeCompare(b.id)),
+        staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
         roles: (roles || []).sort((a, b) => a.name.localeCompare(b.name)),
         schedule: (schedule || []).sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
         markers: markers || [],
         maps: maps || [],
         notification: venueDoc?.notification || '',
-        scheduleTemplates: scheduleTemplates || [],
+        scheduleTemplates: [], // This is now part of Role
       });
     }
   }, [
-    venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates,
-    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading, templatesLoading
+    venueDoc, staff, roles, schedule, markers, maps,
+    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading
   ]);
 
 
@@ -91,7 +81,6 @@ export const useVenueData = () => {
     initialData.schedule.forEach((item) => batch.set(doc(firestore, 'venues', VENUE_ID, 'schedules', item.id), item));
     initialData.markers.forEach((m) => batch.set(doc(firestore, 'venues', VENUE_ID, 'markers', m.id), m));
     initialData.maps.forEach((map) => batch.set(doc(firestore, 'venues', VENUE_ID, 'maps', map.id), map));
-    initialData.scheduleTemplates.forEach((tpl) => batch.set(doc(firestore, 'venues', VENUE_ID, 'scheduleTemplates', tpl.id), tpl));
     
     await batch.commit();
   }, [firestore, user]);
@@ -102,28 +91,14 @@ export const useVenueData = () => {
     newStaffMembers.forEach(member => {
       const staffId = `staff-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       batch.set(doc(firestore, 'venues', VENUE_ID, 'staff', staffId), {
-        id: staffId, name: member.name, avatar: member.avatar, role: null
+        id: staffId, name: member.name, avatar: member.avatar
       });
     });
     batch.commit();
   };
 
   const deleteStaff = (staffId: string) => {
-    if (!firestore || !localData) return;
-
-    setLocalData(prev => prev ? ({
-        ...prev,
-        staff: prev.staff.filter(s => s.id !== staffId),
-        schedule: prev.schedule.map(s => ({
-            ...s,
-            staffIds: s.staffIds.filter(id => id !== staffId)
-        })).filter(s => s.staffIds.length > 0),
-        markers: prev.markers.map(m => ({
-            ...m,
-            staffIds: m.staffIds?.filter(id => id !== staffId)
-        })).filter(m => m.staffIds && m.staffIds.length > 0),
-    }) : null);
-
+    if (!firestore) return;
     const processBackendDeletion = async () => {
         const batch = writeBatch(firestore);
         batch.delete(doc(firestore, 'venues', VENUE_ID, 'staff', staffId));
@@ -138,8 +113,8 @@ export const useVenueData = () => {
             newIds.length > 0 ? batch.update(d.ref, { staffIds: newIds }) : batch.delete(d.ref);
         });
         markerSnapshot.forEach(d => {
-            const newIds = d.data().staffIds.filter((id: string) => id !== staffId);
-            newIds.length > 0 ? batch.update(d.ref, { staffIds: newIds }) : batch.delete(d.ref);
+            const newIds = d.data().staffIds?.filter((id: string) => id !== staffId);
+            newIds && newIds.length > 0 ? batch.update(d.ref, { staffIds: newIds }) : batch.delete(d.ref);
         });
 
         await batch.commit();
@@ -190,182 +165,51 @@ export const useVenueData = () => {
     batch.commit();
   };
 
-  const addRole = (name: string, day: number, time: string, scheduleTemplates: Omit<ScheduleTemplate, 'id'>[]) => {
+  const addRole = (name: string, tasks: ScheduleTemplate[]) => {
       if (!firestore) return;
       const newId = `role-${Date.now()}`;
-      const newRole: Role = { id: newId, name, day, time, scheduleTemplates };
-
-      setLocalData(prev => prev ? ({ ...prev, roles: [...prev.roles, newRole] }) : null);
-      
+      const newRole: Role = { id: newId, name, tasks };
       setDoc(doc(firestore, 'venues', VENUE_ID, 'roles', newId), newRole);
   };
 
   const deleteRole = (roleId: string) => {
-    if (!firestore || !localData) return;
-
-    setLocalData(prev => prev ? ({
-        ...prev,
-        roles: prev.roles.filter(r => r.id !== roleId),
-        staff: prev.staff.map(s => s.role?.id === roleId ? { ...s, role: null } : s),
-    }) : null);
-
-    const processBackendDeletion = async () => {
-      const batch = writeBatch(firestore);
-      batch.delete(doc(firestore, 'venues', VENUE_ID, 'roles', roleId));
-      const staffQuery = query(collection(firestore, 'venues', VENUE_ID, 'staff'), where('role.id', '==', roleId));
-      const staffSnapshot = await getDocs(staffQuery);
-      staffSnapshot.forEach(d => batch.update(d.ref, { role: null }));
-      await batch.commit();
-    }
-    processBackendDeletion();
-  };
-
-  // 🟢 [수정] assignRoleToStaff: staffIds가 없는 경우 방어 코드 추가 (|| [])
-  const assignRoleToStaff = async (staffId: string, roleId: string) => {
-    console.log(`[배정 시작] 스태프: ${staffId}, 직책: ${roleId}`);
-    
     if (!firestore) return;
-
-    // 1. 로컬 데이터에서 먼저 찾아봄
-    let roleToAssign = localData?.roles.find(r => r.id === roleId);
-
-    // 2. 로컬에 없다면 DB에서 직접 조회
-    if (!roleToAssign) {
-      console.log("⚠️ 로컬에서 직책을 못 찾음. DB 직접 조회 시도...");
-      try {
-        const { getDoc, doc } = await import('firebase/firestore'); // import 최적화
-        const roleSnap = await getDoc(doc(firestore, 'venues', VENUE_ID, 'roles', roleId));
-        if (roleSnap.exists()) {
-          roleToAssign = roleSnap.data() as Role;
-          console.log("✅ DB에서 직책 찾음:", roleToAssign.name);
-        } else {
-          console.error("❌ DB에도 직책이 없음.");
-          return;
-        }
-      } catch (e) {
-        console.error("🔥 DB 조회 실패:", e);
-        return;
-      }
-    }
-
-    // 3. 화면 업데이트 (Optimistic Update)
-    setLocalData(prev => {
-        if (!prev) return null;
-        
-        const roleExists = prev.roles.some(r => r.id === roleToAssign!.id);
-        const updatedRoles = roleExists ? prev.roles : [...prev.roles, roleToAssign!];
-
-        const newStaffList = prev.staff.map(s => {
-            if (s.id === staffId) return { ...s, role: { id: roleId, name: roleToAssign!.name, day: roleToAssign!.day, time: roleToAssign!.time } };
-            if (s.role?.id === roleId) return { ...s, role: null };
-            return s;
-        });
-
-        // 스케줄 정리 (낙관적) - 🔴 여기가 수정된 부분입니다!
-        const oldSchedules = prev.schedule.filter(s => {
-            // staffIds가 undefined일 경우 빈 배열로 처리
-            const currentStaffIds = s.staffIds || []; 
-            
-            const wasAssignedToThisStaff = currentStaffIds.includes(staffId) && s.day === roleToAssign!.day && s.time === roleToAssign!.time;
-            const wasAssignedToOldOwner = prev.staff.find(staff => staff.role?.id === roleId && staff.id !== staffId)?.id;
-            
-            // 여기서도 currentStaffIds 사용
-            const belongsToOldOwner = wasAssignedToOldOwner && currentStaffIds.includes(wasAssignedToOldOwner) && s.day === roleToAssign!.day && s.time === roleToAssign!.time;
-            
-            return !wasAssignedToThisStaff && !belongsToOldOwner;
-        });
-
-        const newSchedules = (roleToAssign!.scheduleTemplates || []).map(template => ({
-            id: `sch-${staffId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-            day: template.day,
-            time: template.time,
-            event: template.event,
-            location: template.location || '',
-            staffIds: [staffId]
-        }));
-        
-        return { ...prev, roles: updatedRoles, staff: newStaffList, schedule: [...oldSchedules, ...newSchedules] };
-    });
-
-    // 4. 백엔드 업데이트
-    const processBackendUpdate = async () => {
-        try {
-            const batch = writeBatch(firestore);
-            
-            // 이전 담당자 해제
-            const staffQuery = query(collection(firestore, 'venues', VENUE_ID, 'staff'), where('role.id', '==', roleId));
-            const staffSnapshot = await getDocs(staffQuery);
-            const oldOwnerIds: string[] = [];
-            staffSnapshot.forEach(d => {
-                if (d.id !== staffId) {
-                    oldOwnerIds.push(d.id);
-                    batch.update(d.ref, { role: null });
-                }
-            });
-
-            // 새 담당자 배정
-            batch.update(doc(firestore, 'venues', VENUE_ID, 'staff', staffId), { role: { id: roleId, name: roleToAssign!.name, day: roleToAssign!.day, time: roleToAssign!.time } });
-
-            // 기존 스케줄 삭제
-            const staffIdsToClear = [staffId, ...oldOwnerIds];
-            if (staffIdsToClear.length > 0) {
-                 const scheduleQuery = query(collection(firestore, 'venues', VENUE_ID, 'schedules'), where('staffIds', 'array-contains-any', staffIdsToClear), where('day', '==', roleToAssign!.day), where('time', '==', roleToAssign!.time));
-                 const oldSchedulesSnapshot = await getDocs(scheduleQuery);
-                 oldSchedulesSnapshot.forEach(d => batch.delete(d.ref));
-            }
-            
-            // 새 스케줄 템플릿 적용
-            (roleToAssign!.scheduleTemplates || []).forEach(template => {
-                const newId = `sch-tpl-${staffId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-                batch.set(doc(firestore, 'venues', VENUE_ID, 'schedules', newId), { ...template, id: newId, staffIds: [staffId] });
-            });
-
-            await batch.commit();
-            console.log("✅ [DB 저장 성공]");
-        } catch (e) {
-            console.error("🔥 [DB 저장 실패]", e);
-        }
-    };
-    processBackendUpdate();
+    deleteDoc(doc(firestore, 'venues', VENUE_ID, 'roles', roleId));
   };
 
-  const unassignRoleFromStaff = (staffId: string) => {
-    if (!localData) return;
-    const staffMember = localData.staff.find(s => s.id === staffId);
-    if (!staffMember?.role) return;
-    const { day, time } = staffMember.role;
+  const assignTasksToStaff = (staffId: string, tasks: ScheduleTemplate[]) => {
+    if (!firestore || !selectedSlot) return;
 
-    setLocalData(prev => prev ? ({
-        ...prev,
-        staff: prev.staff.map(s => s.id === staffId ? { ...s, role: null } : s),
-        schedule: prev.schedule.filter(s => !(s.staffIds.includes(staffId) && s.day === day && s.time === time))
-    }) : null);
-
-    const processBackendUpdate = async () => {
-        if (!firestore) return;
-        const batch = writeBatch(firestore);
-        batch.update(doc(firestore, 'venues', VENUE_ID, 'staff', staffId), { role: null });
-        const scheduleQuery = query(collection(firestore, 'venues', VENUE_ID, 'schedules'), where('staffIds', 'array-contains', staffId), where('day', '==', day), where('time', '==', time));
-        const snapshot = await getDocs(scheduleQuery);
-        snapshot.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-    };
-    processBackendUpdate();
-  };
-
-  const addScheduleTemplate = (templates: Omit<ScheduleTemplate, 'id'>[]) => {
-    if (!firestore || templates.length === 0) return;
+    const { day, time } = selectedSlot;
     const batch = writeBatch(firestore);
-    templates.forEach(t => {
-      const newId = `tpl-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      batch.set(doc(firestore, 'venues', VENUE_ID, 'scheduleTemplates', newId), { ...t, id: newId });
+    tasks.forEach(task => {
+        const newScheduleId = `sch-${staffId}-${day}-${time}-${Math.random().toString(36).substr(2, 5)}`;
+        const scheduleItem: ScheduleItem = {
+            id: newScheduleId,
+            day,
+            time,
+            event: task.event,
+            location: task.location || '',
+            staffIds: [staffId]
+        };
+        batch.set(doc(firestore, 'venues', VENUE_ID, 'schedules', newScheduleId), scheduleItem);
     });
     batch.commit();
-  };
+  }
+  
+  const addTasksToRole = (roleId: string, tasks: ScheduleTemplate[]) => {
+    if(!firestore) return;
+    updateDoc(doc(firestore, 'venues', VENUE_ID, 'roles', roleId), {
+        tasks: arrayUnion(...tasks)
+    });
+  }
 
-  const deleteScheduleTemplate = (templateId: string) => {
-      if(firestore) deleteDoc(doc(firestore, 'venues', VENUE_ID, 'scheduleTemplates', templateId));
-  };
+  const removeTaskFromRole = (roleId: string, task: ScheduleTemplate) => {
+    if(!firestore) return;
+    updateDoc(doc(firestore, 'venues', VENUE_ID, 'roles', roleId), {
+        tasks: arrayRemove(task)
+    });
+  }
 
   const updateMapImage = (day: number, time: string, newUrl: string) => {
     if (!firestore) return;
@@ -410,15 +254,15 @@ export const useVenueData = () => {
     initializeFirestoreData,
     addRole,
     deleteRole,
-    assignRoleToStaff,
-    unassignRoleFromStaff,
-    addScheduleTemplate,
-    deleteScheduleTemplate,
+    assignTasksToStaff,
+    addTasksToRole,
+    removeTaskFromRole,
     isLoading,
     updateMarkerPosition,
     addMarker,
     deleteMarker,
     updateNotification,
+    setSelectedSlot
   };
 };
 

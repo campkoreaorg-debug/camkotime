@@ -13,7 +13,7 @@ import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { timeSlots } from '@/hooks/use-venue-data';
+import { timeSlots, useVenueData } from '@/hooks/use-venue-data';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
@@ -23,12 +23,12 @@ export default function AdminPage() {
   const router = useRouter();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
+  const { setSelectedSlot: setGlobalSlot } = useVenueData();
 
   const [isLinked, setIsLinked] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
   const [activeTab, setActiveTab] = useState('day-0');
   
-  // This state is just for the map panel when unlinked
   const [mapSlot, setMapSlot] = useState<{ day: number; time: string } | null>(null);
 
 
@@ -39,12 +39,12 @@ export default function AdminPage() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    // Save the selected slot to localStorage whenever it changes
     const slotToSave = selectedSlot;
     if (slotToSave) {
       localStorage.setItem('venueSyncSelectedSlot', JSON.stringify(slotToSave));
+      setGlobalSlot(slotToSave);
     }
-  }, [selectedSlot]);
+  }, [selectedSlot, setGlobalSlot]);
 
   useEffect(() => {
     const storedSlot = localStorage.getItem('venueSyncSelectedSlot');
@@ -54,7 +54,6 @@ export default function AdminPage() {
       setMapSlot(parsedSlot);
       setActiveTab(`day-${parsedSlot.day}`);
     } else {
-      // Default to the first time slot
       const defaultSlot = { day: 0, time: '07:00' };
       setSelectedSlot(defaultSlot);
       setMapSlot(defaultSlot);

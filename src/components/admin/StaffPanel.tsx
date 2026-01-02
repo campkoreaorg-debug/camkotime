@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
-import type { StaffMember, Role } from '@/lib/types';
+import type { StaffMember, ScheduleTemplate } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -20,7 +20,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Input } from '../ui/input';
 import {
     Collapsible,
     CollapsibleContent,
@@ -37,40 +36,35 @@ interface PendingStaff {
 
 const MAX_IMAGE_WIDTH = 800; // 픽셀 단위
 
-const ItemTypes = {
-    ROLE: 'role',
+export const ItemTypes = {
+    TASK_BUNDLE: 'taskBundle',
 }
 
-const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, index: number, selectedSlot: { day: number, time: string } | null }) => {
-    const { deleteStaff, assignRoleToStaff, unassignRoleFromStaff } = useVenueData();
+interface TaskBundle {
+    roleName: string;
+    tasks: ScheduleTemplate[];
+}
+
+
+const StaffMemberCard = ({ staff, index }: { staff: StaffMember, index: number }) => {
+    const { deleteStaff, assignTasksToStaff } = useVenueData();
     const { toast } = useToast();
     const [isAlertOpen, setIsAlertOpen] = useState(false);
 
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
-        accept: ItemTypes.ROLE,
-        drop: (item: Role) => {
-            if (item.day !== selectedSlot?.day || item.time !== selectedSlot?.time) {
-                toast({
-                    variant: 'destructive',
-                    title: '시간대 불일치',
-                    description: `이 직책은 Day ${item.day} ${item.time} 전용입니다. Day ${selectedSlot?.day} ${selectedSlot?.time}의 스태프에게 할당할 수 없습니다.`,
-                });
-                return;
-            }
-            assignRoleToStaff(staff.id, item.id);
+        accept: ItemTypes.TASK_BUNDLE,
+        drop: (item: TaskBundle) => {
+            assignTasksToStaff(staff.id, item.tasks);
             toast({
-                title: '직책 할당됨',
-                description: `${staff.name}님에게 '${item.name}' 직책이 할당되었습니다.`,
+                title: '업무 할당됨',
+                description: `${staff.name}님에게 '${item.roleName}' 직책의 ${item.tasks.length}개 업무가 할당되었습니다.`,
             });
-        },
-        canDrop: (item: Role) => {
-            return item.day === selectedSlot?.day && item.time === selectedSlot?.time;
         },
         collect: (monitor: DropTargetMonitor) => ({
             isOver: !!monitor.isOver(),
-            canDrop: !!monitor.canDrop() && monitor.getItem().day === selectedSlot?.day && monitor.getItem().time === selectedSlot?.time,
+            canDrop: !!monitor.canDrop(),
         }),
-    }), [staff.id, selectedSlot]);
+    }), [staff.id]);
 
 
     const handleDelete = () => {
@@ -82,19 +76,6 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
       setIsAlertOpen(false);
     };
     
-    const handleUnassignRole = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (staff.role) {
-            unassignRoleFromStaff(staff.id, staff.role.day, staff.role.time);
-            toast({
-                title: '직책 해제됨',
-                description: `${staff.name}님의 직책이 해제되었습니다.`,
-            });
-        }
-    };
-
-    const showRole = staff.role && selectedSlot && staff.role.day === selectedSlot.day && staff.role.time === selectedSlot.time;
-
     return (
         <div 
             ref={drop}
@@ -106,25 +87,13 @@ const StaffMemberCard = ({ staff, index, selectedSlot }: { staff: StaffMember, i
             <span className="absolute top-2 left-2 z-10 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">
                 {index + 1}
             </span>
-             <Avatar className={cn('h-12 w-12', showRole && 'border-4 border-destructive')}>
+             <Avatar className={cn('h-12 w-12')}>
                 <AvatarImage src={staff.avatar} alt={staff.name} />
                 <AvatarFallback><User className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
             </Avatar>
             <div className='flex-1'>
                 <p className="font-semibold text-sm">{staff.name}</p>
-                {showRole && staff.role ? (
-                     <Badge 
-                        variant="outline"
-                        className="mt-1 text-xs group/badge relative pr-6" 
-                    >
-                        {staff.role.name}
-                        <button onClick={handleUnassignRole} className='absolute right-0.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground opacity-0 group-hover/badge:opacity-100 transition-opacity'>
-                           <X className='h-3 w-3 mx-auto'/>
-                        </button>
-                    </Badge>
-                ) : (
-                    <div className='h-6 mt-1'/> 
-                )}
+                 <div className='h-6 mt-1'/> 
             </div>
             <Button
                 variant="ghost"
@@ -186,7 +155,6 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
                 canvas.height = height;
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // JPEG 형식으로 압축하여 데이터 URL 생성
                 resolve(canvas.toDataURL('image/jpeg', 0.9)); 
             };
             img.onerror = reject;
@@ -287,7 +255,7 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
             <div className='space-y-1.5'>
                 <CardTitle className="font-headline text-2xl font-semibold">스태프 관리</CardTitle>
                 <CardDescription>
-                    총 <Badge variant="secondary">{data.staff.length}</Badge>명의 스태프가 등록되었습니다.
+                    총 <Badge variant="secondary">{data?.staff.length || 0}</Badge>명의 스태프. 직책에서 업무를 드래그하여 할당하세요.
                 </CardDescription>
             </div>
             <div className='flex items-center gap-2'>
@@ -346,10 +314,10 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
                     </div>
                 )}
 
-                {data.staff.length > 0 ? (
+                {data && data.staff.length > 0 ? (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(theme(spacing.28),1fr))] gap-4 p-1">
                     {data.staff.map((s, index) => (
-                        <StaffMemberCard key={s.id} staff={s} index={index} selectedSlot={selectedSlot} />
+                        <StaffMemberCard key={s.id} staff={s} index={index} />
                     ))}
                     </div>
                 ) : (
@@ -366,5 +334,3 @@ export function StaffPanel({ selectedSlot }: StaffPanelProps) {
     </Card>
   );
 }
-
-    

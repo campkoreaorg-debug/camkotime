@@ -1,26 +1,20 @@
 
 
 export interface ScheduleTemplate {
-  id: string; // id 추가
-  day: number;
-  time: string;
   event: string;
   location?: string;
 }
 
 export interface Role {
-  id:string;
+  id: string;
   name: string;
-  day: number;
-  time: string;
-  scheduleTemplates?: Omit<ScheduleTemplate, 'id'>[]; // ID는 역할에 포함되지 않음
+  tasks: ScheduleTemplate[];
 }
 
 export interface StaffMember {
   id: string;
   name: string;
   avatar: string;
-  role: { id: string; name: string; day: number; time: string; } | null;
 }
 
 export interface ScheduleItem {
@@ -55,5 +49,5 @@ export interface VenueData {
   markers: MapMarker[];
   maps: MapInfo[];
   notification?: string;
-  scheduleTemplates: ScheduleTemplate[]; // scheduleTemplates 추가
+  scheduleTemplates: ScheduleTemplate[];
 }
