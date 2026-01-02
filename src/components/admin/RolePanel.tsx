@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download, ArrowDown, ArrowUp, CheckCircle2 } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { Plus, Trash2, GripVertical, PlusCircle, Trash, Package, ClipboardCheck, X, Upload, Download, ArrowDown, ArrowUp, CheckCircle2, Circle } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -112,7 +112,7 @@ interface RolePanelProps {
 }
 
 function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePanelProps) {
-    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles, updateRoleOrder, importRolesFromOtherDays, toggleTaskCompletion } = useVenueData();
+    const { data, addRole, deleteRole, addTasksToRole, removeTaskFromRole, uploadRoles, updateRoleOrder, importRolesFromOtherDays, updateScheduleStatus } = useVenueData();
     const { toast } = useToast();
 
     const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
@@ -210,11 +210,45 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
         if (!selectedRole) return;
         removeTaskFromRole(selectedRole.id, task);
     };
+    
+    const relevantSchedules = useMemo(() => {
+        if (!selectedRole || !selectedSlot || !data?.schedule) return [];
+        return data.schedule.filter(s =>
+            s.day === selectedSlot.day &&
+            s.roleName === selectedRole.name
+        );
+    }, [selectedRole, selectedSlot, data?.schedule]);
 
-    const handleToggleCompletion = (task: ScheduleTemplate) => {
+    const taskCompletionStatus = useMemo(() => {
+        if (!selectedRole) return new Map<string, boolean>();
+
+        const statusMap = new Map<string, boolean>();
+        for (const task of selectedRole.tasks) {
+            const schedulesForTask = relevantSchedules.filter(s => s.event === task.event);
+            if (schedulesForTask.length > 0) {
+                const allCompleted = schedulesForTask.every(s => s.isCompleted);
+                statusMap.set(task.event, allCompleted);
+            } else {
+                statusMap.set(task.event, false);
+            }
+        }
+        return statusMap;
+    }, [selectedRole, relevantSchedules]);
+
+    const handleToggleCompletion = useCallback((task: ScheduleTemplate) => {
         if (!selectedRole || !selectedSlot) return;
-        toggleTaskCompletion(selectedRole.id, task);
-    }
+
+        const schedulesToUpdate = relevantSchedules.filter(s => s.event === task.event);
+        if (schedulesToUpdate.length === 0) return;
+
+        const areAllCompleted = schedulesToUpdate.every(s => s.isCompleted);
+        const newStatus = !areAllCompleted;
+
+        schedulesToUpdate.forEach(schedule => {
+            updateScheduleStatus(schedule.id, newStatus);
+        });
+    }, [selectedRole, selectedSlot, relevantSchedules, updateScheduleStatus]);
+
     
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -312,7 +346,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
             return;
         }
         
-        importRolesFromOtherDays(rolesToImportIds, selectedSlot.day);
+        importRolesFromOtherDays(rolesToImportIds);
         
         toast({ title: '불러오기 완료', description: `${rolesToImportIds.length}개의 직책을 현재 날짜로 불러왔습니다.` });
         setIsImportModalOpen(false);
@@ -344,7 +378,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
         )
     }
     
-    const dayFilteredRoles = roles;
+    const dayFilteredRoles = roles.filter(role => role.day === selectedSlot.day);
 
     return (
         <Card className='xl:col-span-2'>
@@ -424,6 +458,8 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                                             <div className="space-y-1">
                                                 {selectedRole.tasks.map((task, index) => {
                                                     const isSelected = selectedTasks.some(t => t.event === task.event);
+                                                    const isCompleted = taskCompletionStatus.get(task.event) || false;
+                                                    
                                                     return (
                                                         <div 
                                                             key={index}
@@ -435,18 +471,18 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                                                         >
                                                             <div className="flex items-center gap-2">
                                                                 <Checkbox checked={isSelected} className='shrink-0'/>
-                                                                <div className={cn(task.isCompleted && 'line-through text-muted-foreground')}>
+                                                                <div className={cn(isCompleted && 'line-through text-muted-foreground')}>
                                                                     <span>{task.event}</span> {task.location && `(${task.location})`}
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-1">
                                                                 <Button 
                                                                     size="sm" 
-                                                                    variant={task.isCompleted ? "secondary" : "outline"} 
+                                                                    variant={isCompleted ? "secondary" : "outline"} 
                                                                     className="h-6 px-2 text-xs"
                                                                     onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task); }}
                                                                 >
-                                                                    {task.isCompleted ? '완료취소' : '완료'}
+                                                                    {isCompleted ? '완료취소' : '완료'}
                                                                 </Button>
                                                                 <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleRemoveTask(task);}}>
                                                                     <Trash className="h-3 w-3" />
@@ -484,7 +520,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     <DialogHeader>
                         <DialogTitle>새 직책 생성</DialogTitle>
                         <DialogDescription>
-                            현재 선택된 날짜({(selectedSlot.day ?? 0) + 1}일차)에 사용할 수 있는 직책 템플릿을 만듭니다.
+                            현재 선택된 날짜({selectedSlot.day}일차)에 사용할 수 있는 직책 템플릿을 만듭니다.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -509,18 +545,18 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     <DialogHeader>
                         <DialogTitle>다른 날짜에서 직책 불러오기</DialogTitle>
                         <DialogDescription>
-                            다른 날짜에 생성된 직책들을 선택하여 현재 날짜({(selectedSlot.day ?? 0) + 1}일차)로 복사합니다.
+                            다른 날짜에 생성된 직책들을 선택하여 현재 날짜({selectedSlot.day}일차)로 복사합니다.
                         </DialogDescription>
                     </DialogHeader>
                     <ScrollArea className="h-96 my-4">
                         <Accordion type="multiple" className="w-full" defaultValue={['day-0', 'day-1', 'day-2', 'day-3']}>
                             {Object.entries(rolesByDay).map(([day, dayRoles]) => (
-                                <AccordionItem value={`day-${day}`} key={day}>
+                                <AccordionItem value={`day-${day}`} key={`${day}-${dayRoles.map(r=>r.id).join('-')}`}>
                                     <AccordionTrigger>{parseInt(day) + 1}일차</AccordionTrigger>
                                     <AccordionContent>
                                         <div className='grid grid-cols-2 gap-2 p-2'>
                                             {dayRoles.map(role => (
-                                                <div key={role.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted">
+                                                <div key={`${day}-${role.id}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted">
                                                     <Checkbox
                                                         id={`import-${role.id}`}
                                                         checked={rolesToImport[role.id] || false}

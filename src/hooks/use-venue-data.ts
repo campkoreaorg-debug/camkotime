@@ -46,7 +46,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const markersColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'markers') : null), [firestore, sessionId]);
   const mapsColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'maps') : null), [firestore, sessionId]);
   const scheduleTemplatesColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'scheduleTemplates') : null), [firestore, sessionId]);
-  const allRolesColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'sessions') : null), [firestore]);
+  const allRolesColRef = useMemoFirebase(() => (firestore ? collectionGroup(firestore, 'roles') : null), [firestore]);
 
   const { data: venueDoc, isLoading: venueLoading } = useDoc<any>(venueRef);
   const { data: staff, isLoading: staffLoading } = useCollection<StaffMember>(staffColRef);
@@ -56,26 +56,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const { data: maps, isLoading: mapsLoading } = useCollection<MapInfo>(mapsColRef);
   const { data: scheduleTemplates, isLoading: templatesLoading } = useCollection<ScheduleTemplate>(scheduleTemplatesColRef);
   
-  const [allRoles, setAllRoles] = useState<Role[]>([]);
-  const [allRolesLoading, setAllRolesLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAllRoles = async () => {
-        if (!firestore) return;
-        setAllRolesLoading(true);
-        const rolesData: Role[] = [];
-        const sessionsSnapshot = await getDocs(collection(firestore, 'sessions'));
-        for (const sessionDoc of sessionsSnapshot.docs) {
-            const rolesSnapshot = await getDocs(collection(firestore, 'sessions', sessionDoc.id, 'roles'));
-            rolesSnapshot.forEach(roleDoc => {
-                rolesData.push({ ...roleDoc.data(), day: sessionDoc.data().day || 0 } as Role);
-            });
-        }
-        setAllRoles(rolesData);
-        setAllRolesLoading(false);
-    };
-    fetchAllRoles();
-  }, [firestore, roles]);
+  const { data: allRoles, isLoading: allRolesLoading } = useCollection<Role>(allRolesColRef);
 
 
   useEffect(() => {
@@ -98,11 +79,18 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         if (b.order !== undefined) return 1;
         return (b.tasks?.length || 0) - (a.tasks?.length || 0);
       });
+      
+      const sessionRoles = allRoles?.map(role => ({
+        ...role,
+        // @ts-ignore
+        day: parseInt(role.ref.parent.parent.id.split('-')[1], 10) || 0
+      })) || [];
+
 
       setLocalData({
         staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
         roles: sortedRoles,
-        allRoles: allRoles || [],
+        allRoles: sessionRoles,
         schedule: (schedule || []).sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
         markers: markers || [],
         maps: maps || [],
@@ -209,7 +197,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const addSchedule = (values: Omit<ScheduleItem, 'id'>) => {
       if (!firestore || !sessionId) return;
       const newId = `sch-${Date.now()}`;
-      setDoc(doc(firestore, 'sessions', sessionId, 'schedules', newId), { id: newId, ...values, staffIds: values.staffIds || [] });
+      setDoc(doc(firestore, 'sessions', sessionId, 'schedules', newId), { id: newId, ...values, staffIds: values.staffIds || [], isCompleted: false });
   };
 
   const updateSchedule = (scheduleId: string, data: Partial<ScheduleItem>) => {
@@ -243,7 +231,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     clipboard.forEach(item => {
         const newId = `sch-paste-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
         batch.set(doc(firestore, 'sessions', sessionId, 'schedules', newId), {
-            id: newId, day, time, event: item.event, location: item.location, staffIds: item.staffIds || []
+            id: newId, day, time, event: item.event, location: item.location, staffIds: item.staffIds || [], isCompleted: false
         });
     });
     batch.commit();
@@ -252,7 +240,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const addRole = (name: string, tasks: ScheduleTemplate[]) => {
       if (!firestore || !sessionId || !localData || localData.schedule === null) return;
       const newId = `role-${Date.now()}`;
-      const newRole: Role = { id: newId, name, tasks: tasks || [], day: localData.schedule?.[0]?.day ?? 0, order: (localData.roles?.length || 0) };
+      const newRole: Role = { id: newId, name, tasks: tasks || [], day: 0, order: (localData.roles?.length || 0) };
       setDoc(doc(firestore, 'sessions', sessionId, 'roles', newId), newRole);
   };
 
@@ -287,7 +275,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     batch.commit();
   };
 
-  const importRolesFromOtherDays = (roleIds: string[], targetDay: number) => {
+  const importRolesFromOtherDays = (roleIds: string[]) => {
     if (!firestore || !sessionId || !localData?.allRoles) return;
     const rolesToImport = localData.allRoles.filter(r => roleIds.includes(r.id));
     const batch = writeBatch(firestore);
@@ -296,7 +284,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         batch.set(doc(firestore, 'sessions', sessionId, 'roles', newId), {
             ...role,
             id: newId,
-            day: targetDay,
+            day: 0,
             order: (localData.roles?.length || 0) + 1,
         });
     });
@@ -336,6 +324,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
               location: task.location || '',
               staffIds: [staffId],
               roleName: roleName,
+              isCompleted: false
           };
 
           const docRef = doc(firestore, 'sessions', sessionId, 'schedules', newScheduleId);
@@ -380,20 +369,25 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     });
   };
 
-  const toggleTaskCompletion = async (roleId: string, task: ScheduleTemplate) => {
-      if(!firestore || !sessionId) return;
-      const roleRef = doc(firestore, 'sessions', sessionId, 'roles', roleId);
-      const roleSnap = await getDoc(roleRef);
-      if (roleSnap.exists()) {
-          const roleData = roleSnap.data() as Role;
-          const newTasks = roleData.tasks.map(t => 
-              t.event === task.event && t.location === task.location
-              ? { ...t, isCompleted: !t.isCompleted }
-              : t
-          );
-          await updateDoc(roleRef, { tasks: newTasks });
-      }
-  }
+  const updateScheduleStatus = (scheduleId: string, newStatus: boolean) => {
+    if (!firestore || !sessionId) return;
+    const scheduleRef = doc(firestore, 'sessions', sessionId, 'schedules', scheduleId);
+    updateDoc(scheduleRef, { isCompleted: newStatus });
+  };
+  
+  const toggleScheduleCompletion = async (scheduleId: string) => {
+    if (!firestore || !sessionId) return;
+    const scheduleRef = doc(firestore, 'sessions', sessionId, 'schedules', scheduleId);
+    try {
+        const scheduleSnap = await getDoc(scheduleRef);
+        if (scheduleSnap.exists()) {
+            const currentStatus = scheduleSnap.data().isCompleted || false;
+            await updateDoc(scheduleRef, { isCompleted: !currentStatus });
+        }
+    } catch (error) {
+        console.error("Error toggling schedule completion:", error);
+    }
+  };
 
   const updateMapImage = async (day: number, time: string, file: File): Promise<string | null> => {
     if (!firestore || !sessionId || !storage) return null;
@@ -476,7 +470,8 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     unassignRoleFromStaff,
     addTasksToRole,
     removeTaskFromRole,
-    toggleTaskCompletion,
+    updateScheduleStatus,
+    toggleScheduleCompletion,
     isLoading: isLoading, 
     updateMarkerPosition,
     addMarker,

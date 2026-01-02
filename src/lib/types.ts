@@ -8,7 +8,6 @@ export interface Session {
 export interface ScheduleTemplate {
   event: string;
   location?: string;
-  isCompleted?: boolean;
 }
 
 export interface Role {
@@ -33,6 +32,7 @@ export interface ScheduleItem {
   location?: string;
   staffIds: string[];
   roleName?: string;
+  isCompleted?: boolean;
 }
 
 export interface MapMarker {

@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X, Download } from 'lucide-react';
+import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X, Download, CheckCircle, Circle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -46,7 +46,7 @@ interface SchedulePanelProps {
 }
 
 export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
-  const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, deleteAllSchedules } = useVenueData();
+  const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, deleteAllSchedules, toggleScheduleCompletion } = useVenueData();
   const { toast } = useToast();
   
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
@@ -314,7 +314,7 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
                                                     <AvatarFallback>{staff.name.charAt(0)}</AvatarFallback>
                                                 </Avatar>
                                                 <span className="text-sm font-medium">{staff.name}</span>
-                                                <span className="text-xs text-muted-foreground">{staff.role?.name}</span>
+                                                {/* <span className="text-xs text-muted-foreground">{staff.role?.name}</span> */}
                                             </div>
                                         ))}
                                         </div>
@@ -411,7 +411,7 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
                                     onClick={() => handleItemClick(item.id)}
                                 >
                                     <div className="flex flex-col items-start gap-2 flex-1">
-                                        <p className="font-medium text-sm">{item.event}</p>
+                                        <p className={cn("font-medium text-sm", item.isCompleted && "line-through text-muted-foreground")}>{item.event}</p>
                                         <div className='flex items-center gap-2'>
                                             <Users className='h-4 w-4 text-muted-foreground' />
                                             {assignedStaff.length > 0 ? (
@@ -427,13 +427,18 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
                                         </div>
                                     </div>
                                     {!isEditingThis && (
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleEditClick(e, item)}>
-                                                <Edit className="h-3.5 w-3.5"/>
+                                        <div className="flex gap-1">
+                                             <Button variant={item.isCompleted ? "secondary" : "outline"} size="sm" className='h-7' onClick={(e) => { e.stopPropagation(); toggleScheduleCompletion(item.id)}}>
+                                                {item.isCompleted ? <><CheckCircle className='mr-2 h-4 w-4' /> 완료취소</> : <><Circle className='mr-2 h-4 w-4' />완료</>}
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => handleDeleteConfirmation(e, item)}>
-                                                <Trash2 className="h-3.5 w-3.5"/>
-                                            </Button>
+                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleEditClick(e, item)}>
+                                                    <Edit className="h-3.5 w-3.5"/>
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => handleDeleteConfirmation(e, item)}>
+                                                    <Trash2 className="h-3.5 w-3.5"/>
+                                                </Button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
