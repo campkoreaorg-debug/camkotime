@@ -214,7 +214,7 @@ export default function AdminPage() {
               <Tabs value={activeTab} onValueChange={handleTabChange}>
                 <TabsList className='mb-4'>
                   {days.map(day => (
-                    <TabsTrigger key={day} value={`day-${day}`}>{day+1}일차</TabsTrigger>
+                    <TabsTrigger key={day} value={`day-${day}`}>{day}일차</TabsTrigger>
                   ))}
                 </TabsList>
               </Tabs>
@@ -262,7 +262,7 @@ export default function AdminPage() {
                         {isLinked 
                           ? '전역 시간대 설정과 연동된 지도입니다.' 
                           : selectedSlot 
-                            ? `독립적으로 ${selectedSlot.day+1}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` 
+                            ? `독립적으로 ${selectedSlot.day}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` 
                             : '시간대를 선택하여 지도를 확인하세요.'
                         }
                        </CardDescription>

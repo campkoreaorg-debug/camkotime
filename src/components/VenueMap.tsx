@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
@@ -11,7 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
-import { useVenueData } from '@/hooks/use-venue-data';
+// 🔴 [삭제] useVenueData hook 제거 (권한 에러 원인)
+// import { useVenueData } from '@/hooks/use-venue-data';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from './ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -26,10 +26,30 @@ interface VenueMapProps {
   isDraggable?: boolean;
   selectedSlot: { day: number, time: string } | null;
   notification?: string;
+  // 🟢 [추가] 부모 컴포넌트에서 받아올 콜백 함수들
+  onMarkerMove?: (id: string, x: number, y: number, staffIds?: string[], day?: number, time?: string) => void;
+  onMarkerAdd?: (staffId: string, day: number, time: string, x: number, y: number) => void;
+  onMapImageUpdate?: (day: number, time: string, file: File) => Promise<string | null>;
+  onMarkerDelete?: (markerId: string) => void;
 }
 
-export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDraggable = false, selectedSlot, notification }: VenueMapProps) {
-  const { updateMarkerPosition, addMarker, updateMapImage, deleteMarker } = useVenueData();
+export default function VenueMap({ 
+    allMarkers, 
+    allMaps, 
+    staff, 
+    schedule, 
+    isDraggable = false, 
+    selectedSlot, 
+    notification,
+    // 🟢 Props로 기능 받기
+    onMarkerMove,
+    onMarkerAdd,
+    onMapImageUpdate,
+    onMarkerDelete
+}: VenueMapProps) {
+  // 🔴 [삭제] 내부에서 훅 호출 금지
+  // const { updateMarkerPosition, addMarker, updateMapImage, deleteMarker } = useVenueData();
+  
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isBannerVisible, setIsBannerVisible] = useState(true);
@@ -93,7 +113,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const [, drop] = useDrop(() => ({
     accept: ItemTypes.STAFF,
     drop: (item: { staffId: string }, monitor) => {
-      if (!selectedSlot || !mapRef.current) return;
+      if (!selectedSlot || !mapRef.current || !onMarkerAdd) return; // onMarkerAdd 체크
       const dropPosition = monitor.getClientOffset();
       const mapBounds = mapRef.current.getBoundingClientRect();
       
@@ -103,10 +123,10 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
         x = Math.max(0, Math.min(100, x));
         y = Math.max(0, Math.min(100, y));
         
-        addMarker(item.staffId, selectedSlot.day, selectedSlot.time, x, y);
+        onMarkerAdd(item.staffId, selectedSlot.day, selectedSlot.time, x, y);
       }
     },
-  }), [selectedSlot, addMarker]);
+  }), [selectedSlot, onMarkerAdd]); // 의존성 변경
 
   drop(mapRef);
 
@@ -154,14 +174,14 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const handleGlobalUp = (e: PointerEvent) => {
     const marker = currentInteractMarkerRef.current;
     if (marker && mapRef.current) {
-        if (isDraggingRef.current) {
+        if (isDraggingRef.current && onMarkerMove) { // onMarkerMove 체크
             const mapBounds = mapRef.current.getBoundingClientRect();
             let x = ((e.clientX - mapBounds.left) / mapBounds.width) * 100;
             let y = ((e.clientY - mapBounds.top) / mapBounds.height) * 100;
             x = Math.max(0, Math.min(100, x));
             y = Math.max(0, Math.min(100, y));
             
-            updateMarkerPosition(marker.id, x, y, marker.staffIds, marker.day, marker.time);
+            onMarkerMove(marker.id, x, y, marker.staffIds, marker.day, marker.time);
         } else {
             setActiveMarkerId(prev => prev === marker.id ? null : marker.id);
         }
@@ -181,15 +201,15 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }, []);
 
   const handleAddMarkerClick = (staffId: string) => {
-    if(!selectedSlot) return;
-    addMarker(staffId, selectedSlot.day, selectedSlot.time, Math.round(Math.random() * 80) + 10, Math.round(Math.random() * 80) + 10);
+    if(!selectedSlot || !onMarkerAdd) return;
+    onMarkerAdd(staffId, selectedSlot.day, selectedSlot.time, Math.round(Math.random() * 80) + 10, Math.round(Math.random() * 80) + 10);
   }
 
   const handleMapImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if(!selectedSlot) return;
+    if(!selectedSlot || !onMapImageUpdate) return;
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      if (file.size > 5 * 1024 * 1024) { 
         toast({
           variant: 'destructive',
           title: '이미지 크기 초과',
@@ -203,7 +223,8 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
         description: `지도 배경 이미지를 업로드하고 있습니다.`,
       });
 
-      const newMapImageUrl = await updateMapImage(selectedSlot.day, selectedSlot.time, file);
+      // Props 함수 호출
+      const newMapImageUrl = await onMapImageUpdate(selectedSlot.day, selectedSlot.time, file);
       
       if(newMapImageUrl) {
         toast({
@@ -221,12 +242,14 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   };
   
   const handleRemoveMarker = (markerId: string) => {
-    deleteMarker(markerId);
-    setActiveMarkerId(null);
-    toast({
-        title: '스태프가 지도에서 제거되었습니다.',
-        description: '미배치 스태프 목록에서 다시 추가할 수 있습니다.'
-    })
+    if (onMarkerDelete) {
+        onMarkerDelete(markerId);
+        setActiveMarkerId(null);
+        toast({
+            title: '스태프가 지도에서 제거되었습니다.',
+            description: '미배치 스태프 목록에서 다시 추가할 수 있습니다.'
+        })
+    }
   }
 
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
@@ -353,19 +376,19 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                             return (
                                 <div className='space-y-3'>
                                     {relevantSchedules.map(task => (
-                                         <div key={task.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
-                                             <div className="bg-muted px-3 py-1.5 border-b flex justify-between items-center">
-                                                <p className="font-medium text-xs text-muted-foreground">{task.location || 'N/A'}</p>
-                                                <p className="font-bold text-xs text-primary">{task.time}</p>
-                                             </div>
-                                             <div className="p-2">
-                                                 <div className="text-sm flex items-start gap-2">
-                                                     <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                                                     <span className="leading-tight">{task.event}</span>
-                                                 </div>
+                                      <div key={task.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                                         <div className="bg-muted px-3 py-1.5 border-b flex justify-between items-center">
+                                            <p className="font-medium text-xs text-muted-foreground">{task.location || 'N/A'}</p>
+                                            <p className="font-bold text-xs text-primary">{task.time}</p>
+                                         </div>
+                                         <div className="p-2">
+                                             <div className="text-sm flex items-start gap-2">
+                                                 <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                                                 <span className="leading-tight">{task.event}</span>
                                              </div>
                                          </div>
-                                     ))}
+                                      </div>
+                                    ))}
                                 </div>
                             )
                         }
@@ -501,7 +524,9 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
               sizes="(max-width: 768px) 100vw, 80vw"
               className="object-cover pointer-events-none rounded-md"
               priority
-              onLoadingComplete={(img) => {
+              // 🟢 [수정] onLoadingComplete -> onLoad 로 변경 (최신 문법)
+              onLoad={(e) => {
+                const img = e.currentTarget;
                 if (img.naturalWidth && img.naturalHeight) {
                     setMapAspectRatio(img.naturalWidth / img.naturalHeight);
                 }

@@ -24,7 +24,7 @@ interface MapPanelProps {
 const days = [0, 1, 2, 3];
 
 export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps) {
-    const { data, updateNotification, addMarker } = useVenueData();
+    const { data, updateNotification, addMarker, updateMarkerPosition, updateMapImage, deleteMarker } = useVenueData();
     const { toast } = useToast();
     
     const [activeTab, setActiveTab] = useState(`day-${selectedSlot?.day ?? 0}`);
@@ -142,7 +142,7 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
                     <Tabs value={activeTab} onValueChange={handleTabChange}>
                         <TabsList className='mb-4'>
                             {days.map(day => (
-                                <TabsTrigger key={`map-day-${day}`} value={`day-${day}`}>{day+1}일차</TabsTrigger>
+                                <TabsTrigger key={`map-day-${day}`} value={`day-${day}`}>{day}일차</TabsTrigger>
                             ))}
                         </TabsList>
                         
@@ -175,6 +175,10 @@ export function MapPanel({ selectedSlot, onSlotChange, isLinked }: MapPanelProps
                         isDraggable={true}
                         selectedSlot={selectedSlot}
                         notification={data.notification}
+                        onMarkerMove={updateMarkerPosition}
+                        onMarkerAdd={addMarker}
+                        onMapImageUpdate={updateMapImage}
+                        onMarkerDelete={deleteMarker}
                     />
                 </div>
             </CardContent>
