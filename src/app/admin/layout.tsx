@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
+import { PublicSessionSelector } from '@/components/admin/PublicSessionSelector';
 
 export default function AdminLayout({
     children,
@@ -31,6 +32,7 @@ export default function AdminLayout({
                         <SessionSelector />
                     </div>
                     <div className="flex items-center gap-4">
+                        <PublicSessionSelector />
                         <Button variant="ghost" onClick={handleLogout}>
                             <LogOut className="mr-2 h-4 w-4" />
                             로그아웃

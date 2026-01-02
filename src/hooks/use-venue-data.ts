@@ -16,7 +16,6 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
-// 🔴 [추가] Storage 관련 함수 import
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Session } from '@/lib/types';
 import { initialData, initialSessions } from '@/lib/data';
@@ -46,6 +45,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const markersColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'markers') : null), [firestore, sessionId]);
   const mapsColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'maps') : null), [firestore, sessionId]);
   const scheduleTemplatesColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'scheduleTemplates') : null), [firestore, sessionId]);
+  const allRolesColRef = useMemoFirebase(() => (firestore ? collection(firestore, 'sessions') : null), [firestore]);
 
   const { data: venueDoc, isLoading: venueLoading } = useDoc<any>(venueRef);
   const { data: staff, isLoading: staffLoading } = useCollection<StaffMember>(staffColRef);
@@ -54,7 +54,27 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const { data: markers, isLoading: markersLoading } = useCollection<MapMarker>(markersColRef);
   const { data: maps, isLoading: mapsLoading } = useCollection<MapInfo>(mapsColRef);
   const { data: scheduleTemplates, isLoading: templatesLoading } = useCollection<ScheduleTemplate>(scheduleTemplatesColRef);
-  const { data: allRoles, isLoading: allRolesLoading } = useCollection<Role>(useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'roles') : null), [firestore, sessionId]));
+  
+  const [allRoles, setAllRoles] = useState<Role[]>([]);
+  const [allRolesLoading, setAllRolesLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAllRoles = async () => {
+        if (!firestore) return;
+        setAllRolesLoading(true);
+        const rolesData: Role[] = [];
+        const sessionsSnapshot = await getDocs(collection(firestore, 'sessions'));
+        for (const sessionDoc of sessionsSnapshot.docs) {
+            const rolesSnapshot = await getDocs(collection(firestore, 'sessions', sessionDoc.id, 'roles'));
+            rolesSnapshot.forEach(roleDoc => {
+                rolesData.push({ ...roleDoc.data(), day: sessionDoc.data().day || 0 } as Role);
+            });
+        }
+        setAllRoles(rolesData);
+        setAllRolesLoading(false);
+    };
+    fetchAllRoles();
+  }, [firestore, roles]);
 
 
   useEffect(() => {
@@ -75,7 +95,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         }
         if (a.order !== undefined) return -1;
         if (b.order !== undefined) return 1;
-        // Fallback to task length if order is not defined
         return (b.tasks?.length || 0) - (a.tasks?.length || 0);
       });
 
@@ -98,7 +117,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const initializeFirestoreData = useCallback(async () => {
     if (!firestore || !user ) return;
     
-    // Create a new session if one doesn't exist
     let currentSessionId = sessionId;
     if (!currentSessionId) {
         const newSessionRef = doc(collection(firestore, 'sessions'));
@@ -111,7 +129,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     const sessionRef = doc(firestore, 'sessions', currentSessionId);
     
     const venueDocRef = doc(sessionRef, 'venue', VENUE_ID);
-    batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid, notification: '' });
+    batch.set(venueDocRef, { name: 'My Main Venue', ownerId: user.uid, notification: '', isPublic: false });
     
     initialData.staff.forEach((s) => batch.set(doc(sessionRef, 'staff', s.id), s));
     initialData.roles.forEach((r, index) => batch.set(doc(sessionRef, 'roles', r.id), { ...r, day: 0, order: index }));
@@ -120,8 +138,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     initialData.maps.forEach((map) => batch.set(doc(sessionRef, 'maps', map.id), map));
     
     await batch.commit();
-
-    // Reload to apply the new session
     window.location.reload();
 
   }, [firestore, user, sessionId]);
@@ -233,7 +249,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   };
 
   const addRole = (name: string, tasks: ScheduleTemplate[]) => {
-      if (!firestore || !sessionId || !localData) return;
+      if (!firestore || !sessionId || !localData || localData.schedule === null) return;
       const newId = `role-${Date.now()}`;
       const newRole: Role = { id: newId, name, tasks: tasks || [], day: localData.schedule?.[0]?.day ?? 0, order: (localData.roles?.length || 0) };
       setDoc(doc(firestore, 'sessions', sessionId, 'roles', newId), newRole);
@@ -243,14 +259,13 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     if (!firestore || !sessionId) return;
     const batch = writeBatch(firestore);
     roles.forEach(role => {
-        // Sanitize role name to create a valid document ID
-        const sanitizedName = role.name.replace(/[\/\s#$.\[\]]/g, ''); // Remove slashes and other invalid characters
+        const sanitizedName = role.name.replace(/[\/\s#$.\[\]]/g, '');
         const roleId = `role-csv-${sanitizedName}-${Date.now()}`;
         batch.set(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
             id: roleId,
             name: role.name,
             tasks: role.tasks || [],
-            day: 0 // Default to day 0
+            day: 0
         });
     });
     batch.commit();
@@ -281,7 +296,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
             ...role,
             id: newId,
             day: targetDay,
-            order: (localData.roles?.length || 0) + 1, // Append to the end
+            order: (localData.roles?.length || 0) + 1,
         });
     });
     batch.commit();
@@ -444,9 +459,3 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
-
-    
-
-    
-
-    

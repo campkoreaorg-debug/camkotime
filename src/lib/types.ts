@@ -50,6 +50,13 @@ export interface MapInfo {
   mapImageUrl: string;
 }
 
+export interface Venue {
+    id: string;
+    name: string;
+    notification?: string;
+    isPublic?: boolean;
+}
+
 export interface VenueData {
   staff: StaffMember[];
   roles: Role[];
@@ -60,5 +67,3 @@ export interface VenueData {
   notification?: string;
   scheduleTemplates: ScheduleTemplate[];
 }
-
-    

@@ -3,17 +3,21 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, updateDoc, writeBatch, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, updateDoc, writeBatch, getDocs, query, where, getDoc } from 'firebase/firestore';
 import type { Session } from '@/lib/types';
 import { useToast } from './use-toast';
+
+const VENUE_ID = 'main-venue';
 
 interface SessionContextType {
   sessions: Session[];
   sessionId: string | null;
+  publicSessionId: string | null;
   setSessionId: (id: string) => void;
   isLoading: boolean;
   updateSessionName: (id: string, newName: string) => void;
   importDataFromSession: (sourceSessionId: string) => Promise<void>;
+  setPublicSession: (sessionId: string | null) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -29,13 +33,44 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
   
   const { data: sessions, isLoading: sessionsLoading } = useCollection<Session>(sessionsQuery);
-  
+  const [publicSessionId, setPublicSessionId] = useState<string | null>(null);
+  const [isPublicSessionLoading, setIsPublicSessionLoading] = useState(true);
+
   const [sessionId, setSessionIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('activeSessionId');
     }
     return null;
   });
+
+  const fetchPublicSession = useCallback(async () => {
+    if (!firestore || !user) return;
+    setIsPublicSessionLoading(true);
+    const q = query(
+        collection(firestore, 'sessions'), 
+        where('ownerId', '==', user.uid)
+    );
+    const sessionSnapshot = await getDocs(q);
+    let foundPublic = false;
+    for (const sessionDoc of sessionSnapshot.docs) {
+        const venueRef = doc(firestore, 'sessions', sessionDoc.id, 'venue', VENUE_ID);
+        const venueSnap = await getDoc(venueRef);
+        if (venueSnap.exists() && venueSnap.data().isPublic) {
+            setPublicSessionId(sessionDoc.id);
+            foundPublic = true;
+            break;
+        }
+    }
+    if (!foundPublic) {
+        setPublicSessionId(null);
+    }
+    setIsPublicSessionLoading(false);
+  }, [firestore, user]);
+
+  useEffect(() => {
+    fetchPublicSession();
+  }, [fetchPublicSession]);
+
 
   useEffect(() => {
     const activeId = localStorage.getItem('activeSessionId');
@@ -85,7 +120,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const targetColRef = collection(firestore, 'sessions', sessionId, collectionName);
 
       const existingDocs = await getDocs(targetColRef);
-      existingDocs.forEach(doc => batch.delete(doc.ref));
+      existingDocs.forEach(d => batch.delete(d.ref));
 
       const sourceDocs = await getDocs(sourceColRef);
       sourceDocs.forEach(d => {
@@ -97,13 +132,36 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     await batch.commit();
   };
 
+  const setPublicSession = async (newPublicSessionId: string | null) => {
+    if (!firestore || !user) return;
+
+    const batch = writeBatch(firestore);
+    
+    if (publicSessionId && publicSessionId !== newPublicSessionId) {
+        const oldVenueRef = doc(firestore, 'sessions', publicSessionId, 'venue', VENUE_ID);
+        batch.update(oldVenueRef, { isPublic: false });
+    }
+
+    if (newPublicSessionId && newPublicSessionId !== 'none') {
+        const newVenueRef = doc(firestore, 'sessions', newPublicSessionId, 'venue', VENUE_ID);
+        batch.update(newVenueRef, { isPublic: true });
+        setPublicSessionId(newPublicSessionId);
+        toast({ title: '공개 차수 변경됨', description: '뷰어에게 보여지는 차수가 업데이트되었습니다.'});
+    } else {
+        setPublicSessionId(null);
+        toast({ title: '공개 차수 없음', description: '뷰어에게 보여지는 차수가 없습니다.'});
+    }
+
+    await batch.commit();
+    // No need to fetch again, state is updated optimistically
+  };
 
   const sortedSessions = useMemo(() => {
     return sessions ? [...sessions].sort((a, b) => a.id.localeCompare(b.id)) : [];
   }, [sessions]);
 
   return (
-    <SessionContext.Provider value={{ sessions: sortedSessions, sessionId, setSessionId, isLoading: sessionsLoading, updateSessionName, importDataFromSession }}>
+    <SessionContext.Provider value={{ sessions: sortedSessions, sessionId, publicSessionId, setSessionId, isLoading: sessionsLoading || isPublicSessionLoading, updateSessionName, importDataFromSession, setPublicSession }}>
       {children}
     </SessionContext.Provider>
   );
@@ -112,28 +170,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 export const useSession = () => {
   const context = useContext(SessionContext);
   if (context === undefined) {
-    const [isLoading, setIsLoading] = useState(true);
-    useEffect(() => {
-        const timer = setTimeout(() => setIsLoading(false), 100);
-        return () => clearTimeout(timer);
-    }, []);
-
-    // Return a default non-functional object for pages outside the provider
-    // This helps avoid throwing an error, especially for the map page logic
-    return {
-        sessions: [],
-        sessionId: null,
-        setSessionId: (id: string) => {
-            // This is a dummy function for pages outside the main provider
-            // It allows the map page to set its session ID locally
-             if (typeof window !== 'undefined') {
-                localStorage.setItem('activeSessionId', id);
-             }
-        },
-        isLoading: isLoading,
-        updateSessionName: () => {},
-        importDataFromSession: async () => {},
-    };
+    throw new Error("useSession must be used within a SessionProvider");
   }
   return context;
 };

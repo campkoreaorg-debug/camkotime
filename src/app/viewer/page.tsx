@@ -5,31 +5,25 @@ import { useEffect, useState } from 'react';
 import VenueMap from '@/components/VenueMap';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Button } from '@/components/ui/button';
-import { Home, Loader2, Database } from 'lucide-react';
+import { Home, Loader2, Database, WifiOff } from 'lucide-react';
 import { useUser, useAuth } from '@/firebase';
 import { timeSlots } from '@/hooks/use-venue-data';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { SessionProvider, useSession } from '@/hooks/use-session';
 
-// Session 관련 import 제거
-// import { SessionProvider, useSession } from '@/hooks/use-session';
-// import { SessionSelector } from '@/components/admin/SessionSelector';
-
-export default function ViewerPage() {
-  const { data, isLoading } = useVenueData();
+function ViewerPageContent() {
+  const { publicSessionId, isLoading: isPublicSessionLoading } = useSession();
+  const { data, isLoading } = useVenueData(publicSessionId);
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
-
-  // sessionId 관련 로직 제거
-  // const { sessionId } = useSession();
 
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string }>({ day: 0, time: timeSlots[0] });
   const [activeTab, setActiveTab] = useState('day-0');
 
   const handleReturnHome = async () => {
-    // 뷰어 모드에서 로그아웃이 필요한지 여부는 기획에 따라 결정 (여기선 일단 유지)
     await auth.signOut();
     router.push('/');
   }
@@ -43,8 +37,6 @@ export default function ViewerPage() {
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
     const newDay = parseInt(newTab.split('-')[1], 10);
-    // 탭 변경 시 시간은 07:00(첫 타임)으로 초기화하거나, 현재 선택된 시간을 유지할 수도 있음.
-    // 여기서는 첫 타임으로 초기화하는 기존 로직 유지
     setSelectedSlot({ day: newDay, time: timeSlots[0] });
   }
 
@@ -52,12 +44,22 @@ export default function ViewerPage() {
     setSelectedSlot({ day, time });
   }
 
-  if(isUserLoading || isLoading){
+  if(isUserLoading || isLoading || isPublicSessionLoading){
     return (
         <div className="flex h-screen items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
     )
+  }
+
+  if(!publicSessionId) {
+     return (
+        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
+            <WifiOff className="h-12 w-12 text-muted-foreground" />
+             <h2 className="text-xl font-semibold">공개된 차수 없음</h2>
+            <p className="text-muted-foreground">현재 뷰어에게 공개된 차수가 없습니다.</p>
+        </div>
+     )
   }
 
   if(!data || data.staff.length === 0){
@@ -92,9 +94,8 @@ export default function ViewerPage() {
       <div className="min-h-screen flex flex-col bg-background">
         <header className='flex justify-between items-center p-4 border-b bg-card shadow-sm'>
             <div className="flex items-center gap-4">
-                {/* SessionSelector 제거됨 */}
                 <h1 className='font-headline text-2xl font-bold text-primary'>
-                   VenueSync 뷰어 <span className="text-muted-foreground text-lg font-normal ml-2">(Day {selectedSlot.day} - {selectedSlot.time})</span>
+                   VenueSync 뷰어 <span className="text-muted-foreground text-lg font-normal ml-2">(Day {selectedSlot.day + 1} - {selectedSlot.time})</span>
                 </h1>
             </div>
               <Button variant="outline" onClick={handleReturnHome}>
@@ -113,7 +114,6 @@ export default function ViewerPage() {
                   <TabsTrigger value="day-3">4일차</TabsTrigger>
               </TabsList>
               
-              {/* 시간대 버튼 영역 - 스크롤 가능하도록 개선 */}
               <div className="flex flex-wrap gap-2 pb-4"> 
                   {timeSlots.map(time => {
                     const day = parseInt(activeTab.split('-')[1], 10);
@@ -131,8 +131,6 @@ export default function ViewerPage() {
                   })}
                 </div>
             </Tabs>
-
-            {/* 지도 컴포넌트: isDraggable={false}로 설정하여 뷰어 모드로 작동 */}
             <div className="border rounded-xl shadow-sm bg-slate-50/50 overflow-hidden" style={{ minHeight: '600px' }}>
                 <VenueMap 
                       allMarkers={data.markers} 
@@ -148,4 +146,12 @@ export default function ViewerPage() {
       </div>
     </DndProvider>
   );
+}
+
+export default function ViewerPage() {
+    return (
+        <SessionProvider>
+            <ViewerPageContent />
+        </SessionProvider>
+    )
 }

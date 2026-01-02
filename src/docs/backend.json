@@ -1,165 +1,69 @@
 
 {
   "entities": {
+    "Session": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Session",
+      "type": "object",
+      "description": "Represents a distinct event session or round (e.g., 1차, 2차).",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the session." },
+        "name": { "type": "string", "description": "The editable name of the session." },
+        "ownerId": { "type": "string", "description": "The UID of the user who owns this session data." }
+      },
+      "required": ["id", "name", "ownerId"]
+    },
     "Venue": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Venue",
       "type": "object",
-      "description": "Represents a physical venue or location.",
+      "description": "Represents a physical venue or location within a session.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Venue entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the venue."
-        },
-        "description": {
-          "type": "string",
-          "description": "Detailed description of the venue."
-        },
-        "latitude": {
-          "type": "number",
-          "description": "Latitude coordinate of the venue."
-        },
-        "longitude": {
-          "type": "number",
-          "description": "Longitude coordinate of the venue."
-        },
-        "address": {
-          "type": "string",
-          "description": "Street address of the venue."
-        },
-        "ownerId": {
-          "type": "string",
-          "description": "The UID of the user who owns this venue."
-        },
-        "notification": {
-          "type": "string",
-          "description": "A notification text to be displayed on the map for viewers."
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "notification": { "type": "string" },
+        "isPublic": { "type": "boolean", "description": "If true, this session's data is visible to viewers." }
       },
-      "required": ["id", "name", "latitude", "longitude", "ownerId"]
+      "required": ["id", "name"]
     },
     "Staff": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Staff",
       "type": "object",
-      "description": "Represents a staff member associated with a venue.",
+      "description": "Represents a staff member for a specific session.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Staff entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "Full name of the staff member."
-        },
-        "role": {
-          "type": "object",
-          "description": "Assigned role for the staff member.",
-          "properties": {
-            "id": { "type": "string" },
-            "name": { "type": "string" }
-          }
-        },
-        "venueId": {
-          "type": "string",
-          "description": "Reference to Venue. (Relationship: Venue 1:N Staff)"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "avatar": { "type": "string" }
       },
-      "required": ["id", "name", "venueId"]
+      "required": ["id", "name"]
     },
     "Schedule": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Schedule",
       "type": "object",
-      "description": "Represents a scheduled event or activity at a venue.",
+      "description": "A scheduled event for a specific session.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Schedule entity."
-        },
-        "venueId": {
-          "type": "string",
-          "description": "Reference to Venue. (Relationship: Venue 1:N Schedule)"
-        },
-        "day": {
-          "type": "number",
-          "description": "The day of the event (e.g., 0, 1, 2, 3)."
-        },
-        "time": {
-          "type": "string",
-          "description": "Start time of the scheduled event in HH:mm format."
-        },
-        "event": {
-          "type": "string",
-          "description": "Name of the event."
-        },
-        "location": {
-          "type": "string",
-          "description": "Location of the event."
-        },
-        "staffIds": {
-          "type": "array",
-          "description": "IDs of the assigned staff members.",
-          "items": { "type": "string" }
-        }
+        "id": { "type": "string" },
+        "day": { "type": "number" },
+        "time": { "type": "string" },
+        "event": { "type": "string" },
+        "location": { "type": "string" },
+        "staffIds": { "type": "array", "items": { "type": "string" } },
+        "roleName": { "type": "string" }
       },
-      "required": ["id", "venueId", "day", "time", "event"]
-    },
-    "ExternalDevice": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ExternalDevice",
-      "type": "object",
-      "description": "Represents an external device integrated with the system.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the ExternalDevice entity."
-        },
-        "deviceId": {
-          "type": "string",
-          "description": "Identifier from the external device."
-        },
-        "deviceType": {
-          "type": "string",
-          "description": "Type of the external device (e.g., sensor, actuator)."
-        },
-        "venueId": {
-          "type": "string",
-          "description": "Reference to Venue. (Relationship: Venue 1:N ExternalDevice)"
-        },
-        "status": {
-          "type": "string",
-          "description": "Current status of the external device (e.g., active, inactive)."
-        }
-      },
-      "required": ["id", "deviceId", "deviceType", "venueId"]
+      "required": ["id", "day", "time", "event"]
     },
     "MapInfo": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MapInfo",
       "type": "object",
-      "description": "Stores map information for a specific time slot.",
+      "description": "Map background for a time slot in a session.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier, likely combining day and time."
-        },
-        "day": {
-          "type": "number",
-          "description": "The day for this map."
-        },
-        "time": {
-          "type": "string",
-          "description": "The time slot for this map in HH:mm format."
-        },
-        "mapImageUrl": {
-          "type": "string",
-          "description": "URL for the background image of the map for this time slot."
-        }
+        "id": { "type": "string" },
+        "day": { "type": "number" },
+        "time": { "type": "string" },
+        "mapImageUrl": { "type": "string" }
       },
       "required": ["id", "day", "time", "mapImageUrl"]
     },
@@ -167,73 +71,37 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MapMarker",
       "type": "object",
-      "description": "Represents a marker on the map for a specific time slot.",
+      "description": "A marker on the map for a time slot in a session.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the marker."
-        },
-        "day": {
-          "type": "number",
-          "description": "The day this marker position is for."
-        },
-        "time": {
-          "type": "string",
-          "description": "The time slot this marker position is for."
-        },
-        "staffIds": {
-          "type": "array",
-          "description": "IDs of the staff members this marker represents.",
-          "items": { "type": "string" }
-        },
-        "x": {
-          "type": "number",
-          "description": "The x-coordinate percentage."
-        },
-        "y": {
-          "type": "number",
-          "description": "The y-coordinate percentage."
-        }
+        "id": { "type": "string" },
+        "day": { "type": "number" },
+        "time": { "type": "string" },
+        "staffIds": { "type": "array", "items": { "type": "string" } },
+        "x": { "type": "number" },
+        "y": { "type": "number" }
       },
       "required": ["id", "day", "time", "staffIds", "x", "y"]
     },
-     "Role": {
+    "Role": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Role",
       "type": "object",
-      "description": "Represents a job role with a set of schedule templates for a specific time slot.",
+      "description": "A role template with predefined tasks for a session.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Role."
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the role (e.g., 'Security Staff')."
-        },
-        "day": {
-          "type": "number",
-          "description": "The day this role is for (e.g., 0, 1, 2, 3)."
-        },
-        "time": {
-          "type": "string",
-          "description": "The time slot this role is for in HH:mm format."
-        },
-        "scheduleTemplates": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "tasks": {
           "type": "array",
-          "description": "A list of predefined schedule items for this role.",
           "items": {
             "type": "object",
             "properties": {
-               "day": { "type": "number" },
-               "time": { "type": "string" },
                "event": { "type": "string" },
                "location": { "type": "string" }
             }
           }
         }
       },
-      "required": ["id", "name", "day", "time"]
+      "required": ["id", "name"]
     }
   },
   "auth": {
@@ -242,142 +110,69 @@
   "firestore": {
     "structure": [
       {
-        "path": "/venues/{venueId}",
+        "path": "/sessions/{sessionId}",
+        "definition": {
+          "entityName": "Session",
+          "schema": { "$ref": "#/entities/Session" },
+          "description": "Top-level collection. Each document is a separate session.",
+          "params": [{ "name": "sessionId" }]
+        }
+      },
+      {
+        "path": "/sessions/{sessionId}/venue/{venueId}",
         "definition": {
           "entityName": "Venue",
-          "schema": {
-            "$ref": "#/backend/entities/Venue"
-          },
-          "description": "Stores venue information. The venueId is used as the document ID.",
-          "params": [
-            {
-              "name": "venueId",
-              "description": "Unique identifier for the venue."
-            }
-          ]
+          "schema": { "$ref": "#/entities/Venue" },
+          "description": "Venue information for a specific session. Only one venue per session.",
+          "params": [{ "name": "sessionId" }, { "name": "venueId" }]
         }
       },
       {
-        "path": "/venues/{venueId}/staff/{staffId}",
+        "path": "/sessions/{sessionId}/staff/{staffId}",
         "definition": {
           "entityName": "Staff",
-          "schema": {
-            "$ref": "#/backend/entities/Staff"
-          },
-          "description": "Stores staff information associated with a specific venue. The staffId is used as the document ID.",
-          "params": [
-            {
-              "name": "venueId",
-              "description": "Unique identifier for the venue."
-            },
-            {
-              "name": "staffId",
-              "description": "Unique identifier for the staff member."
-            }
-          ]
+          "schema": { "$ref": "#/entities/Staff" },
+          "description": "Staff members for a specific session.",
+          "params": [{ "name": "sessionId" }, { "name": "staffId" }]
         }
       },
       {
-        "path": "/venues/{venueId}/schedules/{scheduleId}",
+        "path": "/sessions/{sessionId}/schedules/{scheduleId}",
         "definition": {
           "entityName": "Schedule",
-          "schema": {
-            "$ref": "#/backend/entities/Schedule"
-          },
-          "description": "Stores schedule information for a specific venue. The scheduleId is used as the document ID.",
-          "params": [
-            {
-              "name": "venueId",
-              "description": "Unique identifier for the venue."
-            },
-            {
-              "name": "scheduleId",
-              "description": "Unique identifier for the schedule entry."
-            }
-          ]
+          "schema": { "$ref": "#/entities/Schedule" },
+          "description": "Schedules for a specific session.",
+          "params": [{ "name": "sessionId" }, { "name": "scheduleId" }]
         }
       },
       {
-        "path": "/venues/{venueId}/externalDevices/{deviceId}",
-        "definition": {
-          "entityName": "ExternalDevice",
-          "schema": {
-            "$ref": "#/backend/entities/ExternalDevice"
-          },
-          "description": "Stores external device information associated with a specific venue. The deviceId is used as the document ID.",
-          "params": [
-            {
-              "name": "venueId",
-              "description": "Unique identifier for the venue."
-            },
-            {
-              "name": "deviceId",
-              "description": "Unique identifier for the external device."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/venues/{venueId}/maps/{mapId}",
+        "path": "/sessions/{sessionId}/maps/{mapId}",
         "definition": {
           "entityName": "MapInfo",
-          "schema": {
-            "$ref": "#/backend/entities/MapInfo"
-          },
-          "description": "Stores map background images for specific time slots. The mapId is a combination of day and time.",
-          "params": [
-            {
-              "name": "venueId",
-              "description": "Unique identifier for the venue."
-            },
-            {
-              "name": "mapId",
-              "description": "Unique identifier for the map info, e.g., 'day0-0900'."
-            }
-          ]
+          "schema": { "$ref": "#/entities/MapInfo" },
+          "description": "Map images for a specific session.",
+          "params": [{ "name": "sessionId" }, { "name": "mapId" }]
         }
       },
       {
-        "path": "/venues/{venueId}/markers/{markerId}",
+        "path": "/sessions/{sessionId}/markers/{markerId}",
         "definition": {
           "entityName": "MapMarker",
-          "schema": {
-            "$ref": "#/backend/entities/MapMarker"
-          },
-          "description": "Stores marker positions for staff members at specific time slots. The markerId is unique for each marker instance.",
-          "params": [
-            {
-              "name": "venueId",
-              "description": "Unique identifier for the venue."
-            },
-            {
-              "name": "markerId",
-              "description": "Unique identifier for the marker."
-            }
-          ]
+          "schema": { "$ref": "#/entities/MapMarker" },
+          "description": "Map markers for a specific session.",
+          "params": [{ "name": "sessionId" }, { "name": "markerId" }]
         }
       },
        {
-        "path": "/venues/{venueId}/roles/{roleId}",
+        "path": "/sessions/{sessionId}/roles/{roleId}",
         "definition": {
           "entityName": "Role",
-          "schema": {
-            "$ref": "#/backend/entities/Role"
-          },
-          "description": "Stores role information and their associated schedule templates.",
-          "params": [
-            {
-              "name": "venueId",
-              "description": "Unique identifier for the venue."
-            },
-            {
-              "name": "roleId",
-              "description": "Unique identifier for the role."
-            }
-          ]
+          "schema": { "$ref": "#/entities/Role" },
+          "description": "Role templates for a specific session.",
+          "params": [{ "name": "sessionId" }, { "name": "roleId" }]
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support VenueSync's real-time updates and role-based access (admin/viewer) while adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling.  The structure uses path-based ownership and denormalization to avoid `get()` calls in security rules, enhancing security and scalability. \n\n*   **Venues Collection:** Top-level collection to store venue details.  All other data related to a venue (staff, schedules, devices, maps, markers) are stored in subcollections under each venue. This enforces a clear hierarchy and ownership.\n*   **Staff, Schedules, ExternalDevices, Maps, Markers, Roles, Categories Subcollections:** Each venue has its own subcollections for granular data management and security rules. The `roles` collection now includes a `time` property to make roles time-slot specific."
+    "reasoning": "The Firestore structure is updated to be session-centric. A top-level 'sessions' collection is introduced. All other data (venue, staff, schedules, etc.) are now stored in subcollections under a specific session document. This ensures complete data isolation between different sessions, fulfilling the user's request for separate management per '차수'."
   }
 }
