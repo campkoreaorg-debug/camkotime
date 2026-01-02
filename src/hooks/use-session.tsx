@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, updateDoc } from 'firebase/firestore';
 import type { Session } from '@/lib/types';

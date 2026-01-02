@@ -139,6 +139,7 @@ export const useUser = (): UserHookResult => { const { user, isUserLoading, user
 
 // [수정됨] useMemoFirebase: __memo 속성을 추가하여 useCollection 검증 통과
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const memoized = useMemo(factory, deps);
   
   if (memoized && typeof memoized === 'object') {

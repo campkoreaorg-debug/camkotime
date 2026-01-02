@@ -7,11 +7,15 @@ import {
   useFirestore,
   useMemoFirebase,
   useUser,
+  setDocumentNonBlocking,
+  addDocumentNonBlocking,
+  deleteDocumentNonBlocking,
+  updateDocumentNonBlocking,
 } from '@/firebase';
 import {
   collection,
   doc,
-writeBatch,
+  writeBatch,
   query,
   where,
   getDocs,
@@ -64,10 +68,11 @@ export const useVenueData = () => {
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
+      const scheduleData = schedule ? [...schedule].sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)) : [];
       setLocalData({
         staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
         roles: (roles || []).sort((a, b) => a.name.localeCompare(b.name)),
-        schedule: (schedule || []).sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
+        schedule: scheduleData,
         markers: markers || [],
         maps: maps || [],
         notification: venueDoc?.notification || '',
@@ -330,7 +335,7 @@ export const useVenueData = () => {
     deleteRole,
     assignTasksToStaff,
     addTasksToRole,
-removeTaskFromRole,
+    removeTaskFromRole,
     isLoading: isLoading || !sessionId,
     updateMarkerPosition,
     addMarker,
