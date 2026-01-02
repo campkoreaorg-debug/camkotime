@@ -42,7 +42,7 @@ export default function AdminPage() {
   
   const [mapSlot, setMapSlot] = useState<{ day: number; time: string } | null>(null);
 
-  const [selectedStaffId, setSelectedStaffId]_useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
 
