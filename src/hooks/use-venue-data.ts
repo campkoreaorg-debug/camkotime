@@ -84,10 +84,13 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       const sessionRoles = allRoles?.map(role => {
         // @ts-ignore
         if (role.ref && role.ref.parent && role.ref.parent.parent) {
-            return {
-                ...role,
-                // @ts-ignore
-                day: parseInt(role.ref.parent.parent.id.split('-')[1], 10) || 0
+            // @ts-ignore
+            const roleSessionId = role.ref.parent.parent.id;
+            const matchingSession = sessionContext.sessions.find(s => s.id === roleSessionId);
+            if (matchingSession) {
+                // Assuming session name is like "1차", "2차"
+                const dayNumber = parseInt(matchingSession.name, 10) - 1;
+                return { ...role, day: isNaN(dayNumber) ? 0 : dayNumber };
             }
         }
         return { ...role, day: 0 };
@@ -107,7 +110,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     }
   }, [
     sessionId, venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates, allRoles,
-    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading, templatesLoading, allRolesLoading
+    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading, templatesLoading, allRolesLoading, sessionContext.sessions
   ]);
 
   const initializeFirestoreData = useCallback(async () => {
@@ -244,14 +247,14 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     batch.commit();
   };
 
-  const addRole = (name: string, tasks: ScheduleTemplate[]) => {
+  const addRole = (name: string, tasks: ScheduleTemplate[], day: number) => {
       if (!firestore || !sessionId || !localData || localData.schedule === null) return;
       const newId = `role-${Date.now()}`;
-      const newRole: Role = { id: newId, name, tasks: tasks || [], day: 0, order: (localData.roles?.length || 0) };
+      const newRole: Role = { id: newId, name, tasks: tasks || [], day, order: (localData.roles?.length || 0) };
       setDoc(doc(firestore, 'sessions', sessionId, 'roles', newId), newRole);
   };
 
-  const uploadRoles = (roles: Role[]) => {
+  const uploadRoles = (roles: Role[], day: number) => {
     if (!firestore || !sessionId) return;
     const batch = writeBatch(firestore);
     roles.forEach(role => {
@@ -261,7 +264,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
             id: roleId,
             name: role.name,
             tasks: role.tasks || [],
-            day: 0
+            day
         });
     });
     batch.commit();
@@ -282,7 +285,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     batch.commit();
   };
 
-  const importRolesFromOtherDays = (roleIds: string[]) => {
+  const importRolesFromOtherDays = (roleIds: string[], targetDay: number) => {
     if (!firestore || !sessionId || !localData?.allRoles) return;
     const rolesToImport = localData.allRoles.filter(r => roleIds.includes(r.id));
     const batch = writeBatch(firestore);
@@ -291,7 +294,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         batch.set(doc(firestore, 'sessions', sessionId, 'roles', newId), {
             ...role,
             id: newId,
-            day: 0,
+            day: targetDay,
             order: (localData.roles?.length || 0) + 1,
         });
     });
@@ -377,7 +380,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   };
 
   const updateScheduleStatus = (scheduleIds: string[], newStatus: boolean) => {
-    if (!firestore || !sessionId) return;
+    if (!firestore || !sessionId || scheduleIds.length === 0) return;
     const batch = writeBatch(firestore);
     scheduleIds.forEach(id => {
       const scheduleRef = doc(firestore, 'sessions', sessionId, 'schedules', id);
@@ -500,3 +503,5 @@ export const timeSlots = (() => {
   slots.push('00:00');
   return slots;
 })();
+
+    

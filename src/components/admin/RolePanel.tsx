@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 
-const DraggableRoleItem = ({ role, index, moveRole, onSelectRole, selectedRole, onDeleteRole }: { role: Role, index: number, moveRole: (dragIndex: number, hoverIndex: number) => void, onSelectRole: (role: Role) => void, selectedRole: Role | null, onDeleteRole: (role: Role) => void }) => {
+const DraggableRoleItem = ({ role, index, moveRole, onSelectRole, selectedRole, onDeleteRole, isAssigned }: { role: Role, index: number, moveRole: (dragIndex: number, hoverIndex: number) => void, onSelectRole: (role: Role) => void, selectedRole: Role | null, onDeleteRole: (role: Role) => void, isAssigned: boolean }) => {
     const ref = useRef<HTMLDivElement>(null);
 
     const [, drop] = useDrop({
@@ -63,7 +63,10 @@ const DraggableRoleItem = ({ role, index, moveRole, onSelectRole, selectedRole, 
                 </div>
                 <Package className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="flex-1">
-                    <p className="font-semibold text-sm truncate">{role.name}</p>
+                    <p className="font-semibold text-sm truncate flex items-center gap-2">
+                        {role.name}
+                        {isAssigned && <span className="text-xs text-destructive font-semibold">(배정됨)</span>}
+                    </p>
                     <p className="text-xs text-muted-foreground">{(role.tasks || []).length}개 업무</p>
                 </div>
             </div>
@@ -220,7 +223,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
     }, [selectedRole, selectedSlot, data?.schedule]);
 
     const taskCompletionStatus = useMemo(() => {
-        if (!selectedRole) return new Map<string, boolean>();
+        if (!selectedRole || !relevantSchedules) return new Map<string, boolean>();
 
         const statusMap = new Map<string, boolean>();
         for (const task of selectedRole.tasks) {
@@ -236,17 +239,17 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
     }, [selectedRole, relevantSchedules]);
 
     const handleToggleCompletion = useCallback((task: ScheduleTemplate) => {
-        if (!selectedRole || !selectedSlot) return;
+        if (!selectedRole || !selectedSlot || !relevantSchedules) return;
 
         const schedulesToUpdate = relevantSchedules.filter(s => s.event === task.event);
         if (schedulesToUpdate.length === 0) return;
 
         const areAllCompleted = schedulesToUpdate.every(s => s.isCompleted);
         const newStatus = !areAllCompleted;
+        const scheduleIdsToUpdate = schedulesToUpdate.map(s => s.id);
 
-        schedulesToUpdate.forEach(schedule => {
-            updateScheduleStatus(schedule.id, newStatus);
-        });
+        updateScheduleStatus(scheduleIdsToUpdate, newStatus);
+        
     }, [selectedRole, selectedSlot, relevantSchedules, updateScheduleStatus]);
 
     
@@ -346,7 +349,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
             return;
         }
         
-        importRolesFromOtherDays(rolesToImportIds);
+        importRolesFromOtherDays(rolesToImportIds, selectedSlot.day);
         
         toast({ title: '불러오기 완료', description: `${rolesToImportIds.length}개의 직책을 현재 날짜로 불러왔습니다.` });
         setIsImportModalOpen(false);
@@ -364,6 +367,19 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
             return acc;
         }, {} as Record<number, Role[]>);
     }, [data?.allRoles]);
+
+    const assignedRoleNamesInSlot = useMemo(() => {
+        if (!data?.schedule || !selectedSlot) return new Set();
+        
+        const names = new Set<string>();
+        data.schedule.forEach(s => {
+            if (s.day === selectedSlot.day && s.time === selectedSlot.time && s.roleName) {
+                names.add(s.roleName);
+            }
+        });
+        return names;
+    }, [data?.schedule, selectedSlot]);
+
 
     if (!data || !selectedSlot) {
         return (
@@ -414,6 +430,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                                             onSelectRole={handleSelectRole}
                                             selectedRole={selectedRole}
                                             onDeleteRole={openDeleteRoleDialog}
+                                            isAssigned={assignedRoleNamesInSlot.has(role.name)}
                                         />
                                     ))}
                                 </div>
@@ -609,3 +626,5 @@ export function RolePanel(props: RolePanelProps) {
         </DndProvider>
     )
 }
+
+    
