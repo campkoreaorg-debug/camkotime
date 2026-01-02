@@ -72,12 +72,20 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
-      const currentDay = localData?.schedule?.[0]?.day ?? 0;
-      const filteredRoles = (roles || []).filter(role => (role.day ?? 0) === currentDay);
       
+      const sortedRoles = [...(roles || [])].sort((a, b) => {
+        if (a.order !== undefined && b.order !== undefined) {
+          return a.order - b.order;
+        }
+        if (a.order !== undefined) return -1;
+        if (b.order !== undefined) return 1;
+        // Fallback to task length if order is not defined
+        return (b.tasks?.length || 0) - (a.tasks?.length || 0);
+      });
+
       setLocalData({
         staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
-        roles: filteredRoles,
+        roles: sortedRoles,
         allRoles: allRoles || [],
         schedule: (schedule || []).sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
         markers: markers || [],
@@ -245,8 +253,8 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   };
 
   const importRolesFromOtherDays = (roleIds: string[], targetDay: number) => {
-    if (!firestore || !sessionId || !data?.allRoles) return;
-    const rolesToImport = data.allRoles.filter(r => roleIds.includes(r.id));
+    if (!firestore || !sessionId || !localData?.allRoles) return;
+    const rolesToImport = localData.allRoles.filter(r => roleIds.includes(r.id));
     const batch = writeBatch(firestore);
     rolesToImport.forEach(role => {
         const newId = `role-import-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
@@ -254,7 +262,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
             ...role,
             id: newId,
             day: targetDay,
-            order: (data.roles?.length || 0) + 1, // Append to the end
+            order: (localData.roles?.length || 0) + 1, // Append to the end
         });
     });
     batch.commit();

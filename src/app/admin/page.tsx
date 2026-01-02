@@ -83,25 +83,39 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-      if (!data?.roles || !data.schedule || !selectedStaffId || !selectedSlot) {
-          setSelectedRole(null);
-          return;
-      }
-      
-      const staffSchedule = data.schedule.find(s => 
-          s.staffIds?.includes(selectedStaffId) && 
-          s.day === selectedSlot.day && 
-          s.time === selectedSlot.time
-      );
+    // 1. 데이터가 아직 로드되지 않았으면 아무것도 하지 않음
+    if (!data?.roles || !data.schedule) { 
+        return;
+    }
 
-      if (staffSchedule && staffSchedule.roleName) {
-          const role = data.roles.find(r => r.name === staffSchedule.roleName);
-          setSelectedRole(role || null);
-      } else {
-          setSelectedRole(null);
-      }
+    // 🔴 [핵심 수정] 스태프가 선택되지 않았을 때는 이 로직을 실행하지 않음!
+    // 스태프 선택 없이 '직책'만 클릭해서 수정 중일 때, 
+    // 데이터가 바뀌어도 직책 선택이 유지되도록 함.
+    if (!selectedStaffId) {
+        return;
+    }
 
-  }, [selectedStaffId, selectedSlot, data?.schedule, data?.roles]);
+    // 2. 시간대 정보가 없으면 리턴
+    if (!selectedSlot) {
+        return;
+    }
+    
+    // 3. 선택된 스태프의 현재 시간대 스케줄 찾기
+    const staffSchedule = data.schedule.find(s => 
+        s.staffIds?.includes(selectedStaffId) && 
+        s.day === selectedSlot.day && 
+        s.time === selectedSlot.time
+    );
+
+    // 4. 스태프에게 배정된 역할이 있으면 그 역할을 자동 선택, 없으면 선택 해제
+    if (staffSchedule && staffSchedule.roleName) {
+        const role = data.roles.find(r => r.name === staffSchedule.roleName);
+        setSelectedRole(role || null);
+    } else {
+        setSelectedRole(null);
+    }
+
+}, [selectedStaffId, selectedSlot, data?.schedule, data?.roles]);
   
   const handleSlotChange = (day: number, time: string) => {
     const newSlot = { day, time };
