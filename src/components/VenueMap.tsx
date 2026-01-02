@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
@@ -35,6 +33,10 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isBannerVisible, setIsBannerVisible] = useState(true);
 
+  // 🔴 [추가] 이미지 비율 상태 관리
+  // 기본 16:9 비율 (1600/900)로 시작
+  const [mapAspectRatio, setMapAspectRatio] = useState(16 / 9);
+
   useEffect(() => {
     if (notification) {
       setIsBannerVisible(true);
@@ -60,9 +62,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     );
 
     const timeSpecificMarkers = allMarkers.filter(m => m.day === selectedSlot.day && m.time === selectedSlot.time);
-    
     const staffWithMarkers = new Set(timeSpecificMarkers.flatMap(m => m.staffIds || []));
-    
     const markersToShow = [...timeSpecificMarkers];
 
     scheduledStaffIds.forEach(staffId => {
@@ -183,7 +183,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
 
   const handleAddMarkerClick = (staffId: string) => {
     if(!selectedSlot) return;
-    // Add marker at a random position when added from the list
     addMarker(staffId, selectedSlot.day, selectedSlot.time, Math.round(Math.random() * 80) + 10, Math.round(Math.random() * 80) + 10);
   }
 
@@ -191,7 +190,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     if(!selectedSlot) return;
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      if (file.size > 2 * 1024 * 1024) {
         toast({
           variant: 'destructive',
           title: '이미지 크기 초과',
@@ -205,7 +204,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
         updateMapImage(selectedSlot.day, selectedSlot.time, newMapImageUrl);
         toast({
           title: '성공',
-          description: `지도 배경 이미지가 ${selectedSlot.day}일차 ${selectedSlot.time}에 맞게 업데이트되었습니다.`,
+          description: `지도 배경 이미지가 업데이트되었습니다.`,
         });
       };
       reader.readAsDataURL(file);
@@ -221,6 +220,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     })
   }
 
+  // ... (StaffMarker 컴포넌트는 변경 없음, 그대로 사용) ...
   const StaffMarker = ({ marker }: { marker: MapMarker }) => {
     const staffMembers = useMemo(() => staff.filter(s => marker.staffIds?.includes(s.id)), [marker.staffIds, staff]);
     
@@ -281,6 +281,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                 {...{ "translate": "no" } as any}
                 onPointerDown={(e) => e.stopPropagation()}
             >
+                {/* Popover 내부 내용은 동일 */}
                 <div className="p-4 border-b flex justify-between items-start">
                     <div>
                         <h3 className="text-lg font-bold leading-tight flex items-center gap-2 mb-2">
@@ -376,6 +377,7 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   }
 
   const UnassignedStaff = () => {
+    // ... (UnassignedStaff 내용은 변경 없음) ...
     const assignedStaffIds = useMemo(() => new Set(currentMarkers.flatMap(m => m.staffIds || [])), [currentMarkers]);
     const unassignedStaff = useMemo(() => staff.filter(s => !assignedStaffIds.has(s.id)), [staff, assignedStaffIds]);
     
@@ -415,23 +417,23 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
                                                     <AvatarFallback><UserPlus className='h-6 w-6 text-muted-foreground'/></AvatarFallback>
                                                 </Avatar>
                                             </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>{s.name}님을 지도에 추가</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{s.name}님을 지도에 추가</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                             )
                         })}
                     </div>
                 </ScrollArea>
             </PopoverContent>
         </Popover>
-
     )
   }
   
   const MapActions = () => {
+    // ... (MapActions 변경 없음) ...
     if (!isDraggable || !selectedSlot) return null;
 
     return (
@@ -453,7 +455,6 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
   
   const NotificationBanner = () => {
     if (!notification || !isBannerVisible) return null;
-    
     return (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-accent/90 backdrop-blur-sm text-accent-foreground px-4 py-2 rounded-lg shadow-lg flex items-center gap-4 animate-in fade-in-0 slide-in-from-top-4">
             <Megaphone className="h-5 w-5 shrink-0"/>
@@ -478,11 +479,17 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
     )
   }
 
+  // 🔴 [핵심 변경] 렌더링 부분 구조 변경
+  // 1. 바깥 div: flex-center로 내부의 지도 컨테이너를 중앙 정렬
+  // 2. 내부 div (mapRef): aspectRatio 스타일을 적용하여 이미지 비율 강제 고정
+  // 3. Image: object-fit: cover로 변경 (부모가 이미 비율을 맞췄으므로 꽉 채움)
   return (
-    <div className="w-full h-full bg-slate-50/50 rounded-xl overflow-hidden border shadow-sm">
+    <div className="w-full h-full bg-slate-50/50 rounded-xl overflow-hidden border shadow-sm flex items-center justify-center p-4">
         <div 
           ref={mapRef}
-          className="relative w-full h-full min-h-[500px] notranslate"
+          className="relative w-full shadow-md notranslate"
+          // aspect-ratio 속성을 통해 부모 너비에 맞춰 높이가 자동 조절됨 -> 빈 공간 사라짐
+          style={{ aspectRatio: mapAspectRatio }}
           {...{ "translate": "no" } as any}
           onPointerDown={() => setActiveMarkerId(null)}
         >
@@ -490,20 +497,25 @@ export default function VenueMap({ allMarkers, allMaps, staff, schedule, isDragg
             <Image
               src={finalMapImageUrl}
               alt="Venue Map"
-              width={1600}
-              height={900}
-              sizes="90vw" 
-              className="object-contain pointer-events-none"
-              style={{ width: '100%', height: 'auto' }}
+              fill // layout="fill" (absolute inset-0)
+              sizes="(max-width: 768px) 100vw, 80vw"
+              className="object-cover pointer-events-none rounded-md" // object-contain -> object-cover
               priority
+              // 이미지가 로드되면 실제 비율을 계산하여 상태 업데이트
+              onLoadingComplete={(img) => {
+                if (img.naturalWidth && img.naturalHeight) {
+                    setMapAspectRatio(img.naturalWidth / img.naturalHeight);
+                }
+              }}
             />
           ) : (
-             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+             <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-muted/30">
                 <p className="text-muted-foreground">배경 이미지가 없습니다.</p>
             </div>
           )}
 
-          <div className="absolute inset-0 bg-black/5 pointer-events-none" />
+          {/* 오버레이 요소들은 mapRef(비율 고정된 박스) 안에 그대로 위치 */}
+          <div className="absolute inset-0 bg-black/5 pointer-events-none rounded-md" />
           
           <NotificationBanner />
           <MapActions />

@@ -1,9 +1,14 @@
 
 
-import type { VenueData } from './types';
+import type { VenueData, Session } from './types';
 import { PlaceHolderImages } from './placeholder-images';
 
 const mapBg = PlaceHolderImages.find(p => p.id === 'map-background')?.imageUrl || '';
+
+export const initialSessions: Session[] = Array.from({ length: 8 }, (_, i) => ({
+  id: `session-${i + 1}`,
+  name: `${i + 1}차`,
+}));
 
 // VenueData 타입에 맞게 Omit 수정
 export const initialData: Omit<VenueData, 'notification' | 'scheduleTemplates'> = {
@@ -20,9 +25,9 @@ export const initialData: Omit<VenueData, 'notification' | 'scheduleTemplates'> 
     { id: 'role-3', name: '안내팀', tasks: [{ event: '관객 안내', location: '메인 게이트' }] },
   ],
   schedule: [
-    { id: 'sch-1', day: 0, time: '09:00', event: '오프닝 게이트 보안 점검', location: '메인 게이트', staffIds: ['staff-1'] },
-    { id: 'sch-2', day: 0, time: '10:00', event: '의료 부스 준비', location: '의료 센터', staffIds: ['staff-2'] },
-    { id: 'sch-3', day: 1, time: '10:30', event: '관객 안내 및 동선 확인', location: '전체 구역', staffIds: ['staff-3'] },
+    { id: 'sch-1', day: 0, time: '09:00', event: '오프닝 게이트 보안 점검', location: '메인 게이트', staffIds: ['staff-1'], roleName: '보안팀' },
+    { id: 'sch-2', day: 0, time: '10:00', event: '의료 부스 준비', location: '의료 센터', staffIds: ['staff-2'], roleName: '의료팀' },
+    { id: 'sch-3', day: 1, time: '10:30', event: '관객 안내 및 동선 확인', location: '전체 구역', staffIds: ['staff-3'], roleName: '안내팀' },
   ],
   markers: [
     { id: 'marker-1-0-0900', staffIds: ['staff-1'], day: 0, time: '09:00', x: 20, y: 30 },

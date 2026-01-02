@@ -1,5 +1,10 @@
 
 
+export interface Session {
+  id: string;
+  name: string;
+}
+
 export interface ScheduleTemplate {
   event: string;
   location?: string;
@@ -52,5 +57,3 @@ export interface VenueData {
   notification?: string;
   scheduleTemplates: ScheduleTemplate[];
 }
-
-    

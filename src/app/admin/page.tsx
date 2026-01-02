@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
 import { StaffPanel } from '@/components/admin/StaffPanel';
 import { RolePanel } from '@/components/admin/RolePanel';
-import { LogOut, Loader2, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { Loader2, ExternalLink, Link as LinkIcon, Database } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Role } from '@/lib/types';
 import { MapPanel } from '@/components/admin/MapPanel';
-
+import { useSession } from '@/hooks/use-session';
 
 const days = [0, 1, 2, 3];
 export const timeSlots = (() => {
@@ -32,9 +32,9 @@ export const timeSlots = (() => {
 
 export default function AdminPage() {
   const router = useRouter();
-  const auth = useAuth();
   const { user, isUserLoading } = useUser();
-  const { data, isLoading: isDataLoading } = useVenueData();
+  const { data, isLoading: isDataLoading, initializeFirestoreData } = useVenueData();
+  const { sessionId, isLoading: isSessionLoading } = useSession();
 
   const [isLinked, setIsLinked] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
@@ -44,7 +44,6 @@ export default function AdminPage() {
 
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-
 
   useEffect(() => {
     if (!isUserLoading && (!user || user.isAnonymous)) {
@@ -74,7 +73,6 @@ export default function AdminPage() {
     }
   }, []);
 
-  // When selected staff or time slot changes, find their role and select it.
   useEffect(() => {
       if (!selectedStaffId || !selectedSlot || !data?.schedule || !data?.roles) {
           setSelectedRole(null);
@@ -99,7 +97,7 @@ export default function AdminPage() {
   const handleSlotChange = (day: number, time: string) => {
     const newSlot = { day, time };
     setSelectedSlot(newSlot);
-    setSelectedStaffId(null); // Clear staff selection on time change
+    setSelectedStaffId(null);
     if (isLinked) {
       setMapSlot(newSlot);
     }
@@ -119,21 +117,43 @@ export default function AdminPage() {
       if (isLinked) {
         setSelectedSlot(newSlot);
         setActiveTab(`day-${day}`);
-        setSelectedStaffId(null); // Clear staff selection on time change
+        setSelectedStaffId(null);
       }
-  };
-
-  const handleLogout = async () => {
-    await auth.signOut();
-    localStorage.removeItem('venueSyncSelectedSlot');
-    router.push('/');
   };
 
   const openMapWindow = () => {
     window.open('/map', '_blank', 'width=1200,height=800');
   };
 
-  if (isUserLoading || isDataLoading || !user || !selectedSlot || !mapSlot) {
+  if (isUserLoading || isDataLoading || isSessionLoading || !sessionId) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!data) {
+     return (
+        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center">
+            <Database className="h-12 w-12 text-muted-foreground" />
+            <h2 className="text-xl font-semibold">데이터베이스가 비어있습니다</h2>
+            <p className="text-muted-foreground">시작하려면 초기 데이터를 생성해주세요.</p>
+            <Button 
+                onClick={() => initializeFirestoreData()} 
+                variant="default"
+                className='mt-4'
+            >
+                <span className="flex items-center gap-2">
+                    <Database className="h-4 w-4" />
+                    <span>초기 데이터 및 8개 차수 생성하기</span>
+                </span>
+            </Button>
+        </div>
+    )
+  }
+
+  if (!selectedSlot || !mapSlot) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -143,32 +163,22 @@ export default function AdminPage() {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="min-h-screen bg-background">
-          <header className='flex justify-between items-center p-4 border-b bg-card'>
-              <h1 className='font-headline text-2xl font-bold text-primary'>VenueSync 대시보드</h1>
-              <div className="flex items-center gap-4">
-                <Button variant="outline" onClick={openMapWindow}>
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    새 창으로 열기
-                </Button>
-                <Button variant="ghost" onClick={handleLogout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    로그아웃
-                </Button>
-              </div>
-          </header>
-
-          <main className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-4 xl:gap-8 p-4 md:p-8">
+      <div className="p-4 md:p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-4 xl:gap-8">
               <div className="lg:col-span-2 space-y-8">
                   <section className="p-4 md:p-6 space-y-4 border rounded-lg bg-card shadow-sm">
                       <div className='flex justify-between items-center mb-4'>
                         <h2 className="font-headline text-xl font-semibold">시간대 설정</h2>
                         <div className="flex items-center space-x-2">
-                          <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
-                          <Label htmlFor="link-panels" className='flex items-center gap-2'>
-                            <LinkIcon className='h-4 w-4'/>
-                            지도 연동
-                          </Label>
+                            <Button variant="outline" size="sm" onClick={openMapWindow}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                새 창으로 열기
+                            </Button>
+                            <Switch id="link-panels" checked={isLinked} onCheckedChange={setIsLinked} />
+                            <Label htmlFor="link-panels" className='flex items-center gap-2'>
+                                <LinkIcon className='h-4 w-4'/>
+                                지도 연동
+                            </Label>
                         </div>
                       </div>
                       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -217,7 +227,7 @@ export default function AdminPage() {
                   isLinked={isLinked}
                 />
               </div>
-          </main>
+          </div>
       </div>
     </DndProvider>
   );

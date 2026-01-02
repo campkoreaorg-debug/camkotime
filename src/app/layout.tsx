@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
@@ -14,7 +15,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // [수정] suppressHydrationWarning={true} 추가
     <html 
       lang="ko" 
       translate="no" 
