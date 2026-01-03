@@ -8,6 +8,8 @@ service cloud.firestore {
     }
     
     function isPublic(sessionId) {
+      // isPublic is a boolean on the venue document.
+      // The venue document ID is 'main-venue'.
       return get(/databases/$(database)/documents/sessions/$(sessionId)/venue/main-venue).data.isPublic == true;
     }
 
@@ -49,10 +51,15 @@ service cloud.firestore {
       allow write: if isSessionOwner(sessionId);
     }
     
-    // Roles subcollection
+    // Roles subcollection (document access)
     match /sessions/{sessionId}/roles/{roleId} {
       allow get, list: if isSessionOwner(sessionId) || isPublic(sessionId);
       allow write: if isSessionOwner(sessionId);
+    }
+
+    // Roles collection group query access
+    match /roles/{roleId} {
+        allow read: if isSessionOwner(request.resource.data.sessionId);
     }
     
     // ScheduleTemplates subcollection
