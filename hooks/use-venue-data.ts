@@ -520,7 +520,8 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     const copyTimeSlotData = async (sourceSlot: { day: number, time: string }, destinationSlot: { day: number, time: string }) => {
         if (!firestore || !sessionId || sourceSlot.day !== destinationSlot.day) return;
     
-        const sessionRef = doc(firestore, 'sessions', sessionId, 'schedules', newId), { newData: any }; // Correctly formatted placeholder or removed if unused
+        // 🚨 여기를 수정했습니다! 
+        const sessionRef = doc(firestore, 'sessions', sessionId); 
         const batch = writeBatch(firestore);
     
         const existingSchedulesQuery = query(collection(sessionRef, 'schedules'), where('day', '==', destinationSlot.day), where('time', '==', destinationSlot.time));
