@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X, Download, CheckCircle, Circle } from 'lucide-react';
+import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X, Download, CheckCircle, Circle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -29,6 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { ScrollArea } from '../ui/scroll-area';
 import Papa from 'papaparse';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { useSession } from '@/hooks/use-session';
 
 
 const scheduleSchema = z.object({
@@ -48,6 +49,7 @@ interface SchedulePanelProps {
 export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
   const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, deleteAllSchedules, toggleScheduleCompletion } = useVenueData();
   const { toast } = useToast();
+  const { sessionId } = useSession();
   
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
   
@@ -264,6 +266,14 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
   }, [filteredStaffId, data]);
   const { ref: formRef, ...restFormProps } = form.register('event');
 
+  const openScheduleWindow = () => {
+    if (!sessionId) {
+        alert("먼저 차수(Session)를 선택해주세요.");
+        return;
+    }
+    window.open(`/schedule?sid=${sessionId}`, '_blank', 'width=1280,height=800,resizable=yes,scrollbars=yes');
+  };
+
   return (
     <Card className='lg:col-span-1'>
         <CardHeader>
@@ -272,7 +282,11 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
               <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
               <CardDescription>전역 시간대 설정에 따라 스케줄을 관리하세요.</CardDescription>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+               <Button variant="outline" size="sm" onClick={openScheduleWindow}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    따로 보기
+               </Button>
               <Button variant="outline" size="sm" onClick={handleDownload}>
                   <Download className='mr-2 h-4 w-4' />
                   엑셀 다운로드
@@ -491,3 +505,5 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
     </Card>
   );
 }
+
+    
