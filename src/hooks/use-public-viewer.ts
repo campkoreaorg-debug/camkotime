@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useFirestore } from '@/firebase';
 import { collection, collectionGroup, query, where, getDocs, doc, onSnapshot } from 'firebase/firestore';
-import type { VenueData, ScheduleItem, StaffMember, Role, MapInfo, MapMarker, ScheduleTemplate } from '@/lib/types';
+import type { VenueData, ScheduleItem, StaffMember, Role, MapInfo, MapMarker, ScheduleTemplate, TimeSlotInfo } from '@/lib/types';
 
 export const usePublicViewer = () => {
   const firestore = useFirestore();
@@ -47,7 +47,7 @@ export const usePublicViewer = () => {
 
         // 데이터 임시 저장 객체
         const currentData: any = {
-          staff: [], roles: [], schedule: [], markers: [], maps: [], scheduleTemplates: [], notification: venueDoc.data().notification || ''
+          staff: [], roles: [], schedule: [], markers: [], maps: [], scheduleTemplates: [], timeSlotInfos: [], notification: venueDoc.data().notification || ''
         };
 
         const updateState = () => {
@@ -76,7 +76,7 @@ export const usePublicViewer = () => {
             setLoading(false);
         };
 
-        // (1) Staff 리스너 (+ 에러 핸들러 추가)
+        // (1) Staff 리스너
         const unsubStaff = onSnapshot(collection(sessionRef, 'staff'), (snap) => {
             currentData.staff = snap.docs.map(d => d.data());
             updateState();
@@ -119,7 +119,13 @@ export const usePublicViewer = () => {
             }
         }, handleError);
 
-        unsubscribes.push(unsubStaff, unsubRoles, unsubSch, unsubMarkers, unsubMaps, unsubVenue);
+        // (7) TimeSlotInfo 리스너
+        const unsubTimeSlotInfos = onSnapshot(collection(sessionRef, 'timeSlotInfo'), (snap) => {
+            currentData.timeSlotInfos = snap.docs.map(d => d.data());
+            updateState();
+        }, handleError);
+
+        unsubscribes.push(unsubStaff, unsubRoles, unsubSch, unsubMarkers, unsubMaps, unsubVenue, unsubTimeSlotInfos);
 
       } catch (err) {
         console.error("Realtime setup error:", err);

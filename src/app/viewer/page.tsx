@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import VenueMap from '@/components/VenueMap';
 import { Button } from '@/components/ui/button';
-import { LogOut, Loader2, Database, WifiOff } from 'lucide-react';
+import { LogOut, Loader2, Database, WifiOff, Info } from 'lucide-react';
 import { useUser, useAuth } from '@/firebase';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DndProvider } from 'react-dnd';
@@ -43,6 +43,12 @@ export default function ViewerPage() {
     setSelectedSlot({ day, time });
   }
 
+  const currentItinerary = useMemo(() => {
+    if (!data?.timeSlotInfos || !selectedSlot) return null;
+    return data.timeSlotInfos.find(info => info.day === selectedSlot.day && info.time === selectedSlot.time)?.itinerary;
+  }, [data?.timeSlotInfos, selectedSlot]);
+
+
   if(isUserLoading || loading){
     return (
         <div className="flex h-screen items-center justify-center">
@@ -79,8 +85,17 @@ export default function ViewerPage() {
         <header className='flex justify-between items-center p-4 border-b bg-card shadow-sm'>
             <div className="flex items-center gap-4">
                 <h1 className='font-headline text-2xl font-bold text-primary'>
-                   VenueSync 뷰어 <span className="text-muted-foreground text-lg font-normal ml-2">(Day {selectedSlot.day} - {selectedSlot.time})</span>
+                   VenueSync 뷰어 
+                   <span className="text-muted-foreground text-lg font-normal ml-2">
+                       (Day {selectedSlot.day} - {selectedSlot.time})
+                   </span>
                 </h1>
+                {currentItinerary && (
+                    <div className="text-sm font-semibold text-primary flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full">
+                        <Info className="h-4 w-4" />
+                        <span>{currentItinerary}</span>
+                    </div>
+                )}
             </div>
               <Button variant="outline" onClick={handleLogout}>
                   <span className="flex items-center gap-2">
