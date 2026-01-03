@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -16,7 +15,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useVenueData } from '@/hooks/use-venue-data';
+import { useVenueData, timeSlots } from '@/hooks/use-venue-data'; // 🟢 timeSlots 여기로 통합
 import { Role } from '@/lib/types';
 import { useSession } from '@/hooks/use-session';
 import { CardHeader, CardTitle, CardDescription, Card } from '@/components/ui/card';
@@ -24,7 +23,6 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
 const days = [0, 1, 2, 3];
-import { timeSlots } from '@/hooks/use-venue-data'; // 🟢 이렇게 가져다 쓰세요
 
 export default function AdminPage() {
   const router = useRouter();
@@ -41,7 +39,10 @@ export default function AdminPage() {
   const [mapSlot, setMapSlot] = useState<{ day: number; time: string } | null>(null);
 
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  
+  // 🟢 여기가 핵심 수정 사항입니다! (<Role | null>)
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  
   const [itineraryText, setItineraryText] = useState('');
 
   const currentItinerary = useMemo(() => {
@@ -110,6 +111,7 @@ export default function AdminPage() {
 
         if (staffSchedule && staffSchedule.roleName) {
             const role = data.roles.find(r => r.name === staffSchedule.roleName);
+            // 🟢 이제 여기서 에러가 나지 않을 겁니다!
             if (!selectedRole || selectedRole.name !== role?.name) {
                 setSelectedRole(role || null);
             }
@@ -285,15 +287,15 @@ export default function AdminPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle className="font-headline text-2xl font-semibold">지도 및 공지</CardTitle>
-                       <CardDescription>
-                        {isLinked 
-                          ? '전역 시간대 설정과 연동된 지도입니다.' 
-                          : selectedSlot 
-                            ? `독립적으로 ${selectedSlot.day}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` 
-                            : '시간대를 선택하여 지도를 확인하세요.'
-                        }
-                       </CardDescription>
-                       {currentItinerary && (
+                        <CardDescription>
+                         {isLinked 
+                           ? '전역 시간대 설정과 연동된 지도입니다.' 
+                           : selectedSlot 
+                             ? `독립적으로 ${selectedSlot.day}일차 ${selectedSlot.time}의 지도를 보고 있습니다.` 
+                             : '시간대를 선택하여 지도를 확인하세요.'
+                         }
+                        </CardDescription>
+                        {currentItinerary && (
                         <div className="mt-2 text-sm font-semibold text-primary flex items-center gap-2">
                             <Info className="h-4 w-4" />
                             <span>{currentItinerary}</span>
