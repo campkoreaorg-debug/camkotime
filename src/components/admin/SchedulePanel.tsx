@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X, Download, CheckCircle, Circle, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Edit, Copy, ClipboardPaste, Link as LinkIcon, Users, User, ShieldAlert, UserSearch, X, Download, CheckCircle, Circle, ExternalLink, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     AlertDialog,
@@ -44,9 +44,10 @@ type ClipboardItem = Omit<ScheduleItem, 'id' | 'day' | 'time'>;
 
 interface SchedulePanelProps {
     selectedSlot: { day: number, time: string } | null;
+    itinerary?: string;
 }
 
-export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
+export function SchedulePanel({ selectedSlot, itinerary }: SchedulePanelProps) {
   const { data, addSchedule, updateSchedule, deleteSchedule, deleteSchedulesBatch, pasteSchedules, deleteAllSchedules, toggleScheduleCompletion } = useVenueData();
   const { toast } = useToast();
   const { sessionId } = useSession();
@@ -281,6 +282,12 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
             <div>
               <CardTitle className="font-headline text-2xl font-semibold">스케줄 관리</CardTitle>
               <CardDescription>전역 시간대 설정에 따라 스케줄을 관리하세요.</CardDescription>
+                {itinerary && (
+                    <div className="mt-2 text-sm font-semibold text-primary flex items-center gap-2">
+                        <Info className="h-4 w-4" />
+                        <span>{itinerary}</span>
+                    </div>
+                )}
             </div>
             <div className="flex items-center gap-2">
                <Button variant="outline" size="sm" onClick={openScheduleWindow}>
@@ -505,5 +512,3 @@ export function SchedulePanel({ selectedSlot }: SchedulePanelProps) {
     </Card>
   );
 }
-
-    

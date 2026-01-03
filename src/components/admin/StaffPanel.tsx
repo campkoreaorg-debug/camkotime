@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useRef, useMemo } from 'react';
-import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X, ChevronsUpDown } from 'lucide-react';
+import { Trash2, User, Loader2, Plus, ImageIcon, Upload, X, ChevronsUpDown, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVenueData } from '@/hooks/use-venue-data';
 import type { StaffMember, ScheduleTemplate } from '@/lib/types';
@@ -180,9 +180,10 @@ interface StaffPanelProps {
     selectedSlot: { day: number, time: string } | null;
     onStaffSelect: (staffId: string) => void;
     selectedStaffId: string | null;
+    itinerary?: string;
 }
 
-export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: StaffPanelProps) {
+export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId, itinerary }: StaffPanelProps) {
   const { data, addStaffBatch, isLoading } = useVenueData();
   const { toast } = useToast();
   const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
@@ -348,6 +349,12 @@ export function StaffPanel({ selectedSlot, onStaffSelect, selectedStaffId }: Sta
                 <CardDescription>
                     총 <Badge variant="secondary">{data?.staff.length || 0}</Badge>명의 스태프. 클릭하여 배정된 업무 확인
                 </CardDescription>
+                 {itinerary && (
+                    <div className="text-sm font-semibold text-primary flex items-center gap-2 pt-1">
+                        <Info className="h-4 w-4" />
+                        <span>{itinerary}</span>
+                    </div>
+                )}
             </div>
             <div className='flex items-center gap-2'>
                 <CollapsibleTrigger asChild>

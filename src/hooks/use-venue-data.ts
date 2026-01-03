@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser, storage } from '@/firebase';
@@ -5,7 +6,7 @@ import {
   collection,
   doc,
   writeBatch,
-  query, // 🟢 import 중복 제거 및 정리 완료
+  query,
   where,
   getDocs,
   deleteDoc,
@@ -17,7 +18,7 @@ import {
   collectionGroup,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Session } from '@/lib/types';
+import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Session, TimeSlotInfo } from '@/lib/types';
 import { initialData } from '@/lib/data';
 import { useCallback, useState, useEffect } from 'react';
 import { useSession } from './use-session';
@@ -31,13 +32,11 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const sessionContext = useSession(); 
   const contextSessionId = sessionContext?.sessionId;
 
-  // Prioritize URL param, then context, then null
   const sessionId = overrideSessionId || contextSessionId;
 
   const [localData, setLocalData] = useState<VenueData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Session-dependent refs
   const venueRef = useMemoFirebase(() => (firestore && sessionId ? doc(firestore, 'sessions', sessionId, 'venue', VENUE_ID) : null), [firestore, sessionId]);
   const staffColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'staff') : null), [firestore, sessionId]);
   const rolesColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'roles') : null), [firestore, sessionId]);
@@ -45,10 +44,8 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const markersColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'markers') : null), [firestore, sessionId]);
   const mapsColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'maps') : null), [firestore, sessionId]);
   const scheduleTemplatesColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'scheduleTemplates') : null), [firestore, sessionId]);
+  const timeSlotInfoColRef = useMemoFirebase(() => (firestore && sessionId ? collection(firestore, 'sessions', sessionId, 'timeSlotInfo') : null), [firestore, sessionId]);
   
-  // 🟢 [수정] allRolesColRef는 권한 문제로 인해 사용하지 않고, 아래 useEffect에서 직접 쿼리합니다.
-  // const allRolesColRef = useMemoFirebase(() => (firestore ? collectionGroup(firestore, 'roles') : null), [firestore]);
-
   const { data: venueDoc, isLoading: venueLoading } = useDoc<any>(venueRef);
   const { data: staff, isLoading: staffLoading } = useCollection<StaffMember>(staffColRef);
   const { data: roles, isLoading: rolesLoading } = useCollection<Role>(rolesColRef);
@@ -56,11 +53,11 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const { data: markers, isLoading: markersLoading } = useCollection<MapMarker>(markersColRef);
   const { data: maps, isLoading: mapsLoading } = useCollection<MapInfo>(mapsColRef);
   const { data: scheduleTemplates, isLoading: templatesLoading } = useCollection<ScheduleTemplate>(scheduleTemplatesColRef);
+  const { data: timeSlotInfos, isLoading: timeSlotInfosLoading } = useCollection<TimeSlotInfo>(timeSlotInfoColRef);
   
   const [allRoles, setAllRoles] = useState<Role[]>([]);
   const [allRolesLoading, setAllRolesLoading] = useState(true);
 
-  // 🟢 [핵심 수정] 권한 에러 해결: 내 세션만 가져오기
   useEffect(() => {
     const fetchAllRoles = async () => {
         if (!firestore || !user) return;
@@ -69,7 +66,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         const rolesData: Role[] = [];
         
         try {
-            // 'ownerId'가 '나(user.uid)'인 세션만 가져옵니다.
             const q = query(
                 collection(firestore, 'sessions'), 
                 where('ownerId', '==', user.uid)
@@ -79,9 +75,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
             for (const sessionDoc of sessionsSnapshot.docs) {
                 const rolesSnapshot = await getDocs(collection(firestore, 'sessions', sessionDoc.id, 'roles'));
                 rolesSnapshot.forEach(roleDoc => {
-                    // 각 세션의 day 정보도 함께 저장
                     const sessionData = sessionDoc.data();
-                    // sessionData.day가 없으면 기본값 0 사용
                     const day = sessionData.day !== undefined ? sessionData.day : 0;
                     rolesData.push({ ...roleDoc.data(), day } as Role);
                 });
@@ -94,7 +88,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         }
     };
     fetchAllRoles();
-  }, [firestore, roles, user]); // user가 변경될 때도 다시 실행
+  }, [firestore, roles, user]);
 
 
   useEffect(() => {
@@ -104,7 +98,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       return;
     }
 
-    const isDataLoading = venueLoading || staffLoading || rolesLoading || scheduleLoading || markersLoading || mapsLoading || templatesLoading || allRolesLoading;
+    const isDataLoading = venueLoading || staffLoading || rolesLoading || scheduleLoading || markersLoading || mapsLoading || templatesLoading || allRolesLoading || timeSlotInfosLoading;
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
@@ -118,11 +112,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         return (b.tasks?.length || 0) - (a.tasks?.length || 0);
       });
       
-      // 🟢 [복원] 사용자님의 sessionRoles 매핑 로직 유지
       const sessionRoles = allRoles?.map(role => {
-        // ... (기존 로직 유지) ... 
-        // 여기서는 이미 allRoles에 day가 들어가 있으므로 그대로 써도 됩니다.
-        // 하지만 기존 로직을 최대한 존중하여 유지합니다.
         return role; 
       }) || [];
 
@@ -130,17 +120,18 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       setLocalData({
         staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
         roles: sortedRoles,
-        allRoles: allRoles, // 위에서 가져온 allRoles 사용
+        allRoles: allRoles,
         schedule: (schedule || []).sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
         markers: markers || [],
         maps: maps || [],
+        timeSlotInfos: timeSlotInfos || [],
         notification: venueDoc?.notification || '',
         scheduleTemplates: scheduleTemplates || [],
       });
     }
   }, [
-    sessionId, venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates, allRoles,
-    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading, templatesLoading, allRolesLoading
+    sessionId, venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates, allRoles, timeSlotInfos,
+    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading, templatesLoading, allRolesLoading, timeSlotInfosLoading
   ]);
 
   const initializeFirestoreData = useCallback(async () => {
@@ -168,8 +159,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     initialData.scheduleTemplates.forEach((template) => batch.set(doc(sessionRef, 'scheduleTemplates', template.id), template));
     
     await batch.commit();
-    // 🟢 [수정] reload 제거됨
-    // window.location.reload();
 
   }, [firestore, user, sessionId]);
 
@@ -357,7 +346,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     });
   };
 
-  // 🟢 [수정] 이 함수가 바로 그 '새로고침 없이 상태만 바꾸는' 함수입니다.
   const updateScheduleStatus = async (scheduleId: string, currentStatus: boolean) => {
     if (!firestore || !sessionId) return;
     try {
@@ -443,7 +431,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       if(venueRef) updateDoc(venueRef, { notification: text });
   }
 
-    // 🟢 [복원] 사용자님의 추가 기능 유지
     const addScheduleTemplatesToSlot = async (templateIds: string[], day: number) => {
         if (!firestore || !sessionId || !localData?.scheduleTemplates) return;
 
@@ -455,14 +442,12 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         
         const batch = writeBatch(firestore);
 
-        // Delete roles for the day that are not in the new selection
         existingRolesSnap.forEach(roleDoc => {
             if (!templateNamesToAssign.has(roleDoc.data().name)) {
                 batch.delete(roleDoc.ref);
             }
         });
 
-        // Add or update roles for the day from selected templates
         templatesToAssign.forEach((template, index) => {
             const role: Role = {
                 ...template, 
@@ -520,7 +505,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         const sessionRef = doc(firestore, 'sessions', sessionId);
         const batch = writeBatch(firestore);
     
-        // 1. Delete existing data for the destination slot
         const existingSchedulesQuery = query(collection(sessionRef, 'schedules'), where('day', '==', destinationSlot.day), where('time', '==', destinationSlot.time));
         const existingMarkersQuery = query(collection(sessionRef, 'markers'), where('day', '==', destinationSlot.day), where('time', '==', destinationSlot.time));
         
@@ -529,7 +513,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         existingSchedulesSnap.forEach(doc => batch.delete(doc.ref));
         existingMarkersSnap.forEach(doc => batch.delete(doc.ref));
     
-        // 2. Copy data from source to destination
         const sourceSchedulesQuery = query(collection(sessionRef, 'schedules'), where('day', '==', sourceSlot.day), where('time', '==', sourceSlot.time));
         const sourceMarkersQuery = query(collection(sessionRef, 'markers'), where('day', '==', sourceSlot.day), where('time', '==', sourceSlot.time));
         
@@ -550,6 +533,12 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         await batch.commit();
     };
 
+    const updateTimeSlotItinerary = (day: number, time: string, itinerary: string) => {
+        if (!firestore || !sessionId) return;
+        const timeSlotId = `${day}-${time}`;
+        const timeSlotRef = doc(firestore, 'sessions', sessionId, 'timeSlotInfo', timeSlotId);
+        setDoc(timeSlotRef, { id: timeSlotId, day, time, itinerary }, { merge: true });
+    };
 
   return {
     data: localData,
@@ -567,9 +556,9 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     unassignRoleFromStaff,
     addTasksToRole,
     removeTaskFromRole,
-    updateScheduleStatus, // 🟢 [중요] 새로고침 없는 상태 변경 함수
+    updateScheduleStatus,
     toggleScheduleCompletion,
-    addScheduleTemplatesToSlot, // 🟢 [복원] 누락되었던 함수들 모두 복원
+    addScheduleTemplatesToSlot,
     isLoading: isLoading, 
     updateMarkerPosition,
     addMarker,
@@ -580,6 +569,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     deleteScheduleTemplate,
     importScheduleTemplates,
     copyTimeSlotData,
+    updateTimeSlotItinerary,
   };
 };
 

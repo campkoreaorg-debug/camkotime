@@ -56,6 +56,12 @@ service cloud.firestore {
       allow get, list: if isSessionOwner(sessionId) || isPublic(sessionId);
       allow write: if isSessionOwner(sessionId);
     }
+    
+    // TimeSlotInfo subcollection
+    match /sessions/{sessionId}/timeSlotInfo/{timeSlotInfoId} {
+      allow get, list: if isSessionOwner(sessionId) || isPublic(sessionId);
+      allow write: if isSessionOwner(sessionId);
+    }
 
     // Roles collection group query access
     match /roles/{roleId} {

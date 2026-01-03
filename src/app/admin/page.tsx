@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SchedulePanel } from '@/components/admin/SchedulePanel';
@@ -9,7 +9,7 @@ import { StaffPanel } from '@/components/admin/StaffPanel';
 import { RolePanel } from '@/components/admin/RolePanel';
 import { AllRolesPanel } from '@/components/admin/AllRolesPanel';
 import { MapPanel } from '@/components/admin/MapPanel';
-import { Loader2, Link as LinkIcon, Database, ExternalLink } from 'lucide-react';
+import { Loader2, Link as LinkIcon, Database, ExternalLink, Info, Save } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -20,6 +20,8 @@ import { useVenueData } from '@/hooks/use-venue-data';
 import { Role } from '@/lib/types';
 import { useSession } from '@/hooks/use-session';
 import { CardHeader, CardTitle, CardDescription, Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 
 const days = [0, 1, 2, 3];
 export const timeSlots = (() => {
@@ -35,9 +37,10 @@ export const timeSlots = (() => {
 export default function AdminPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
+  const { toast } = useToast();
   
   const { sessionId, isLoading: isSessionLoading } = useSession();
-  const { data, isLoading: isDataLoading, initializeFirestoreData } = useVenueData();
+  const { data, isLoading: isDataLoading, initializeFirestoreData, updateTimeSlotItinerary } = useVenueData();
   
   const [isLinked, setIsLinked] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; time: string } | null>(null);
@@ -47,6 +50,16 @@ export default function AdminPage() {
 
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [itineraryText, setItineraryText] = useState('');
+
+  const currentItinerary = useMemo(() => {
+    if (!selectedSlot || !data?.timeSlotInfos) return '';
+    return data.timeSlotInfos.find(info => info.day === selectedSlot.day && info.time === selectedSlot.time)?.itinerary || '';
+  }, [selectedSlot, data?.timeSlotInfos]);
+
+  useEffect(() => {
+    setItineraryText(currentItinerary);
+  }, [currentItinerary]);
 
   useEffect(() => {
     if (!isUserLoading && (!user || user.isAnonymous)) {
@@ -70,7 +83,6 @@ export default function AdminPage() {
         setMapSlot(parsedSlot);
         setActiveTab(`day-${parsedSlot.day}`);
       } catch (e) {
-        // Fallback if parsing fails
         const defaultSlot = { day: 0, time: timeSlots[0] };
         setSelectedSlot(defaultSlot);
         setMapSlot(defaultSlot);
@@ -84,25 +96,19 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    // 데이터가 없으면 리턴
     if (!data?.roles || !data?.schedule) { 
         return;
     }
 
-    // 1. [핵심 수정] 현재 사용자가 '직책'을 선택해서 보고 있는 경우
-    // 데이터(업무 등)가 바뀌면, 선택된 직책의 정보도 최신으로 갈아끼워줘야 합니다.
     if (selectedRole) {
         const updatedRole = data.roles.find(r => r.id === selectedRole.id);
         
-        // 데이터가 실제로 변했을 때만 업데이트 (무한 렌더링 방지)
         if (updatedRole && JSON.stringify(updatedRole) !== JSON.stringify(selectedRole)) {
             setSelectedRole(updatedRole);
         }
-        // 직책을 보고 있을 때는 스태프 자동 연동 로직을 실행하지 않고 여기서 끝냅니다.
         return;
     }
 
-    // 2. 직책을 선택하지 않은 상태라면? -> 스태프 선택에 따라 자동으로 직책을 찾아줍니다.
     if (selectedStaffId && selectedSlot) {
         const staffSchedule = data.schedule.find(s => 
             s.staffIds?.includes(selectedStaffId) && 
@@ -112,12 +118,10 @@ export default function AdminPage() {
 
         if (staffSchedule && staffSchedule.roleName) {
             const role = data.roles.find(r => r.name === staffSchedule.roleName);
-            // 역할이 실제로 다를 때만 업데이트
             if (!selectedRole || selectedRole.name !== role?.name) {
                 setSelectedRole(role || null);
             }
         } else {
-           // 스태프에게 할당된 역할이 없으면 선택 해제
            if (selectedRole) setSelectedRole(null);
         }
     }
@@ -157,6 +161,15 @@ export default function AdminPage() {
         return;
     }
     window.open(`/map?sid=${sessionId}`, '_blank', 'width=1280,height=800,resizable=yes,scrollbars=yes');
+  };
+
+  const handleSaveItinerary = () => {
+    if (!selectedSlot) return;
+    updateTimeSlotItinerary(selectedSlot.day, selectedSlot.time, itineraryText);
+    toast({
+      title: '일정 저장됨',
+      description: `${selectedSlot.day}일차 ${selectedSlot.time}의 일정이 저장되었습니다.`,
+    });
   };
 
   if (isUserLoading || isDataLoading || isSessionLoading) {
@@ -235,6 +248,23 @@ export default function AdminPage() {
                     )
                   })}
                 </div>
+                <div className="flex w-full items-center space-x-2 pt-4 border-t">
+                    <Label htmlFor="itinerary-input" className="flex-shrink-0 flex items-center gap-2">
+                        <Info className="h-4 w-4" />
+                        일정 입력:
+                    </Label>
+                    <Input
+                        id="itinerary-input"
+                        type="text"
+                        placeholder="이 시간대의 주요 일정을 입력하세요 (예: 점심시간, 메인 공연)..."
+                        value={itineraryText}
+                        onChange={(e) => setItineraryText(e.target.value)}
+                    />
+                    <Button onClick={handleSaveItinerary}>
+                        <Save className="mr-2 h-4 w-4" />
+                        저장
+                    </Button>
+                </div>
           </section>
 
           <div className='space-y-8 mb-8'>
@@ -242,18 +272,21 @@ export default function AdminPage() {
               selectedSlot={selectedSlot}
               onStaffSelect={setSelectedStaffId}
               selectedStaffId={selectedStaffId}
+              itinerary={currentItinerary}
             />
             <AllRolesPanel />
             <RolePanel 
               selectedSlot={selectedSlot}
               selectedRole={selectedRole}
               onRoleSelect={setSelectedRole}
+              itinerary={currentItinerary}
             />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <SchedulePanel 
                 selectedSlot={selectedSlot} 
+                itinerary={currentItinerary}
               />
                <Card className='lg:col-span-1 relative h-full flex flex-col'>
                 <CardHeader>
@@ -268,6 +301,12 @@ export default function AdminPage() {
                             : '시간대를 선택하여 지도를 확인하세요.'
                         }
                        </CardDescription>
+                       {currentItinerary && (
+                        <div className="mt-2 text-sm font-semibold text-primary flex items-center gap-2">
+                            <Info className="h-4 w-4" />
+                            <span>{currentItinerary}</span>
+                        </div>
+                        )}
                     </div>
                     <Button variant="outline" size="sm" onClick={openMapWindow}>
                       <ExternalLink className="mr-2 h-4 w-4" />

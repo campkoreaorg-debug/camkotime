@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Plus, GripVertical, PlusCircle, Trash, Package, X, CheckCircle2, Circle, ListPlus, Copy } from 'lucide-react';
+import { Plus, GripVertical, PlusCircle, Trash, Package, X, CheckCircle2, Circle, ListPlus, Copy, Info } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -58,9 +59,10 @@ interface RolePanelProps {
     selectedSlot: { day: number, time: string } | null;
     selectedRole: Role | null;
     onRoleSelect: (role: Role | null) => void;
+    itinerary?: string;
 }
 
-function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePanelProps) {
+function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect, itinerary }: RolePanelProps) {
     const { data, addTasksToRole, removeTaskFromRole, updateScheduleStatus, addScheduleTemplatesToSlot, copyTimeSlotData } = useVenueData();
     const { toast } = useToast();
 
@@ -258,6 +260,12 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     <CardDescription>
                         직책을 선택하여 업무를 할당하세요. 현재 날짜에 <Badge variant="secondary">{dayFilteredRoles?.length || 0}</Badge>개의 직책.
                     </CardDescription>
+                    {itinerary && (
+                        <div className="mt-2 text-sm font-semibold text-primary flex items-center gap-2">
+                            <Info className="h-4 w-4" />
+                            <span>{itinerary}</span>
+                        </div>
+                    )}
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setIsCopyTimeSlotModalOpen(true)}><Copy className="mr-2 h-4 w-4"/>특정 시간대 불러오기</Button>

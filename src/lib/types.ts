@@ -60,6 +60,13 @@ export interface MapInfo {
   mapImageUrl: string;
 }
 
+export interface TimeSlotInfo {
+    id: string;
+    day: number;
+    time: string;
+    itinerary?: string;
+}
+
 export interface Venue {
     id: string;
     name: string;
@@ -74,6 +81,7 @@ export interface VenueData {
   schedule: ScheduleItem[];
   markers: MapMarker[];
   maps: MapInfo[];
+  timeSlotInfos: TimeSlotInfo[];
   notification?: string;
   scheduleTemplates: ScheduleTemplate[];
 }
