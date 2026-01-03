@@ -77,7 +77,6 @@ export interface Venue {
 export interface VenueData {
   staff: StaffMember[];
   roles: Role[];
-  allRoles?: Role[];
   schedule: ScheduleItem[];
   markers: MapMarker[];
   maps: MapInfo[];

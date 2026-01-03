@@ -14,6 +14,7 @@ import {
   arrayUnion,
   arrayRemove,
   getDoc,
+  collectionGroup,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, TimeSlotInfo } from '@/lib/types';
@@ -64,41 +65,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const { data: scheduleTemplates, isLoading: templatesLoading } = useCollection<ScheduleTemplate>(scheduleTemplatesColRef);
   const { data: timeSlotInfos, isLoading: timeSlotInfosLoading } = useCollection<TimeSlotInfo>(timeSlotInfoColRef);
   
-  const [allRoles, setAllRoles] = useState<Role[]>([]);
-  const [allRolesLoading, setAllRolesLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAllRoles = async () => {
-        if (!firestore || !user) return;
-        
-        setAllRolesLoading(true);
-        const rolesData: Role[] = [];
-        
-        try {
-            const q = query(
-                collection(firestore, 'sessions'), 
-                where('ownerId', '==', user.uid)
-            );
-            const sessionsSnapshot = await getDocs(q);
-            
-            for (const sessionDoc of sessionsSnapshot.docs) {
-                const rolesSnapshot = await getDocs(collection(firestore, 'sessions', sessionDoc.id, 'roles'));
-                rolesSnapshot.forEach(roleDoc => {
-                    const sessionData = sessionDoc.data();
-                    const day = sessionData.day !== undefined ? sessionData.day : 0;
-                    rolesData.push({ ...roleDoc.data(), day } as Role);
-                });
-            }
-            setAllRoles(rolesData);
-        } catch (error) {
-            console.error("Failed to fetch roles:", error);
-        } finally {
-            setAllRolesLoading(false);
-        }
-    };
-    fetchAllRoles();
-  }, [firestore, roles, user]);
-
 
   useEffect(() => {
     if (!sessionId) {
@@ -107,7 +73,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       return;
     }
 
-    const isDataLoading = venueLoading || staffLoading || rolesLoading || scheduleLoading || markersLoading || mapsLoading || templatesLoading || allRolesLoading || timeSlotInfosLoading;
+    const isDataLoading = venueLoading || staffLoading || rolesLoading || scheduleLoading || markersLoading || mapsLoading || templatesLoading || timeSlotInfosLoading;
     setIsLoading(isDataLoading);
 
     if (!isDataLoading) {
@@ -124,7 +90,6 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       setLocalData({
         staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
         roles: sortedRoles,
-        allRoles: allRoles,
         schedule: (schedule || []).sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
         markers: markers || [],
         maps: maps || [],
@@ -134,8 +99,8 @@ export const useVenueData = (overrideSessionId?: string | null) => {
       });
     }
   }, [
-    sessionId, venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates, allRoles, timeSlotInfos,
-    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading, templatesLoading, allRolesLoading, timeSlotInfosLoading
+    sessionId, venueDoc, staff, roles, schedule, markers, maps, scheduleTemplates, timeSlotInfos,
+    venueLoading, staffLoading, rolesLoading, scheduleLoading, markersLoading, mapsLoading, templatesLoading, timeSlotInfosLoading
   ]);
 
   const initializeFirestoreData = useCallback(async () => {
@@ -496,6 +461,15 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         deleteDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', templateId));
     }
 
+    const deleteAllScheduleTemplates = async () => {
+        if (!firestore || !sessionId) return;
+        const templatesRef = collection(firestore, 'sessions', sessionId, 'scheduleTemplates');
+        const snapshot = await getDocs(templatesRef);
+        const batch = writeBatch(firestore);
+        snapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+    }
+
     const importScheduleTemplates = async (templates: {day: string, category: string, name: string, tasks: string}[]) => {
         if (!firestore || !sessionId) return;
         const batch = writeBatch(firestore);
@@ -585,6 +559,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     addScheduleTemplate,
     updateScheduleTemplate,
     deleteScheduleTemplate,
+    deleteAllScheduleTemplates,
     importScheduleTemplates,
     copyTimeSlotData,
     updateTimeSlotItinerary,
