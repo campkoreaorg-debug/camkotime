@@ -442,10 +442,10 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         await batch.commit();
     };
 
-    const addScheduleTemplate = (name: string, tasks: {event: string}[]) => {
+    const addScheduleTemplate = (data: Omit<ScheduleTemplate, 'id'>) => {
         if (!firestore || !sessionId) return;
         const newId = `template-${Date.now()}`;
-        setDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', newId), { id: newId, name, tasks });
+        setDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', newId), { id: newId, ...data });
     }
 
     const updateScheduleTemplate = (templateId: string, data: Partial<ScheduleTemplate>) => {
@@ -458,15 +458,17 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         deleteDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', templateId));
     }
 
-    const importScheduleTemplates = async (templates: {name: string, tasks: string}[]) => {
+    const importScheduleTemplates = async (templates: {day: string, category: string, name: string, tasks: string}[]) => {
         if (!firestore || !sessionId) return;
         const batch = writeBatch(firestore);
         
         templates.forEach(template => {
             const newId = `template-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
             const tasksArray = template.tasks.split(';').map(t => ({ event: t.trim() })).filter(t => t.event);
-            const newTemplate = {
+            const newTemplate: ScheduleTemplate = {
                 id: newId,
+                day: parseInt(template.day, 10) || 0,
+                category: template.category || '',
                 name: template.name,
                 tasks: tasksArray,
             };

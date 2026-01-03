@@ -8,6 +8,8 @@ export interface Session {
 export interface ScheduleTemplate {
   id: string;
   name: string;
+  day?: number;
+  category?: string;
   tasks: {
       event: string;
       location?: string;

@@ -15,6 +15,10 @@ import { ScrollArea } from '../ui/scroll-area';
 import { ScheduleTemplate } from '@/lib/types';
 import Papa from 'papaparse';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+
+const days = [0, 1, 2, 3];
 
 export function AllRolesPanel() {
     const { data, addScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate, importScheduleTemplates } = useVenueData();
@@ -30,15 +34,32 @@ export function AllRolesPanel() {
     const [templateToDelete, setTemplateToDelete] = useState<ScheduleTemplate | null>(null);
 
     const [name, setName] = useState('');
+    const [day, setDay] = useState(0);
+    const [category, setCategory] = useState('');
     const [tasks, setTasks] = useState<{ event: string }[]>([]);
     const [currentTask, setCurrentTask] = useState('');
 
-    const templates = useMemo(() => {
-        return data?.scheduleTemplates || [];
+    const templatesByDayAndCategory = useMemo(() => {
+        const grouped: Record<number, Record<string, ScheduleTemplate[]>> = {};
+        days.forEach(d => grouped[d] = {});
+
+        (data?.scheduleTemplates || []).forEach(template => {
+            const templateDay = template.day ?? 0;
+            if (grouped[templateDay]) {
+                const templateCategory = template.category || '기타';
+                if (!grouped[templateDay][templateCategory]) {
+                    grouped[templateDay][templateCategory] = [];
+                }
+                grouped[templateDay][templateCategory].push(template);
+            }
+        });
+        return grouped;
     }, [data?.scheduleTemplates]);
 
     const resetForm = () => {
         setName('');
+        setDay(0);
+        setCategory('');
         setTasks([]);
         setCurrentTask('');
         setEditingTemplate(null);
@@ -52,6 +73,8 @@ export function AllRolesPanel() {
     const handleOpenEditModal = (template: ScheduleTemplate) => {
         setEditingTemplate(template);
         setName(template.name);
+        setDay(template.day ?? 0);
+        setCategory(template.category || '');
         setTasks(template.tasks || []);
         setCurrentTask('');
         setIsEditModalOpen(true);
@@ -78,13 +101,15 @@ export function AllRolesPanel() {
             toast({ variant: 'destructive', title: '직책 이름을 입력해주세요.' });
             return;
         }
+        
+        const templateData = { name, tasks, day, category };
 
         if (editingTemplate) {
-            updateScheduleTemplate(editingTemplate.id, { name, tasks });
+            updateScheduleTemplate(editingTemplate.id, templateData);
             toast({ title: '성공', description: '직책 템플릿이 수정되었습니다.' });
             setIsEditModalOpen(false);
         } else {
-            addScheduleTemplate(name, tasks);
+            addScheduleTemplate(templateData);
             toast({ title: '성공', description: `새 직책 '${name}'이(가) 생성되었습니다.` });
             setIsCreateModalOpen(false);
         }
@@ -107,6 +132,8 @@ export function AllRolesPanel() {
         }
 
         const csvData = data.scheduleTemplates.map(template => ({
+            day: template.day ?? 0,
+            category: template.category || '',
             name: template.name,
             tasks: (template.tasks || []).map(t => t.event).join(';')
         }));
@@ -131,14 +158,14 @@ export function AllRolesPanel() {
             header: true,
             skipEmptyLines: true,
             complete: async (results) => {
-                const requiredFields = ['name', 'tasks'];
+                const requiredFields = ['day', 'category', 'name', 'tasks'];
                 const headers = results.meta.fields || [];
                 if (!requiredFields.every(field => headers.includes(field))) {
-                    toast({ variant: 'destructive', title: 'CSV 형식 오류', description: 'CSV 파일에 name과 tasks 컬럼이 모두 필요합니다.' });
+                    toast({ variant: 'destructive', title: 'CSV 형식 오류', description: `CSV 파일에 ${requiredFields.join(', ')} 컬럼이 모두 필요합니다.` });
                     return;
                 }
                 
-                const templatesToImport = results.data as {name: string, tasks: string}[];
+                const templatesToImport = results.data as {day: string, category: string, name: string, tasks: string}[];
                 
                 try {
                     await importScheduleTemplates(templatesToImport);
@@ -180,34 +207,47 @@ export function AllRolesPanel() {
                 </CardHeader>
                 <CollapsibleContent>
                     <CardContent>
-                        <ScrollArea className="h-72">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {templates.length > 0 ? templates.map(template => (
-                                    <div key={template.id} className="p-4 border rounded-lg group relative">
-                                        <h4 className="font-bold text-md mb-2">{template.name}</h4>
-                                        <ul className="list-disc pl-5 text-sm space-y-1 text-muted-foreground">
-                                            {(template.tasks || []).map((task, index) => (
-                                                <li key={index}>{task.event}</li>
-                                            ))}
-                                            {(template.tasks || []).length === 0 && <li className="list-none text-gray-400">업무 없음</li>}
-                                        </ul>
-                                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditModal(template)}><Edit className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleOpenDeleteAlert(template)}><Trash2 className="h-4 w-4" /></Button>
-                                        </div>
-                                    </div>
-                                )) : (
-                                    <div className="col-span-full text-center text-muted-foreground py-10">
-                                        <p>생성된 직책 템플릿이 없습니다.</p>
-                                    </div>
-                                )}
-                            </div>
-                        </ScrollArea>
+                        <Accordion type="multiple" className="w-full" defaultValue={days.map(d => `day-${d}`)}>
+                            {days.map(dayIndex => (
+                                <AccordionItem key={dayIndex} value={`day-${dayIndex}`}>
+                                    <AccordionTrigger className='text-lg font-bold'>{dayIndex}일차</AccordionTrigger>
+                                    <AccordionContent>
+                                        <ScrollArea className="h-72 p-1">
+                                            {Object.keys(templatesByDayAndCategory[dayIndex] || {}).length > 0 ? Object.entries(templatesByDayAndCategory[dayIndex]).map(([categoryName, templates]) => (
+                                                <div key={categoryName} className='mb-4'>
+                                                    <h3 className='font-semibold text-md mb-2 text-primary'>{categoryName}</h3>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                        {templates.map(template => (
+                                                            <div key={template.id} className="p-4 border rounded-lg group relative">
+                                                                <h4 className="font-bold text-md mb-2">{template.name}</h4>
+                                                                <ul className="list-disc pl-5 text-sm space-y-1 text-muted-foreground">
+                                                                    {(template.tasks || []).map((task, index) => (
+                                                                        <li key={index}>{task.event}</li>
+                                                                    ))}
+                                                                    {(template.tasks || []).length === 0 && <li className="list-none text-gray-400">업무 없음</li>}
+                                                                </ul>
+                                                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditModal(template)}><Edit className="h-4 w-4" /></Button>
+                                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleOpenDeleteAlert(template)}><Trash2 className="h-4 w-4" /></Button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <div className="col-span-full text-center text-muted-foreground py-10">
+                                                    <p>이 날짜에 생성된 직책 템플릿이 없습니다.</p>
+                                                </div>
+                                            )}
+                                        </ScrollArea>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
                     </CardContent>
                 </CollapsibleContent>
             </Collapsible>
 
-            {/* Create/Edit Dialog */}
             <Dialog open={isCreateModalOpen || isEditModalOpen} onOpenChange={(isOpen) => {
                 if (!isOpen) {
                     setIsCreateModalOpen(false);
@@ -222,9 +262,26 @@ export function AllRolesPanel() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
+                        <div className='grid grid-cols-2 gap-4'>
+                            <div className="space-y-2">
+                                <Label htmlFor="role-day">날짜 (일차)</Label>
+                                <Select value={String(day)} onValueChange={(value) => setDay(Number(value))}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="날짜 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {days.map(d => <SelectItem key={d} value={String(d)}>{d}일차</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="role-category">하위 카테고리</Label>
+                                <Input id="role-category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="예: 무대팀 (선택사항)" />
+                            </div>
+                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="role-name">직책 이름</Label>
-                            <Input id="role-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 무대 보안팀" />
+                            <Input id="role-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 무대 보안" />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="task-name">업무 목록</Label>
@@ -263,7 +320,6 @@ export function AllRolesPanel() {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Alert */}
             <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
