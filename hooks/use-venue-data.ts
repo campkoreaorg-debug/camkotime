@@ -24,7 +24,7 @@ import { useSession } from './use-session';
 const VENUE_ID = 'main-venue';
 
 // timeSlots를 파일 상단으로 이동하여 안정성 확보
-export const timeSlots = (() => {
+export const timeSlots = (() => { 
   const slots = [];
   for (let h = 7; h < 24; h++) {
     slots.push(`${String(h).padStart(2, '0')}:00`);
@@ -519,8 +519,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
 
     const copyTimeSlotData = async (sourceSlot: { day: number, time: string }, destinationSlot: { day: number, time: string }) => {
         if (!firestore || !sessionId || sourceSlot.day !== destinationSlot.day) return;
-    
-        // 🚨 여기를 수정했습니다! 
+     
         const sessionRef = doc(firestore, 'sessions', sessionId); 
         const batch = writeBatch(firestore);
     
