@@ -14,6 +14,7 @@ import {
   arrayUnion,
   arrayRemove,
   getDoc,
+  collectionGroup,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, TimeSlotInfo } from '@/lib/types';
