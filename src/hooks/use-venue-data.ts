@@ -479,6 +479,42 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         await batch.commit();
     };
 
+    const copyTimeSlotData = async (sourceSlot: { day: number, time: string }, destinationSlot: { day: number, time: string }) => {
+        if (!firestore || !sessionId || sourceSlot.day !== destinationSlot.day) return;
+    
+        const sessionRef = doc(firestore, 'sessions', sessionId);
+        const batch = writeBatch(firestore);
+    
+        // 1. Delete existing data for the destination slot
+        const existingSchedulesQuery = query(collection(sessionRef, 'schedules'), where('day', '==', destinationSlot.day), where('time', '==', destinationSlot.time));
+        const existingMarkersQuery = query(collection(sessionRef, 'markers'), where('day', '==', destinationSlot.day), where('time', '==', destinationSlot.time));
+        
+        const [existingSchedulesSnap, existingMarkersSnap] = await Promise.all([getDocs(existingSchedulesQuery), getDocs(existingMarkersQuery)]);
+        
+        existingSchedulesSnap.forEach(doc => batch.delete(doc.ref));
+        existingMarkersSnap.forEach(doc => batch.delete(doc.ref));
+    
+        // 2. Copy data from source to destination
+        const sourceSchedulesQuery = query(collection(sessionRef, 'schedules'), where('day', '==', sourceSlot.day), where('time', '==', sourceSlot.time));
+        const sourceMarkersQuery = query(collection(sessionRef, 'markers'), where('day', '==', sourceSlot.day), where('time', '==', sourceSlot.time));
+        
+        const [sourceSchedulesSnap, sourceMarkersSnap] = await Promise.all([getDocs(sourceSchedulesQuery), getDocs(sourceMarkersQuery)]);
+        
+        sourceSchedulesSnap.forEach(d => {
+            const newId = `sch-${destinationSlot.day}-${destinationSlot.time.replace(':', '')}-${d.id.slice(-5)}`;
+            const newData = { ...d.data(), time: destinationSlot.time, id: newId };
+            batch.set(doc(sessionRef, 'schedules', newId), newData);
+        });
+    
+        sourceMarkersSnap.forEach(d => {
+            const newId = `marker-${destinationSlot.day}-${destinationSlot.time.replace(':', '')}-${d.id.slice(-5)}`;
+            const newData = { ...d.data(), time: destinationSlot.time, id: newId };
+            batch.set(doc(sessionRef, 'markers', newId), newData);
+        });
+    
+        await batch.commit();
+    };
+
 
   return {
     data: localData,
@@ -508,6 +544,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     updateScheduleTemplate,
     deleteScheduleTemplate,
     importScheduleTemplates,
+    copyTimeSlotData,
   };
 };
 

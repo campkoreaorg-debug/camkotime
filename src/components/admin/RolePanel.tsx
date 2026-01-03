@@ -1,13 +1,13 @@
-
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Plus, GripVertical, PlusCircle, Trash, Package, X, CheckCircle2, Circle, ListPlus } from 'lucide-react';
+import { Plus, GripVertical, PlusCircle, Trash, Package, X, CheckCircle2, Circle, ListPlus, Copy } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 
 import { Input } from '../ui/input';
 
@@ -20,6 +20,8 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ItemTypes } from './StaffPanel';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { timeSlots } from '@/hooks/use-venue-data';
 
 
 interface DraggableTaskBundleProps {
@@ -59,10 +61,13 @@ interface RolePanelProps {
 }
 
 function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePanelProps) {
-    const { data, addTasksToRole, removeTaskFromRole, updateScheduleStatus, addScheduleTemplatesToSlot } = useVenueData();
+    const { data, addTasksToRole, removeTaskFromRole, updateScheduleStatus, addScheduleTemplatesToSlot, copyTimeSlotData } = useVenueData();
     const { toast } = useToast();
 
     const [isTemplateSelectModalOpen, setIsTemplateSelectModalOpen] = useState(false);
+    const [isCopyTimeSlotModalOpen, setIsCopyTimeSlotModalOpen] = useState(false);
+    const [isConfirmCopyAlertOpen, setIsConfirmCopyAlertOpen] = useState(false);
+    const [sourceTime, setSourceTime] = useState<string | null>(null);
 
     const [manualTask, setManualTask] = useState('');
     
@@ -191,6 +196,32 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
         );
     }
 
+    const handleCopyDataClick = () => {
+        if (!sourceTime || !selectedSlot) {
+            toast({ variant: 'destructive', title: "원본 시간대를 선택해주세요." });
+            return;
+        }
+        setIsCopyTimeSlotModalOpen(false);
+        setIsConfirmCopyAlertOpen(true);
+    };
+    
+    const handleConfirmCopyData = async () => {
+        if (!sourceTime || !selectedSlot) return;
+        
+        await copyTimeSlotData(
+            { day: selectedSlot.day, time: sourceTime },
+            selectedSlot
+        );
+        
+        toast({
+            title: "데이터 복사 완료",
+            description: `${sourceTime}의 데이터가 현재 시간대(${selectedSlot.time})로 복사되었습니다.`
+        });
+        
+        setIsConfirmCopyAlertOpen(false);
+        setSourceTime(null);
+    };
+
     if (!selectedSlot) {
         return (
             <Card>
@@ -229,6 +260,7 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setIsCopyTimeSlotModalOpen(true)}><Copy className="mr-2 h-4 w-4"/>특정 시간대 불러오기</Button>
                     <Button variant="outline" onClick={openTemplateSelector}><ListPlus className="mr-2 h-4 w-4"/>이 시간대 필요 포지션 선택</Button>
                 </div>
             </CardHeader>
@@ -417,6 +449,47 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect }: RolePan
                 </DialogContent>
             </Dialog>
 
+            <Dialog open={isCopyTimeSlotModalOpen} onOpenChange={setIsCopyTimeSlotModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>특정 시간대 데이터 불러오기</DialogTitle>
+                        <DialogDescription>
+                            선택한 시간대의 모든 정보(스케줄, 지도 위치 등)를 현재 시간대({selectedSlot.time})로 복사합니다. 현재 시간대의 데이터는 덮어씌워집니다.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                         <Select onValueChange={setSourceTime}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="데이터를 가져올 시간대를 선택하세요..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {timeSlots.filter(t => t !== selectedSlot.time).map(time => (
+                                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
+                        <Button onClick={handleCopyDataClick} disabled={!sourceTime}>불러오기</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+             <AlertDialog open={isConfirmCopyAlertOpen} onOpenChange={setIsConfirmCopyAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>정말 데이터를 덮어쓰시겠습니까?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {sourceTime} 시간대의 데이터로 현재 {selectedSlot.time} 시간대의 모든 스케줄과 지도 정보를 덮어씁니다. 이 작업은 되돌릴 수 없습니다.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmCopyData} variant="destructive">확인 및 실행</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }
@@ -428,5 +501,3 @@ export function RolePanel(props: RolePanelProps) {
         </DndProvider>
     )
 }
-
-    
