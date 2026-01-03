@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRouter } from 'next/navigation';
@@ -90,12 +91,6 @@ export default function ViewerPage() {
                        (Day {selectedSlot.day} - {selectedSlot.time})
                    </span>
                 </h1>
-                {currentItinerary && (
-                    <div className="text-sm font-semibold text-primary flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full">
-                        <Info className="h-4 w-4" />
-                        <span>{currentItinerary}</span>
-                    </div>
-                )}
             </div>
               <Button variant="outline" onClick={handleLogout}>
                   <span className="flex items-center gap-2">
@@ -130,6 +125,12 @@ export default function ViewerPage() {
                   })}
                 </div>
             </Tabs>
+            {currentItinerary && (
+                <div className="text-center font-semibold text-primary flex items-center justify-center gap-2 bg-primary/10 px-4 py-3 rounded-lg">
+                    <Info className="h-5 w-5" />
+                    <span className='text-lg'>{currentItinerary}</span>
+                </div>
+            )}
             <div className="border rounded-xl shadow-sm bg-slate-50/50 overflow-hidden" style={{ minHeight: '600px' }}>
                 <VenueMap 
                       allMarkers={data.markers} 
