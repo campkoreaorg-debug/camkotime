@@ -1,29 +1,24 @@
-
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Plus, GripVertical, PlusCircle, Trash, Package, X, CheckCircle2, Circle, ListPlus, Copy, Info } from 'lucide-react';
-import { useVenueData } from '@/hooks/use-venue-data';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { GripVertical, PlusCircle, Trash, Package, X, CheckCircle2, Circle, ListPlus, Copy, Info } from 'lucide-react';
+import { useVenueData, timeSlots } from '@/hooks/use-venue-data'; // timeSlots import 경로 확인
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
-
 import { Input } from '../ui/input';
-
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
 import { Role, ScheduleTemplate } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
-import { useDrop, useDrag, DndProvider } from 'react-dnd';
+import { useDrag, DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ItemTypes } from './StaffPanel';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { timeSlots } from '@/hooks/use-venue-data';
-
 
 interface DraggableTaskBundleProps {
     role: Role;
@@ -325,6 +320,8 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect, itinerary
                                             <X className="h-4 w-4"/>
                                         </Button>
                                     </div>
+                                    
+                                    {/* 🟢 수정됨: 엔터키 및 클릭 시 새로고침 방지 */}
                                     <div className="flex gap-2 items-center">
                                         <Input 
                                             placeholder="새 업무 추가 (Enter로 등록)" 
@@ -332,15 +329,26 @@ function RolePanelInternal({ selectedSlot, selectedRole, onRoleSelect, itinerary
                                             onChange={(e) => setManualTask(e.target.value)}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
-                                                    e.preventDefault();
+                                                    e.preventDefault(); // 1차 방어
+                                                    e.stopPropagation(); // 2차 방어
                                                     handleAddTask();
                                                 }
                                             }}
                                         />
-                                        <Button size="icon" variant="ghost" onClick={handleAddTask}>
-                                            <PlusCircle className="h-5 w-5" />
-                                        </Button>
+                                        {/* 🟢 수정됨: Button 대신 div 사용 */}
+                                        <div
+                                            role="button"
+                                            className="h-9 w-9 shrink-0 flex items-center justify-center rounded-md hover:bg-muted cursor-pointer transition-colors"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleAddTask();
+                                            }}
+                                        >
+                                            <PlusCircle className="h-5 w-5 text-primary" />
+                                        </div>
                                     </div>
+
                                     <ScrollArea className="flex-grow pr-2">
                                         {selectedRole.tasks && selectedRole.tasks.length > 0 ? (
                                             <div className="space-y-1">

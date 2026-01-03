@@ -18,7 +18,7 @@ import {
   collectionGroup,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, Session, TimeSlotInfo } from '@/lib/types';
+import type { VenueData, StaffMember, ScheduleItem, MapMarker, MapInfo, Role, ScheduleTemplate, TimeSlotInfo } from '@/lib/types';
 import { initialData } from '@/lib/data';
 import { useCallback, useState, useEffect } from 'react';
 import { useSession } from './use-session';
@@ -55,40 +55,8 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   const { data: scheduleTemplates, isLoading: templatesLoading } = useCollection<ScheduleTemplate>(scheduleTemplatesColRef);
   const { data: timeSlotInfos, isLoading: timeSlotInfosLoading } = useCollection<TimeSlotInfo>(timeSlotInfoColRef);
   
-  const [allRoles, setAllRoles] = useState<Role[]>([]);
-  const [allRolesLoading, setAllRolesLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAllRoles = async () => {
-        if (!firestore || !user) return;
-        
-        setAllRolesLoading(true);
-        const rolesData: Role[] = [];
-        
-        try {
-            const q = query(
-                collection(firestore, 'sessions'), 
-                where('ownerId', '==', user.uid)
-            );
-            const sessionsSnapshot = await getDocs(q);
-            
-            for (const sessionDoc of sessionsSnapshot.docs) {
-                const rolesSnapshot = await getDocs(collection(firestore, 'sessions', sessionDoc.id, 'roles'));
-                rolesSnapshot.forEach(roleDoc => {
-                    const sessionData = sessionDoc.data();
-                    const day = sessionData.day !== undefined ? sessionData.day : 0;
-                    rolesData.push({ ...roleDoc.data(), day } as Role);
-                });
-            }
-            setAllRoles(rolesData);
-        } catch (error) {
-            console.error("Failed to fetch roles:", error);
-        } finally {
-            setAllRolesLoading(false);
-        }
-    };
-    fetchAllRoles();
-  }, [firestore, roles, user]);
+  const allRolesColRef = useMemoFirebase(() => (firestore ? collectionGroup(firestore, 'roles') : null), [firestore]);
+  const { data: allRoles, isLoading: allRolesLoading } = useCollection<Role>(allRolesColRef);
 
 
   useEffect(() => {
@@ -112,15 +80,10 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         return (b.tasks?.length || 0) - (a.tasks?.length || 0);
       });
       
-      const sessionRoles = allRoles?.map(role => {
-        return role; 
-      }) || [];
-
-
       setLocalData({
         staff: (staff || []).sort((a,b) => a.id.localeCompare(b.id)),
         roles: sortedRoles,
-        allRoles: allRoles,
+        allRoles: allRoles || [],
         schedule: (schedule || []).sort((a,b) => `${a.day}-${a.time}`.localeCompare(`${b.day}-${b.time}`)),
         markers: markers || [],
         maps: maps || [],
@@ -333,26 +296,10 @@ export const useVenueData = (overrideSessionId?: string | null) => {
   }
   
   const addTasksToRole = (roleId: string, tasks: { event: string; location?: string }[]) => {
-      if (!firestore || !sessionId || !localData) return;
+      if (!firestore || !sessionId) return;
       
-      // Firestore update
       updateDoc(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
           tasks: arrayUnion(...tasks)
-      });
-  
-      // Optimistic local update
-      setLocalData(prevData => {
-          if (!prevData) return null;
-          const newRoles = prevData.roles.map(role => {
-              if (role.id === roleId) {
-                  const newTasks = [...(role.tasks || []), ...tasks];
-                  // Basic duplicate removal
-                  const uniqueTasks = Array.from(new Map(newTasks.map(item => [item.event, item])).values());
-                  return { ...role, tasks: uniqueTasks };
-              }
-              return role;
-          });
-          return { ...prevData, roles: newRoles };
       });
   };
 
@@ -399,7 +346,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         const mapImageUrl = await getDownloadURL(snapshot.ref);
 
         if (mapImageUrl) {
-            await setDoc(doc(firestore, 'sessions', sessionId, 'maps', mapId), { day, time, mapImageUrl }, { merge: true });
+            await setDoc(doc(firestore, 'sessions', sessionId, 'maps', mapId), { id: mapId, day, time, mapImageUrl }, { merge: true });
             return mapImageUrl;
         }
     } catch(e) {
@@ -494,6 +441,14 @@ export const useVenueData = (overrideSessionId?: string | null) => {
         if (!firestore || !sessionId) return;
         deleteDoc(doc(firestore, 'sessions', sessionId, 'scheduleTemplates', templateId));
     }
+    
+    const deleteAllScheduleTemplates = async () => {
+        if (!firestore || !scheduleTemplatesColRef) return;
+        const batch = writeBatch(firestore);
+        const snapshot = await getDocs(scheduleTemplatesColRef);
+        snapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+    };
 
     const importScheduleTemplates = async (templates: {day: string, category: string, name: string, tasks: string}[]) => {
         if (!firestore || !sessionId) return;
@@ -584,6 +539,7 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     addScheduleTemplate,
     updateScheduleTemplate,
     deleteScheduleTemplate,
+    deleteAllScheduleTemplates,
     importScheduleTemplates,
     copyTimeSlotData,
     updateTimeSlotItinerary,

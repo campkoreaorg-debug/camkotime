@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from 'react';
-import { Plus, Trash2, Edit, Download, Upload, ChevronsUpDown } from 'lucide-react';
+import { Plus, Trash2, Edit, Download, Upload, ChevronsUpDown, ShieldAlert } from 'lucide-react';
 import { useVenueData } from '@/hooks/use-venue-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
@@ -21,13 +21,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 const days = [0, 1, 2, 3];
 
 export function AllRolesPanel() {
-    const { data, addScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate, importScheduleTemplates } = useVenueData();
+    const { data, addScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate, importScheduleTemplates, deleteAllScheduleTemplates } = useVenueData();
     const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+    const [isDeleteAllAlertOpen, setIsDeleteAllAlertOpen] = useState(false);
     const [isCollapsibleOpen, setIsCollapsibleOpen] = useState(true);
 
     const [editingTemplate, setEditingTemplate] = useState<ScheduleTemplate | null>(null);
@@ -125,6 +126,12 @@ export function AllRolesPanel() {
         setTemplateToDelete(null);
     };
     
+    const handleDeleteAllTemplates = () => {
+        deleteAllScheduleTemplates();
+        toast({ title: '초기화 완료', description: '모든 직책 템플릿이 삭제되었습니다.' });
+        setIsDeleteAllAlertOpen(false);
+    };
+
     const handleDownload = () => {
         if (!data?.scheduleTemplates || data.scheduleTemplates.length === 0) {
             toast({ variant: 'destructive', title: '데이터 없음', description: '다운로드할 직책 템플릿이 없습니다.'});
@@ -194,9 +201,10 @@ export function AllRolesPanel() {
                     </div>
                     <div className="flex items-center gap-2">
                         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".csv" />
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>엑셀 업로드</Button>
-                        <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />엑셀 다운로드</Button>
-                        <Button variant="outline" onClick={handleOpenCreateModal}><Plus className="mr-2 h-4 w-4" />직책 생성</Button>
+                        <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/>엑셀 업로드</Button>
+                        <Button variant="outline" size="sm" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />엑셀 다운로드</Button>
+                        <Button variant="outline" size="sm" onClick={handleOpenCreateModal}><Plus className="mr-2 h-4 w-4" />직책 생성</Button>
+                        <Button variant="destructive" size="sm" onClick={() => setIsDeleteAllAlertOpen(true)}><ShieldAlert className="mr-2 h-4 w-4" />전체 초기화</Button>
                         <CollapsibleTrigger asChild>
                             <Button variant="ghost" size="icon">
                                 <ChevronsUpDown className="h-4 w-4" />
@@ -331,6 +339,21 @@ export function AllRolesPanel() {
                     <AlertDialogFooter>
                         <AlertDialogCancel>취소</AlertDialogCancel>
                         <AlertDialogAction onClick={handleDeleteTemplate} variant="destructive">삭제</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            
+            <AlertDialog open={isDeleteAllAlertOpen} onOpenChange={setIsDeleteAllAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>정말 모든 템플릿을 삭제하시겠습니까?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            모든 직책 템플릿이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteAllTemplates} variant="destructive">전체 삭제</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
