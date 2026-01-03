@@ -65,7 +65,8 @@ service cloud.firestore {
 
     // Roles collection group query access
     match /roles/{roleId} {
-        allow read: if isSessionOwner(request.resource.data.sessionId);
+        // Read access is allowed if the user is the owner of the parent session document.
+        allow read: if request.auth != null && get(resource.__name__[0]).data.ownerId == request.auth.uid;
     }
     
     // ScheduleTemplates subcollection
