@@ -24,15 +24,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
 const days = [0, 1, 2, 3];
-export const timeSlots = (() => {
-  const slots = [];
-  for (let h = 7; h < 24; h++) {
-    slots.push(`${String(h).padStart(2, '0')}:00`);
-    slots.push(`${String(h).padStart(2, '0')}:30`);
-  }
-  slots.push('00:00');
-  return slots;
-})();
+import { timeSlots } from '@/hooks/use-venue-data'; // 🟢 이렇게 가져다 쓰세요
 
 export default function AdminPage() {
   const router = useRouter();

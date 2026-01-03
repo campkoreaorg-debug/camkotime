@@ -332,12 +332,29 @@ export const useVenueData = (overrideSessionId?: string | null) => {
     await batch.commit();
   }
   
-  const addTasksToRole = (roleId: string, tasks: ScheduleTemplate[]) => {
-    if(!firestore || !sessionId) return;
-    updateDoc(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
-        tasks: arrayUnion(...tasks.map(t => ({...t})))
-    });
-  }
+  const addTasksToRole = (roleId: string, tasks: { event: string; location?: string }[]) => {
+      if (!firestore || !sessionId || !localData) return;
+      
+      // Firestore update
+      updateDoc(doc(firestore, 'sessions', sessionId, 'roles', roleId), {
+          tasks: arrayUnion(...tasks)
+      });
+  
+      // Optimistic local update
+      setLocalData(prevData => {
+          if (!prevData) return null;
+          const newRoles = prevData.roles.map(role => {
+              if (role.id === roleId) {
+                  const newTasks = [...(role.tasks || []), ...tasks];
+                  // Basic duplicate removal
+                  const uniqueTasks = Array.from(new Map(newTasks.map(item => [item.event, item])).values());
+                  return { ...role, tasks: uniqueTasks };
+              }
+              return role;
+          });
+          return { ...prevData, roles: newRoles };
+      });
+  };
 
   const removeTaskFromRole = (roleId: string, task: ScheduleTemplate) => {
     if(!firestore || !sessionId) return;
